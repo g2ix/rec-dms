@@ -1,0 +1,56 @@
+---
+description: USC REC-DMS project conventions (always applied)
+alwaysApply: true
+---
+
+# USC REC-DMS — project rules
+
+You are building the USC Research Ethics Committee Document Management System (REC-DMS).
+The full design is in `docs/SPEC.md`. Read the sections named in each milestone prompt before coding.
+If the spec and a prompt disagree, stop and ask. Do not invent REC process rules.
+
+## Stack (do not change without asking)
+- Next.js 15 App Router, TypeScript strict, React Server Components + Server Actions
+- Tailwind CSS + shadcn/ui; React Hook Form + Zod
+- Auth.js v5 (next-auth@beta) + @auth/prisma-adapter
+- PostgreSQL 16 + Prisma ORM. No Supabase-specific features (no RLS auth, no supabase-js in business logic)
+- S3-compatible storage via @aws-sdk/client-s3 (MinIO locally)
+- docxtemplater + pizzip (+ image module) for DOCX; Gotenberg 8 for DOCX→PDF
+- Vitest for unit/integration tests, Playwright for E2E
+- pnpm as package manager
+
+## Architecture rules
+- Folder layout:
+  - `src/app/**` routes and UI only
+  - `src/server/**` all business logic (services), never imported by client components
+  - `src/server/db.ts` single Prisma client
+  - `src/lib/**` shared pure utilities and Zod schemas
+  - `src/components/**` UI components
+- Every mutation is a Server Action (or route handler) that:
+  1. gets the session user (`requireUser()`),
+  2. calls `authorize(user, action, resource)` from `src/server/authz`,
+  3. runs inside `prisma.$transaction`,
+  4. writes an audit event with `audit.record(tx, …)` in the same transaction.
+- Never trust the client's selected role. The role switcher only changes the view.
+- No REC-specific step, actor, deadline, or form field may be hard-coded in TypeScript.
+  They live in the database (workflow versions, form definitions, settings) and are seeded in M08.
+- Dates: store UTC; display in Asia/Manila. Use `date-fns` + `date-fns-tz`.
+- Money: integer centavos.
+- IDs: UUID (`@default(uuid())`).
+
+## Code quality
+- Small, typed functions. No `any`. Zod-validate every Server Action input.
+- Errors: throw typed `AppError` with a code; UI shows a friendly message.
+- Each milestone must leave `pnpm lint`, `pnpm typecheck`, `pnpm test` green.
+- Write tests for every service in `src/server/**`. Workflow engine and authz need high coverage.
+- Keep migrations additive; never edit an applied migration.
+- Update `docs/CHANGELOG.md` at the end of each milestone with what was built and any deviation from the spec.
+
+## UI
+- Accessible (labels, keyboard, focus states). Mobile-friendly; most proponents are students on phones.
+- Plain English labels matching REC form wording (e.g. "Researcher(s)/Proponent(s)").
+- Show the protocol code, title and version in the header of every protocol page.
+
+## When unsure
+Ask before: adding a dependency outside the stack, changing the schema of an earlier milestone in a breaking way,
+or making a decision the spec lists under "Open decisions".

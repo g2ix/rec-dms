@@ -1,0 +1,58 @@
+---
+description: USC REC-DMS UI, motion, loading and theming rules (always applied)
+alwaysApply: true
+---
+
+# UI rules — follow on every screen
+
+Read `docs/design/BRAND.md` before building any UI. Component specifics: `docs/design/components/*.md`.
+Reference CSS showing exact sizes, colors and motion for each component: `docs/design/reference-components.css`
+(port it to Tailwind + shadcn/ui; keep the values).
+
+## Tokens
+- Colors, spacing, radii, shadows, durations, easings, blur and sizes come ONLY from `src/styles/tokens.css`
+  (a copy of `docs/design/tokens.css`). Never hard-code a hex, px spacing, duration or easing in a component.
+- Tailwind maps to the CSS variables (e.g. `bg-surface`, `text-ink-muted`, `border-border-control`,
+  `rounded-md` = `--radius-md`, `duration-base`, `ease-spring`). shadcn/ui theme variables are re-pointed to these tokens.
+- `primary` (#007A3A light / #34C77B dark) is the single action color. Logo colors `brand-*` are decoration only, never text.
+- Status = color + icon + word, mapped as in BRAND.md "Status mapping". Never color alone.
+- Focus: 2px solid `--focus` ring, 2px offset, on everything focusable.
+
+## Type
+- `next/font/google`: Public Sans (400/500/600) as `--font-sans`, Source Serif 4 (600) as `--font-serif`,
+  JetBrains Mono (500) as `--font-mono`. Serif ONLY for page titles. Mono for protocol codes, form codes, versions.
+- Use the type utilities from tokens: `title`, `heading`, `subheading`, `body`, `body-sm`, `label`, `caption`, `code`.
+
+## Layout
+- Vertical sidebar first (`--sidebar-width` 264px, rail `--sidebar-rail` 72px, collapsible, remembered per user;
+  drawer under 1024px). Top bar 56px: breadcrumb, search (staff/chairs), notifications, theme switch.
+- Content max 1120px; forms 760px, left-aligned. Cards: border + `radius-md`, no shadow. Shadows only on floating UI.
+- Phones: assessment tables become stacked cards; touch targets ≥ 44px.
+
+## Motion (use the `motion` package only for layout animations; CSS for the rest)
+- Button: hover color `dur-fast`; press `scale(0.97)` in `dur-instant`; release `ease-spring` over `dur-base`.
+- Toggle: thumb moves with `ease-spring` over `dur-base`, stretches 4px while pressed.
+- Checkbox: tick draws in over `dur-fast`; box bounces to 1.08 with `ease-spring`.
+- Tabs / segmented: sliding indicator with `ease-spring`.
+- Sidebar collapse: width over `dur-slow` with `ease-out-soft`; labels fade; active marker slides (motion `layoutId`).
+- Menus/popovers: fade + 4px rise, `dur-base`, `ease-out-soft`. Page content: fade + 8px rise on navigation, `dur-slow`.
+- Respect `prefers-reduced-motion`: replace movement and springs with 120ms opacity fades.
+
+## Loading — NO SPINNERS, ever
+- First load: render the real layout with placeholder bars (`rec-bar` look) inside a wrapper blurred with `--blur-loading`;
+  when data arrives, sharpen over `dur-reveal`. Every route has a `loading.tsx` doing this. No layout shift.
+- Refresh/pending (`useTransition`, filters, pagination): keep content, blur `--blur-stale`, opacity 0.7, no pointer events.
+- Busy buttons: `aria-busy="true"`, keep width, label in -ing form ("Submitting…"), 2px sweep along the bottom.
+- Long jobs: inline progress row with a determinate bar when progress is known.
+- Build one `<BlurLoad state="loading|ready|stale">` component and one `<BusyButton>`; use them everywhere.
+
+## Theming
+- Light, Dark, System (default). Choice in a cookie `theme`; root layout reads it on the server and sets
+  `data-theme` on `<html>` (System → a tiny inline script resolves `prefers-color-scheme` before paint and listens for changes).
+- Switching crossfades colors over `dur-base`. Every token has both theme values; check contrast in both.
+- Uploaded documents and signature images sit on a white plate in dark mode.
+
+## Never
+Purple/blue-purple gradients, glassmorphism, glow, emoji or sparkle icons, greeting banners, centered hero sections in the app,
+drop-shadow cards everywhere, colored left-border cards, filler stat tiles, lorem ipsum, Inter/Roboto, spinners, bouncing dots,
+shimmer sweeps across skeletons, toasts for inline feedback.

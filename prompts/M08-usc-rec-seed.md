@@ -1,0 +1,50 @@
+# M08 — USC REC seed: forms, workflows, panels, settings
+
+Read first: `docs/SPEC.md` → "Current USC REC process" (all), "Configurable workflow engine" (Seed workflow), "Milestone plan and open decisions". Source documents in `docs/forms/` (Updated_USC_REC_Forms.pdf, the Guide to USC REC Forms, F-35/F-36 guides, General Flow Chart of REC Procedures).
+
+Before coding, list any field or step you are unsure about and ask. Use the REC wording exactly for labels and assessment points; do not paraphrase.
+
+UI: the reviewer assessment view must match the "Reviewer: F-35 assessment" screen in the REC-DMS key screens canvas; on phones, assessment tables render as stacked cards like the "Phone" screen.
+
+## Goal
+The system runs the real USC REC Initial Submission and Resubmission processes, with all 12 phase-1 forms, entirely from seed data that admins can edit afterwards.
+
+## Tasks
+1. Seed files under `prisma/seed/usc-rec/`, one per form, as JSON schemas (M04 format), version `09-00`, effective date 2025-08-01:
+   - **F-26 Document Receipt Form**: submission type (radio, from the form's list), mandatory documents checklist items 1–15 as an assessmentTable with Yes/No/NA filled by REC_STAFF; system pre-fills suggestions from uploads/fee status; remarks; received by + date (staff signature).
+   - **F-27 Research Protocol Application Form**: application details (bound shared fields), research type (checkboxes incl. "Others: specify"), duration, participants, study site, source of funds (checkboxes with amounts/names), the 6 declarations (declaration fields, all required), conflict of interest (radio + requiredIf details), signatures of all proponents (repeating signature bound to proponent roster).
+   - **F-28 Data Privacy Consent Form**: staticText of the policy (from the PDF), two consent declarations, names + signatures + dates of all proponents.
+   - **F-29 Capsule Proposal**: Introduction items 1–5, Operational Definitions, Methodology items 1–13, Data Analysis Plan, Ethical Considerations — each a textarea with the form's instruction as help and `naAllowedWithReason`; researcher table (name, designation/course & year & institution, email, signature, CV appendix no.); adviser verification block (signature, name, designation, unit, institution, email, appendix no.) filled by ADVISER.
+   - **F-30 Detailed Budget Sheet**: repeatingTable lines grouped by PS / MOOE (with Ethics Review Fee) / Capital Outlay / Administrative Cost, columns Personal / External / Internal / Total (computed), sub-totals and grand total computed; external source name.
+   - **F-31 Form on Determining the Type of Review**: submission type, risk level, exempt yes/no, review type (Expedited/Full) requiredIf not exempt, justification, designated reviewers (Scientist, Non-Scientist), accomplished by signature. Filler: the role set on the workflow step.
+   - **F-35 Protocol Review Assessment Form**: assessmentTable with all points 1.01–3.10 + "other concerns" exactly as in the PDF; columns: page & paragraph (PROPONENT, editable only in the proponent start step), assessment Yes/No/Unable to assess, detailed comments, specific recommendations (PRIMARY_REVIEWER/IC); recommended action radio (Approved / Minor / Major / Disapproved) + justification + reviewer signature. `perAssignee: true` in the workflow.
+   - **F-36 ICF Assessment Checklist**: same pattern, points 1.1–1.18 + questions 2–4, from the PDF.
+   - **F-37 Summary of Reviewers' Comments**: header (type of review, reviewed by Panel Chair, date), PRAF section and ICF section each with consolidated comments/recommendations per point, recommended action, justification. On step enter, pre-fill from all reviewers' F-35/F-36 side by side for the consolidator to edit.
+   - **F-38 Summary of Actions Taken**: same points; columns panel comments (pre-filled from F-37, read-only), actions taken + page/paragraph (PROPONENT), panel remarks (REVIEWER); accomplished by researcher, reviewed by adviser (ADVISER signature), recommended action.
+   - **F-39 Notification of REC Decision**: date of review, type of review, type of submission, documents under review with version numbers (pre-filled), decision, conditional instructions text per decision (from the PDF; submission deadline computed = decision date + 30 working days), justification copied from F-37 if disapproved, Panel Chair signature.
+   - **F-41 Checklist for Exemption from Ethical Review**: criteria 1.1.x from the PDF (YES/NO + comments), recommended action Qualified / Not Qualified, summary of recommendations, justification, Panel Chair signature.
+2. Workflow seed `INITIAL_SUBMISSION` v1 following the SPEC seed workflow and the flowchart deadlines:
+   - `proponent_submit` (TASK, PROTOCOL_LEADER; forms F-27, F-28, F-29, F-30, F-35 [page/para only], F-36 [page/para only]; uploads MANUSCRIPT, COVER_LETTER, FEE_RECEIPT)
+   - `staff_screening` (TASK, ROLE REC_STAFF, 2 calendar days; form F-26; outcomes ACCEPT / RETURN_INCOMPLETE → back to `proponent_submit`; fee verification required for ACCEPT)
+   - `assign_code` (AUTO ASSIGN_PROTOCOL_CODE + SNAPSHOT_VERSION)
+   - `determine_review` (DECISION, PANEL_ROLE_OF_PROTOCOL PANEL_CHAIR, 2 days; form F-31; outcomes EXEMPT / EXPEDITED / FULL; setFields reviewType; assignReviewers for EXPEDITED/FULL roles PRIMARY_REVIEWER, INDEPENDENT_CONSULTANT, min 2 max 2)
+   - Exempt branch: `exemption_check` (Panel Chair, 2 d, F-41, outcomes QUALIFIED / NOT_QUALIFIED → NOT_QUALIFIED returns to `determine_review`), `staff_release_exempt` (REC_STAFF, 5 d), `end_exempted`.
+   - Expedited: `reviewer_ack` (PARALLEL_TASK ASSIGNED_IN_STEP determine_review, 48 h), `reviewer_assess` (PARALLEL_TASK, 14 d, F-35 + F-36 perAssignee FILL+SIGN; cc REC_STAFF on completion), `chair_consolidate` (DECISION Panel Chair, 3 d, F-37; outcomes APPROVED / MINOR / MAJOR / DISAPPROVED), `staff_release` (REC_STAFF, 5 d, F-39 prepared; Panel Chair signs F-39 via a SIGNATURE step `chair_sign_decision` before release).
+   - Full: `reviewer_ack`, `reviewer_assess`, `meeting_outcome` (TASK REC_STAFF, records meeting date + consensus), `reviewer_finalize` (2 d, F-37), `member_secretary_review` (ROLE MEMBER_SECRETARY, 3 d), `chair_finalize` (DECISION, 3 d), `chair_sign_decision`, `staff_release` (3 d).
+   - Decision routing after release: APPROVED → `proponent_conform` (PROTOCOL_LEADER acknowledges) → `end_approved`; MINOR/MAJOR → `await_revision` (WAIT_PROPONENT 30 WORKING_DAYS; on overdue → `end_lapsed`; proponent action START_WORKFLOW `RESUBMISSION`) ; DISAPPROVED → `end_disapproved`.
+   - Protocol status labels per step as in SPEC "Statuses".
+3. Workflow seed `RESUBMISSION` v1: `proponent_revise` (leader; new protocol version; upload revised MANUSCRIPT; F-38 actions taken; F-35/F-36 page/para), `adviser_review` (PROTOCOL_ADVISER signs F-38), `staff_screening` (2 d), `reviewer_assess` (same reviewers; F-38 remarks; 14 d), `chair_consolidate` (DECISION), `chair_sign_decision`, `staff_release`, then the same decision routing (another revision starts another RESUBMISSION instance chained by `parentInstanceId`).
+4. Extension requests: proponent "Request extension" on `await_revision` → task for Panel Chair (approve with new due date / deny). Model it as a step-level side task the engine supports (add support if missing; test it).
+5. Settings seed: protocol code pattern `USC-REC-{YYYY}-{####}` (sequence per year, editable), revision days 30 working days, auto-approve domains, max upload size, panel ↔ discipline mapping, REC contact info for templates.
+6. Disciplines seed per panel from the Guide (Panel 1 Management, Education, Political Science, Law, Economics, Accountancy; Panel 2 Engineering, Architecture, Fine Arts, Psychology, SoAn, other social sciences; Panel 3 Natural Sciences, Health Sciences).
+7. Demo seed (only when `SEED_DEMO=true`): one user per role, two sample protocols (one expedited, one full) for E2E tests.
+8. Playwright E2E: full expedited cycle with Minor Modifications → resubmission → Approved, using the demo users.
+
+## Acceptance criteria
+- A fresh database + `pnpm db:seed` runs both workflows end to end in the E2E test.
+- Every assessment point text matches the PDF (add a test that compares point codes 1.01–3.10 and 1.1–1.18 counts).
+- Changing `determine_review` assignee from Panel Chair to REC Chair in the builder and publishing v2 works without code changes.
+- Field `page & paragraph` in F-35 is editable by proponents only at `proponent_submit` / `proponent_revise`.
+
+## Ask before
+- Any assumption about who acts at a step where the flowcharts say "REC Chair" and the forms say "Panel Chair" — default to Panel Chair as written in the forms, and list them in `docs/CHANGELOG.md` under "To confirm with REC".
