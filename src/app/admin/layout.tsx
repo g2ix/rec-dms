@@ -6,8 +6,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const pathname = headerList.get("x-rec-pathname") ?? "";
   const pageTitle = pathname.startsWith("/admin/audit")
     ? "Audit log"
-    : pathname.startsWith("/admin/users/pending")
-      ? "Pending users"
-      : "Users";
+    : pathname.includes("/try")
+      ? "Try form"
+      : pathname.startsWith("/admin/forms/new")
+        ? "New form"
+        : pathname.startsWith("/admin/forms/")
+          ? "Edit form"
+          : pathname.startsWith("/admin/forms")
+            ? "Forms"
+            : pathname.startsWith("/admin/users/pending")
+              ? "Pending users"
+              : "Users";
   return <SignedInChrome pageTitle={pageTitle}>{children}</SignedInChrome>;
 }

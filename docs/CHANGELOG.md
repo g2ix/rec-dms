@@ -1,5 +1,19 @@
 # Changelog
 
+## M04 — Form engine (2026-11-05)
+
+Forms are data. An admin writes a schema, sees it render beside the JSON, publishes it, and fills a sandbox copy. Each field save checks who may edit it at the current step, validates the value, recalculates computed fields, and appends `form.field_saved` to the audit chain. A stale revision returns the value now stored and who wrote it.
+
+The sample form covers a short title, a yes/no/not-applicable question that asks for a reason, a budget table with a computed total, and an assessment table whose Proponent and Reviewer columns belong to different roles.
+
+### Deviation from the spec and the M04 prompt
+
+- M02's `authorize` is not in the tree yet. `src/server/authz/index.ts` allows `forms.view`, `forms.edit`, and `forms.fill` for bootstrap administrators. M02 should switch that check to the `forms.edit` permission.
+- A sandbox copy stores `preview_roles` and `preview_step` on the instance. The try page sets them with an authorized action, and each save reads them back, so the browser cannot choose a role on the save itself. Protocol copies ignore those columns.
+- `FormInstance` uses `owner_type` and `owner_id` so a sandbox has an owner before protocol versions exist. `PROTOCOL_VERSION` is the owner type submissions will use.
+- Rich text is a plain text area. Signature and file reference are read-only notes until signing and uploads land. Amounts are stored as integer centavos and typed in pesos.
+- `@monaco-editor/react` and `json-logic-js` were added because this milestone asks for a Monaco JSON editor and JSONLogic conditions.
+
 ## M03 — Audit trail (2026-11-05)
 
 Meaningful actions are appended to `audit_events` in the same transaction as the change. Each row stores the previous row's hash. `pg_advisory_xact_lock` keeps `seq` and the hash chain in one order. `pnpm audit:verify` and `GET /api/internal/audit/verify` report the first broken sequence. A trigger rejects `UPDATE` and `DELETE`. `/admin/audit` filters the log, exports CSV, and shows whether the chain still verifies. `<AuditTimeline protocolId>` is the protocol activity list, with a simplified mode that hides IP, user agent, and account, role, and settings actions.

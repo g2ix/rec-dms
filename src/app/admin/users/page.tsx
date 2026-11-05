@@ -42,6 +42,8 @@ export default async function AdminUsersPage({
       <p className="body-sm">
         <Link href="/admin/users/pending">Pending approval</Link>
         {" · "}
+        <Link href="/admin/forms">Forms</Link>
+        {" · "}
         <Link href="/admin/audit">Audit log</Link>
       </p>
       {query.merged ? <p className="rec-banner">The accounts were merged. The second account can no longer sign in.</p> : null}

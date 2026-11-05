@@ -89,6 +89,8 @@ model User {
   mergeSessionsSecondary MergeSession[]   @relation("MergeSecondary")
   mergeSessionsCreated   MergeSession[]   @relation("MergeCreator")
   auditEvents            AuditEvent[]
+  formDefinitions        FormDefinition[]
+  formFieldRevisions     FormFieldRevision[]
 
   @@index([status])
   @@index([mergedIntoId])
@@ -283,9 +285,10 @@ model ProtocolMember {
   createdAt      DateTime            @default(now()) @map("created_at")
   updatedAt      DateTime            @updatedAt @map("updated_at")
 
-  protocol     Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id])
-  contactEmail UserEmail @relation(fields: [contactEmailId], references: [id])
+  protocol      Protocol       @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id])
+  contactEmail  UserEmail      @relation(fields: [contactEmailId], references: [id])
+  formInstances FormInstance[]
 
   @@unique([protocolId, userId])
   @@index([userId])
@@ -361,4 +364,90 @@ model AuditEvent {
   @@index([actorUserId])
   @@index([occurredAt])
   @@map("audit_events")
+}
+
+enum FormDefinitionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum FormInstanceOwnerType {
+  PROTOCOL_VERSION
+  SANDBOX
+}
+
+enum FormInstanceStatus {
+  DRAFT
+  COMPLETE
+  LOCKED
+}
+
+/// Versioned form schema. The .docx template is attached in M10.
+model FormDefinition {
+  id             String               @id @default(uuid())
+  code           String
+  title          String
+  version        String
+  effectiveDate  DateTime             @map("effective_date") @db.Date
+  status         FormDefinitionStatus @default(DRAFT)
+  schema         Json
+  templateFileId String?              @map("template_file_id")
+  placeholderMap Json?                @map("placeholder_map")
+  createdById    String               @map("created_by_id")
+  publishedAt    DateTime?            @map("published_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  createdBy User           @relation(fields: [createdById], references: [id])
+  instances FormInstance[]
+
+  @@unique([code, version])
+  @@index([status])
+  @@map("form_definitions")
+}
+
+/// One filled copy. Sandbox copies are the admin try-out; protocol copies arrive with submissions.
+model FormInstance {
+  id               String                @id @default(uuid())
+  formDefinitionId String                @map("form_definition_id")
+  ownerType        FormInstanceOwnerType @map("owner_type")
+  ownerId          String                @map("owner_id")
+  filledByMemberId String?               @map("filled_by_member_id")
+  data             Json                  @default("{}")
+  status           FormInstanceStatus    @default(DRAFT)
+  revision         Int                   @default(0)
+  /// Sandbox only. The try page stores the simulated role here so a save cannot pick its own role.
+  previewRoles     String[]              @default([]) @map("preview_roles")
+  previewStep      String?               @map("preview_step")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  formDefinition FormDefinition      @relation(fields: [formDefinitionId], references: [id])
+  filledByMember ProtocolMember?     @relation(fields: [filledByMemberId], references: [id])
+  revisions      FormFieldRevision[]
+
+  @@index([formDefinitionId])
+  @@index([ownerType, ownerId])
+  @@map("form_instances")
+}
+
+/// One row per field save. Feeds the conflict notice and the audit diff.
+model FormFieldRevision {
+  id             String   @id @default(uuid())
+  formInstanceId String   @map("form_instance_id")
+  fieldPath      String   @map("field_path")
+  value          Json
+  userId         String   @map("user_id")
+  revision       Int
+  at             DateTime @default(now())
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  formInstance FormInstance @relation(fields: [formInstanceId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([formInstanceId, fieldPath])
+  @@index([formInstanceId, revision])
+  @@map("form_field_revisions")
 }

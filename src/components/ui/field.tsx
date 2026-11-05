@@ -14,6 +14,7 @@ export function Field({
   locked = false,
   lockedHref = "/app",
   htmlFor,
+  labelId,
   children,
 }: {
   label: string;
@@ -25,6 +26,7 @@ export function Field({
   locked?: boolean;
   lockedHref?: string;
   htmlFor?: string;
+  labelId?: string;
   children: React.ReactNode;
 }) {
   const saveText =
@@ -38,7 +40,7 @@ export function Field({
 
   return (
     <div className={cn("rec-field", error && "rec-field--error")}>
-      <label className="rec-field__label" htmlFor={htmlFor}>
+      <label className="rec-field__label" htmlFor={htmlFor} id={labelId}>
         {label}
         {optional ? <span className="rec-field__optional"> (optional)</span> : null}
       </label>

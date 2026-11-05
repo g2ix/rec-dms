@@ -18,6 +18,14 @@ export const AuditAction = {
   roleRevoked: "user.role_revoked",
   permissionChanged: "role.permission_changed",
   settingChanged: "setting.changed",
+  fieldSaved: "form.field_saved",
+  definitionCreated: "form.definition_created",
+  definitionUpdated: "form.definition_updated",
+  definitionPublished: "form.definition_published",
+  definitionRetired: "form.definition_retired",
+  versionCreated: "form.version_created",
+  markedComplete: "form.marked_complete",
+  reopened: "form.reopened",
 } as const;
 
 const LABELS: Record<string, string> = {
@@ -40,6 +48,14 @@ const LABELS: Record<string, string> = {
   [AuditAction.roleRevoked]: "Role revoked",
   [AuditAction.permissionChanged]: "Role permissions changed",
   [AuditAction.settingChanged]: "Setting changed",
+  [AuditAction.fieldSaved]: "Form field saved",
+  [AuditAction.definitionCreated]: "Form definition created",
+  [AuditAction.definitionUpdated]: "Form definition updated",
+  [AuditAction.definitionPublished]: "Form definition published",
+  [AuditAction.definitionRetired]: "Form definition retired",
+  [AuditAction.versionCreated]: "Form version created",
+  [AuditAction.markedComplete]: "Form marked complete",
+  [AuditAction.reopened]: "Form reopened",
 };
 
 const INTERNAL_PREFIXES = ["auth.", "user.", "role.", "setting."];

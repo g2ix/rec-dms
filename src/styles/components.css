@@ -826,6 +826,56 @@ html.theme-fade * {
   .rec-nav a, .rec-user, .rec-role { height: 44px; }
 }
 
+/* ---------- form engine ---------- */
+.rec-builder {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .rec-builder { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.rec-editor {
+  height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+.rec-issues {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+  color: var(--danger);
+}
+.rec-field--wide { max-width: none; }
+.rec-form-section { display: grid; gap: var(--space-4); }
+.rec-choice { display: grid; gap: var(--space-2); }
+.rec-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.rec-cell--locked { background: var(--surface-sunken); }
+.rec-assess th[scope="row"] { text-align: left; font-weight: 500; }
+.rec-assess th[scope="row"] .rec-field__help { display: block; }
+.rec-assess__label { display: none; }
+.rec-form--print .rec-save,
+.rec-form--print .rec-row-actions { display: none; }
+@media (max-width: 719px) {
+  .rec-assess thead { display: none; }
+  .rec-assess,
+  .rec-assess tbody,
+  .rec-assess tr,
+  .rec-assess th,
+  .rec-assess td { display: block; width: 100%; }
+  .rec-assess tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+  }
+  .rec-assess td,
+  .rec-assess th { border-bottom: 0; }
+  .rec-assess__label { display: block; margin-bottom: var(--space-1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 120ms !important;

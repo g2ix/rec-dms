@@ -55,7 +55,7 @@ const staffItems: NavItem[] = [
 const chairItems: NavItem[] = [
   ...staffItems,
   { href: "/app/workflows", label: "Workflows", icon: Workflow },
-  { href: "/app/forms", label: "Forms", icon: FileText },
+  { href: "/admin/forms", label: "Forms", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ];
@@ -118,7 +118,7 @@ const LEDES: Record<string, string> = {
   "/app/users": "Accounts and memberships will be listed here.",
   "/app/reports": "Committee reports will be listed here.",
   "/app/workflows": "Workflow versions will be listed here.",
-  "/app/forms": "Form definitions will be listed here.",
+  "/admin/forms": "Form definitions, versions, and the sandbox.",
   "/app/settings": "Committee settings will be edited here.",
   "/admin/audit": "Recorded actions and the hash chain.",
 };
