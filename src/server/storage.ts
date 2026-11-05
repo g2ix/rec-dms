@@ -43,6 +43,18 @@ export async function putObject(
   );
 }
 
+export async function getObjectBytes(key: string): Promise<{ body: Uint8Array; contentType?: string }> {
+  const response = await getS3Client().send(
+    new GetObjectCommand({
+      Bucket: env.S3_BUCKET,
+      Key: key,
+    }),
+  );
+  const body = await response.Body?.transformToByteArray();
+  if (!body) throw new Error(`Object ${key} was empty.`);
+  return { body, contentType: response.ContentType };
+}
+
 export async function getSignedDownloadUrl(
   key: string,
   expiresInSeconds = 300,
@@ -52,6 +64,22 @@ export async function getSignedDownloadUrl(
     new GetObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: key,
+    }),
+    { expiresIn: expiresInSeconds },
+  );
+}
+
+export async function getSignedUploadUrl(
+  key: string,
+  contentType: string,
+  expiresInSeconds = 900,
+): Promise<string> {
+  return getSignedUrl(
+    getS3Client(),
+    new PutObjectCommand({
+      Bucket: env.S3_BUCKET,
+      Key: key,
+      ContentType: contentType,
     }),
     { expiresIn: expiresInSeconds },
   );

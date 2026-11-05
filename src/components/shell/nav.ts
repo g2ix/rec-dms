@@ -142,6 +142,9 @@ export function pageForPath(pathname: string): { href: string; title: string; le
   }
   const extra = EXTRA_PAGES.find((page) => page.href === pathname);
   if (extra) return extra;
+  if (/^\/app\/protocols\/[0-9a-f-]{36}(\/|$)/i.test(pathname)) {
+    return { href: pathname, title: "Protocol", lede: "Shared protocol record." };
+  }
   const items = Object.values(NAV).flatMap((groups) => groups.flatMap((group) => group.items));
   const match = items
     .filter((item) => item.href === pathname)

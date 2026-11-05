@@ -26,7 +26,7 @@ describe("per-protocol affiliation", () => {
     expect(suggestions.student).toMatchObject({ course: "BS Biology", yearLabel: "3rd year" });
 
     const facultyProtocol = await prisma.protocol.create({
-      data: { title: "Graduate advising", createdById: user.id },
+      data: { title: "Graduate advising", createdById: user.id, leaderUserId: user.id },
     });
     const faculty = await joinProtocol({
       userId: user.id,

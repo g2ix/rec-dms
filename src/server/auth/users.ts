@@ -6,6 +6,7 @@ import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { AppError } from "@/server/errors";
+import { bindInvitesForEmail } from "@/server/protocols/invites";
 
 type Writer = Prisma.TransactionClient | typeof prisma;
 
@@ -50,11 +51,13 @@ export async function createPerson(
     },
     include: { emails: true },
   });
-  return db.user.update({
+  const updated = await db.user.update({
     where: { id: user.id },
     data: { primaryEmailId: user.emails[0]?.id },
     include: { emails: true },
   });
+  await bindInvitesForEmail(updated.id, email, db);
+  return updated;
 }
 
 export async function ensureVerifiedEmail(userId: string, email: string, db: Writer = prisma) {
@@ -64,13 +67,14 @@ export async function ensureVerifiedEmail(userId: string, email: string, db: Wri
     throw new AppError("EMAIL_TAKEN", "That email already belongs to another account.", 409);
   }
   if (existing) {
-    if (!existing.verifiedAt) {
-      return db.userEmail.update({
-        where: { id: existing.id },
-        data: { verifiedAt: new Date() },
-      });
-    }
-    return existing;
+    const row = existing.verifiedAt
+      ? existing
+      : await db.userEmail.update({
+          where: { id: existing.id },
+          data: { verifiedAt: new Date() },
+        });
+    await bindInvitesForEmail(userId, normalized, db);
+    return row;
   }
   const count = await db.userEmail.count({ where: { userId } });
   const created = await db.userEmail.create({
@@ -88,6 +92,7 @@ export async function ensureVerifiedEmail(userId: string, email: string, db: Wri
       data: { primaryEmailId: created.id, email: normalized, emailVerified: created.verifiedAt },
     });
   }
+  await bindInvitesForEmail(userId, normalized, db);
   return created;
 }
 

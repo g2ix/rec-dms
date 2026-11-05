@@ -1,5 +1,21 @@
 # Changelog
 
+## M05 — Protocols, collaboration, uploads, versions (2026-11-05)
+
+A proponent can open a protocol, invite co-proponents and an adviser, fill shared details once, edit the working forms together, upload the manuscript, cover letter, and fee receipt, and submit a version. The creator is the project leader. A discipline suggests a panel. REC Staff (a bootstrap administrator until role grants exist) can change the panel and verify or reject a receipt.
+
+Submitting locks that version’s forms and snapshot. A later revision copies the forms into a new working version. Two people can save different fields of the same form from the same revision; the same field shows who changed it. An invitation to an email that has no account attaches when that email is verified.
+
+### Deviation from the spec and the M05 prompt
+
+- M02’s role and permission tables are still not in the tree. `authorize` reads real protocol memberships for protocol actions. Form administration and committee staff actions still allow bootstrap administrators, and also a user who already holds `REC_STAFF`, `REC_CHAIR`, `PANEL_CHAIR`, or `SYSTEM_ADMIN`.
+- Signatures are collected in M06, so a form that is otherwise valid shows “Needs signatures” and submit does not wait for them.
+- Until M07, submit sets the protocol status to `SUBMITTED` and starting a revision sets it back to `DRAFT`. The workflow will own status after that. The working version has no workflow step, so a field limited to a named step stays closed.
+- Research type, duration, participants, study site, and funding sources are stored on the protocol. The checkbox lists from F-27 arrive with the M08 form seed. The title warns when it is all capitals and can still be saved.
+- Direct-to-storage uploads use a short-lived `upload_intents` row so the browser cannot choose the storage key. Virus scan stays `PENDING`.
+- `File` is the Prisma model `StoredFile` (table `files`) so it does not clash with the DOM `File` type. A submitted version and a locked form instance reject later writes in the database as well as in the service.
+- A protocol that has no version yet (for example one created before this milestone) offers “Start the working version”. That opens version 1. “Start a revision” is the label once a version has already been submitted.
+
 ## M04 — Form engine (2026-11-05)
 
 Forms are data. An admin writes a schema, sees it render beside the JSON, publishes it, and fills a sandbox copy. Each field save checks who may edit it at the current step, validates the value, recalculates computed fields, and appends `form.field_saved` to the audit chain. A stale revision returns the value now stored and who wrote it.

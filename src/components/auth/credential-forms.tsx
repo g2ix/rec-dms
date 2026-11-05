@@ -78,7 +78,7 @@ export function SignInForm({
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   const [state, action, pending] = useActionState(signUpAction, null);
   return (
     <form action={action} className="auth-form">
@@ -95,7 +95,7 @@ export function SignUpForm() {
         <Input id="family-name" name="familyName" autoComplete="family-name" required />
       </Field>
       <Field label="Email" htmlFor="sign-up-email">
-        <Input id="sign-up-email" name="email" type="email" autoComplete="email" required />
+        <Input id="sign-up-email" name="email" type="email" autoComplete="email" required defaultValue={defaultEmail} />
       </Field>
       <Field label="Password" htmlFor="sign-up-password" help="At least 12 characters, and not a common phrase.">
         <Input id="sign-up-password" name="password" type="password" autoComplete="new-password" minLength={12} required />

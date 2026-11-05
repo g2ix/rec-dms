@@ -133,6 +133,18 @@ function assertDraftShape(target: Target, value: unknown, data: Record<string, u
   if (issues.length > 0) throw new AppError("INVALID", issues[0]!.message, 400);
 }
 
+async function protocolContext(
+  tx: Prisma.TransactionClient,
+  instance: FormInstance,
+): Promise<{ protocolId: string | null; submitted: boolean }> {
+  if (instance.ownerType !== "PROTOCOL_VERSION") return { protocolId: null, submitted: false };
+  const version = await tx.protocolVersion.findUnique({
+    where: { id: instance.ownerId },
+    select: { protocolId: true, state: true },
+  });
+  return { protocolId: version?.protocolId ?? null, submitted: version?.state === "SUBMITTED" };
+}
+
 async function rolesFor(
   tx: Prisma.TransactionClient,
   instance: FormInstance,
@@ -140,6 +152,21 @@ async function rolesFor(
 ): Promise<{ roles: RoleKey[]; step: string | null }> {
   if (instance.ownerType === "SANDBOX") {
     return { roles: instance.previewRoles.filter(isRoleKey), step: instance.previewStep };
+  }
+  if (instance.ownerType === "PROTOCOL_VERSION") {
+    const version = await tx.protocolVersion.findUnique({
+      where: { id: instance.ownerId },
+      select: { protocolId: true },
+    });
+    if (!version) return { roles: [], step: null };
+    const member = await tx.protocolMember.findFirst({
+      where: { protocolId: version.protocolId, userId, status: "ACTIVE" },
+    });
+    if (!member) return { roles: [], step: null };
+    const roles: RoleKey[] = [];
+    if (isRoleKey(member.role)) roles.push(member.role);
+    if (member.isLeader) roles.push("PROJECT_LEADER");
+    return { roles, step: null };
   }
   const grants = await tx.userRole.findMany({
     where: { userId, revokedAt: null },
@@ -166,26 +193,38 @@ export async function saveField(input: {
       include: { formDefinition: true },
     });
     if (!instance) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
+    const context = await protocolContext(tx, instance);
 
     if (instance.revision !== input.expectedRevision) {
-      const rows = await tx.formFieldRevision.findMany({
-        where: { formInstanceId: instance.id, revision: instance.revision },
+      const touched = await tx.formFieldRevision.findFirst({
+        where: {
+          formInstanceId: instance.id,
+          fieldPath: input.path,
+          revision: { gt: input.expectedRevision },
+        },
         include: { user: { select: { id: true, displayName: true } } },
-        orderBy: { at: "desc" },
+        orderBy: { revision: "desc" },
       });
-      const match = rows.find((row) => row.fieldPath === input.path) ?? rows[0] ?? null;
-      const conflict = conflictResult(
-        input.expectedRevision,
-        instance.revision,
-        getPath(instance.data, input.path),
-        match ? { id: match.user.id, name: match.user.displayName } : null,
-        match?.at ?? null,
-      );
-      if (conflict) return conflict;
+      if (touched) {
+        const conflict = conflictResult(
+          input.expectedRevision,
+          instance.revision,
+          getPath(instance.data, input.path),
+          { id: touched.user.id, name: touched.user.displayName },
+          touched.at,
+        );
+        if (conflict) return conflict;
+      }
     }
 
-    if (instance.status !== "DRAFT") {
-      throw new AppError("LOCKED", "This form is complete and cannot be edited.", 409);
+    if (instance.status !== "DRAFT" || context.submitted) {
+      throw new AppError(
+        "LOCKED",
+        instance.status === "LOCKED" || context.submitted
+          ? "This version is submitted and cannot be edited."
+          : "This form is complete and cannot be edited.",
+        409,
+      );
     }
 
     const schema = checkedSchema(instance.formDefinition.schema);
@@ -240,6 +279,7 @@ export async function saveField(input: {
       action: AuditAction.fieldSaved,
       entityType: "form_instance",
       entityId: instance.id,
+      protocolId: context.protocolId,
       diff: diffOf(before, after),
       meta,
     });

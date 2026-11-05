@@ -50,6 +50,40 @@ enum AffiliationKind {
   FACULTY
 }
 
+enum ReviewType {
+  EXEMPT
+  EXPEDITED
+  FULL
+}
+
+enum ProtocolVersionState {
+  WORKING
+  SUBMITTED
+}
+
+enum FileKind {
+  MANUSCRIPT
+  COVER_LETTER
+  FEE_RECEIPT
+  SUPPORTING
+  GENERATED_DOCX
+  GENERATED_PDF
+  SIGNATURE_IMAGE
+  TEMPLATE
+}
+
+enum ScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+}
+
+enum FeeStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 /// One person. Merged rows stay so the audit chain can still point at them.
 model User {
   id             String     @id @default(uuid())
@@ -91,6 +125,13 @@ model User {
   auditEvents            AuditEvent[]
   formDefinitions        FormDefinition[]
   formFieldRevisions     FormFieldRevision[]
+  protocolsLed           Protocol[]           @relation("ProtocolLeader")
+  versionsSubmitted      ProtocolVersion[]    @relation("VersionSubmitter")
+  filesUploaded          StoredFile[]
+  feeDecisions           FeeVerification[]    @relation("FeeVerifier")
+  presence               Presence[]
+  uploadIntents          UploadIntent[]
+  invitationsSent        ProtocolMember[]     @relation("MemberInviter")
 
   @@index([status])
   @@index([mergedIntoId])
@@ -248,51 +289,199 @@ model UserRole {
   @@map("user_roles")
 }
 
-/// Minimal protocol row so memberships and merge have somewhere to live. M05 adds the rest.
+/// A review panel. Disciplines point at the panel they suggest.
+model Panel {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  disciplines Discipline[]
+  protocols   Protocol[]
+
+  @@map("panels")
+}
+
+model Discipline {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  panelId   String   @map("panel_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  panel     Panel      @relation(fields: [panelId], references: [id])
+  protocols Protocol[]
+
+  @@index([panelId])
+  @@map("disciplines")
+}
+
 model Protocol {
-  id          String   @id @default(uuid())
-  title       String
-  code        String?  @unique
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                   String      @id @default(uuid())
+  code                 String?     @unique
+  title                String
+  disciplineId         String?     @map("discipline_id")
+  panelId              String?     @map("panel_id")
+  reviewType           ReviewType? @map("review_type")
+  status               String      @default("DRAFT")
+  leaderUserId         String      @map("leader_user_id")
+  institution          String      @default("")
+  institutionAddress   String      @default("") @map("institution_address")
+  researchType         String      @default("") @map("research_type")
+  durationMonths       Int?        @map("duration_months")
+  expectedParticipants Int?        @map("expected_participants")
+  studySite            String      @default("") @map("study_site")
+  fundingSources       Json        @default("[]") @map("funding_sources")
+  createdById          String      @map("created_by_id")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
 
-  createdBy User             @relation("ProtocolCreator", fields: [createdById], references: [id])
-  members   ProtocolMember[]
+  createdBy  User             @relation("ProtocolCreator", fields: [createdById], references: [id])
+  leader     User             @relation("ProtocolLeader", fields: [leaderUserId], references: [id])
+  discipline Discipline?      @relation(fields: [disciplineId], references: [id])
+  panel      Panel?           @relation(fields: [panelId], references: [id])
+  members    ProtocolMember[]
+  versions   ProtocolVersion[]
 
+  @@index([status])
+  @@index([leaderUserId])
+  @@index([disciplineId])
+  @@index([panelId])
   @@map("protocols")
 }
 
 model ProtocolMember {
-  id             String              @id @default(uuid())
-  protocolId     String              @map("protocol_id")
-  userId         String              @map("user_id")
-  role           ProtocolMemberRole
-  isLeader       Boolean             @default(false) @map("is_leader")
-  rosterOrder    Int                 @default(1) @map("roster_order")
-  status         String              @default("ACTIVE")
-  contactEmailId String              @map("contact_email_id")
-  affiliationKind AffiliationKind    @map("affiliation_kind")
-  course         String?
-  yearLabel      String?             @map("year_label")
-  position       String?
-  unit           String?
-  institution    String
-  designation    String
-  contactNumber  String?             @map("contact_number")
-  invitedEmail   String?             @map("invited_email")
-  invitedById    String?             @map("invited_by_id")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
+  id              String             @id @default(uuid())
+  protocolId      String             @map("protocol_id")
+  userId          String?            @map("user_id")
+  role            ProtocolMemberRole
+  isLeader        Boolean            @default(false) @map("is_leader")
+  rosterOrder     Int                @default(1) @map("roster_order")
+  status          String             @default("ACTIVE")
+  contactEmailId  String?            @map("contact_email_id")
+  affiliationKind AffiliationKind?   @map("affiliation_kind")
+  course          String?
+  yearLabel       String?            @map("year_label")
+  position        String?
+  unit            String?
+  institution     String             @default("")
+  designation     String             @default("")
+  contactNumber   String?            @map("contact_number")
+  invitedEmail    String?            @map("invited_email")
+  invitedById     String?            @map("invited_by_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
 
   protocol      Protocol       @relation(fields: [protocolId], references: [id], onDelete: Cascade)
-  user          User           @relation(fields: [userId], references: [id])
-  contactEmail  UserEmail      @relation(fields: [contactEmailId], references: [id])
+  user          User?          @relation(fields: [userId], references: [id])
+  contactEmail  UserEmail?     @relation(fields: [contactEmailId], references: [id])
+  invitedBy     User?          @relation("MemberInviter", fields: [invitedById], references: [id])
   formInstances FormInstance[]
 
   @@unique([protocolId, userId])
   @@index([userId])
+  @@index([invitedEmail])
+  @@index([protocolId, status])
   @@map("protocol_members")
+}
+
+model ProtocolVersion {
+  id            String               @id @default(uuid())
+  protocolId    String               @map("protocol_id")
+  number        Int
+  label         String
+  state         ProtocolVersionState @default(WORKING)
+  submittedAt   DateTime?            @map("submitted_at")
+  submittedById String?              @map("submitted_by_id")
+  snapshot      Json                 @default("{}")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  protocol    Protocol         @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  submittedBy User?            @relation("VersionSubmitter", fields: [submittedById], references: [id])
+  files       StoredFile[]
+  fee         FeeVerification?
+
+  @@unique([protocolId, number])
+  @@index([protocolId, state])
+  @@map("protocol_versions")
+}
+
+/// Object-storage pointer. Named StoredFile so it does not clash with the DOM File type.
+model StoredFile {
+  id                String     @id @default(uuid())
+  protocolVersionId String?    @map("protocol_version_id")
+  kind              FileKind
+  originalName      String     @map("original_name")
+  suggestedName     String?    @map("suggested_name")
+  storageKey        String     @unique @map("storage_key")
+  mime              String
+  size              Int
+  sha256            String
+  uploadedById      String     @map("uploaded_by_id")
+  scanStatus        ScanStatus @default(PENDING) @map("scan_status")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
+  uploadedBy      User             @relation(fields: [uploadedById], references: [id])
+
+  @@index([protocolVersionId, kind])
+  @@map("files")
+}
+
+model FeeVerification {
+  id                String    @id @default(uuid())
+  protocolVersionId String    @unique @map("protocol_version_id")
+  status            FeeStatus @default(PENDING)
+  reason            String?
+  verifiedById      String?   @map("verified_by_id")
+  verifiedAt        DateTime? @map("verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  protocolVersion ProtocolVersion @relation(fields: [protocolVersionId], references: [id], onDelete: Cascade)
+  verifiedBy      User?           @relation("FeeVerifier", fields: [verifiedById], references: [id])
+
+  @@index([status])
+  @@map("fee_verifications")
+}
+
+/// Who is viewing a form. Polled; replace the store later without changing the page.
+model Presence {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  formInstanceId String   @map("form_instance_id")
+  seenAt         DateTime @map("seen_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, formInstanceId])
+  @@index([formInstanceId, seenAt])
+  @@map("presence")
+}
+
+model UploadIntent {
+  id                String   @id @default(uuid())
+  protocolVersionId String   @map("protocol_version_id")
+  kind              FileKind
+  storageKey        String   @unique @map("storage_key")
+  originalName      String   @map("original_name")
+  suggestedName     String?  @map("suggested_name")
+  mime              String
+  uploadedById      String   @map("uploaded_by_id")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@index([expiresAt])
+  @@map("upload_intents")
 }
 
 model Signature {

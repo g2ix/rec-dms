@@ -49,11 +49,25 @@ function formError(error: unknown, fallback: string): { ok: false; message: stri
   return { ok: false, message: fallback };
 }
 
+async function authorizeInstance(user: { id: string }, instanceId: string) {
+  const instance = await prisma.formInstance.findUnique({ where: { id: instanceId } });
+  if (!instance) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
+  if (instance.ownerType === "SANDBOX") {
+    await authorize(user, "forms.fill");
+    if (instance.ownerId !== user.id) throw new AppError("FORBIDDEN", "You cannot edit that sandbox.", 403);
+    return;
+  }
+  const version = await prisma.protocolVersion.findUnique({ where: { id: instance.ownerId } });
+  if (!version) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
+  await authorize(user, "protocol.edit", { type: "protocol", id: version.protocolId });
+}
+
 export async function saveFieldAction(input: unknown): Promise<SaveFieldResult> {
   try {
     const user = await requireUser();
-    await authorize(user, "forms.fill");
-    const parsed = saveSchema.parse(input);
+    const parsedPreview = saveSchema.parse(input);
+    await authorizeInstance(user, parsedPreview.instanceId);
+    const parsed = parsedPreview;
     const value = parsed.value ?? null;
     const encoded = JSON.stringify(value);
     if (encoded.length > 200_000) {
@@ -92,7 +106,7 @@ export async function setSandboxPreviewAction(input: unknown): Promise<{ ok: tru
 export async function markCompleteAction(instanceId: string): Promise<{ ok: true } | { ok: false; message: string; errors?: { path: string; message: string }[] }> {
   try {
     const user = await requireUser();
-    await authorize(user, "forms.fill");
+    await authorizeInstance(user, instanceId);
     const result = await markComplete(instanceId, user.id);
     if (!result.ok) return { ok: false, message: "Complete the required fields first.", errors: result.errors };
     revalidatePath("/admin/forms");

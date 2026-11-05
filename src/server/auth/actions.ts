@@ -21,8 +21,16 @@ import { authenticatePassword, confirmRegistration, startRegistration } from "@/
 import { signIn, signOut } from "@/server/auth";
 import { redirectToStartPage } from "@/server/auth/gate";
 import { decidePendingUser, ensureVerifiedEmail } from "@/server/auth/users";
+import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
+
+function optionalCount(value: FormDataEntryValue | null, label: string): number | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (!/^\d+$/.test(text)) throw new AppError("INVALID", `Enter a whole number for ${label}.`, 400);
+  return Number(text);
+}
 
 function afterSignIn(formData: FormData): string {
   return postSignInPath(String(formData.get("callbackUrl") ?? ""));
@@ -317,11 +325,25 @@ export async function createProtocolAction(_prev: ActionState, formData: FormDat
       contactEmailId: formData.get("contactEmailId"),
     });
     const title = z.string().trim().min(1, "Enter the protocol title.").max(300).parse(formData.get("title"));
+    const disciplineId = z.string().uuid("Choose a discipline.").parse(formData.get("disciplineId"));
+    const researchType = z.string().trim().min(1, "Enter the research type.").max(160).parse(formData.get("researchType"));
     const created = await createProtocolForUser(user.id, {
       title,
       affiliation,
+      disciplineId,
+      institutionAddress: String(formData.get("institutionAddress") ?? ""),
+      researchType,
+      durationMonths: optionalCount(formData.get("durationMonths"), "duration"),
+      expectedParticipants: optionalCount(formData.get("expectedParticipants"), "expected participants"),
+      studySite: String(formData.get("studySite") ?? ""),
+      fundingSources: formData
+        .getAll("funding")
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+        .map((name) => ({ name })),
+      contactNumber: String(formData.get("contactNumber") ?? "") || null,
     });
-    redirect(`/app/protocols/new?created=${created.protocol.id}`);
+    redirect(`/app/protocols/${created.protocol.id}`);
   } catch (error) {
     return actionError(error, "The protocol could not be created.");
   }

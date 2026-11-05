@@ -5,12 +5,26 @@ type SchemaRow = {
   db: string;
 };
 
+function schemaFromDatabaseUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).searchParams.get("schema");
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Truncates every application table in the current schema.
  * Refuses `public` on a database that is not a dedicated test database,
  * so a shared Supabase project cannot be wiped by the test runner.
  */
 export async function resetDatabase(): Promise<void> {
+  const wanted = schemaFromDatabaseUrl(process.env.DATABASE_URL);
+  if (wanted === "recdms" || wanted === "recdms_test") {
+    await prisma.$executeRawUnsafe(`SET search_path TO "${wanted}"`);
+  }
+
   const rows = await prisma.$queryRaw<SchemaRow[]>`
     select current_schema() as current, current_database() as db
   `;

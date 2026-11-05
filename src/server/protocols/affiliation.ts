@@ -1,8 +1,12 @@
 import "server-only";
 import type { AffiliationKind, ProtocolMemberRole } from "@prisma/client";
 import { bindMembershipPrint, formatDesignation, type Affiliation } from "@/lib/affiliation";
+import { AuditAction } from "@/lib/audit-log";
+import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
+import { toJson } from "@/server/forms/json";
+import { ensureWorkingForms, openWorkingVersion } from "@/server/protocols/versions";
 
 type StoredAffiliation = Affiliation & { contactEmailId: string };
 
@@ -46,7 +50,7 @@ export async function suggestAffiliation(userId: string) {
           course: student.course ?? "",
           yearLabel: student.yearLabel ?? "",
           institution: student.institution,
-          contactEmailId: student.contactEmailId,
+          contactEmailId: student.contactEmailId ?? "",
         }
       : null,
     faculty: faculty
@@ -54,17 +58,50 @@ export async function suggestAffiliation(userId: string) {
           position: faculty.position ?? "",
           unit: faculty.unit ?? "",
           institution: faculty.institution,
-          contactEmailId: faculty.contactEmailId,
+          contactEmailId: faculty.contactEmailId ?? "",
         }
       : null,
   };
 }
 
-export async function createProtocolForUser(userId: string, input: { title: string; affiliation: StoredAffiliation }) {
+export async function createProtocolForUser(
+  userId: string,
+  input: {
+    title: string;
+    affiliation: StoredAffiliation;
+    disciplineId?: string | null;
+    institutionAddress?: string;
+    researchType?: string;
+    durationMonths?: number | null;
+    expectedParticipants?: number | null;
+    studySite?: string;
+    fundingSources?: { name: string }[];
+    contactNumber?: string | null;
+  },
+) {
   const email = await ownedEmail(userId, input.affiliation.contactEmailId);
+  const discipline = input.disciplineId
+    ? await prisma.discipline.findUnique({ where: { id: input.disciplineId }, include: { panel: true } })
+    : null;
+  if (input.disciplineId && !discipline) throw new AppError("NOT_FOUND", "Choose a discipline.", 400);
+  const meta = await auditRequestMeta({});
   return prisma.$transaction(async (tx) => {
     const protocol = await tx.protocol.create({
-      data: { title: input.title.trim(), createdById: userId },
+      data: {
+        title: input.title.trim(),
+        createdById: userId,
+        leaderUserId: userId,
+        disciplineId: discipline?.id ?? null,
+        panelId: discipline?.panelId ?? null,
+        institution: input.affiliation.institution,
+        institutionAddress: input.institutionAddress?.trim() ?? "",
+        researchType: input.researchType?.trim() ?? "",
+        durationMonths: input.durationMonths ?? null,
+        expectedParticipants: input.expectedParticipants ?? null,
+        studySite: input.studySite?.trim() ?? "",
+        fundingSources: toJson(input.fundingSources ?? []),
+        status: "DRAFT",
+      },
     });
     const member = await tx.protocolMember.create({
       data: {
@@ -73,11 +110,26 @@ export async function createProtocolForUser(userId: string, input: { title: stri
         role: "PROPONENT",
         isLeader: true,
         rosterOrder: 1,
+        status: "ACTIVE",
         contactEmailId: email.id,
+        invitedEmail: email.email,
+        contactNumber: input.contactNumber?.trim() || null,
         ...columns(input.affiliation),
       },
     });
-    return { protocol, member };
+    const version = await openWorkingVersion(tx, protocol.id);
+    await ensureWorkingForms(tx, version.id);
+    await audit.record(tx, {
+      actorUserId: userId,
+      actingRole: "PROJECT_LEADER",
+      action: AuditAction.protocolCreated,
+      entityType: "protocol",
+      entityId: protocol.id,
+      protocolId: protocol.id,
+      diff: diffOf({}, { title: protocol.title, disciplineId: protocol.disciplineId, panelId: protocol.panelId, version: version.label }),
+      meta,
+    });
+    return { protocol, member, version };
   });
 }
 
@@ -116,7 +168,9 @@ export async function membershipPrint(memberId: string) {
     where: { id: memberId },
     include: { user: true, contactEmail: true },
   });
-  if (!member) throw new AppError("NOT_FOUND", "That membership was not found.", 404);
+  if (!member?.user || !member.contactEmail || !member.affiliationKind) {
+    throw new AppError("NOT_FOUND", "That membership was not found.", 404);
+  }
   const affiliation =
     member.affiliationKind === "STUDENT"
       ? {

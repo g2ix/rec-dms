@@ -1,47 +1,39 @@
-import { ProtocolAffiliationForm } from "@/components/protocols/affiliation-form";
-import { membershipPrint, suggestAffiliation } from "@/server/protocols/affiliation";
-import { prisma } from "@/server/db";
+import { ProtocolWizard } from "@/components/protocols/wizard-form";
+import { suggestAffiliation } from "@/server/protocols/affiliation";
+import { listDisciplines } from "@/server/protocols/read";
 import { requireUser } from "@/server/session";
 
 export const metadata = { title: "New protocol" };
 
-export default async function NewProtocolPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ created?: string }>;
-}) {
+export default async function NewProtocolPage() {
   const user = await requireUser();
-  const suggestions = await suggestAffiliation(user.id);
-  const { created } = await searchParams;
-  const member = created
-    ? await prisma.protocolMember.findFirst({
-        where: { protocolId: created, userId: user.id },
-        include: { protocol: true },
-      })
-    : null;
-  const printed = member ? await membershipPrint(member.id) : null;
+  const [suggestions, disciplines] = await Promise.all([suggestAffiliation(user.id), listDisciplines()]);
 
   return (
     <article className="rec-stack">
       <h1 className="title">New protocol</h1>
       <p className="body rec-muted">
-        Choose the email and designation for this protocol. A later protocol can use a different email and designation. The last values you saved are filled in as suggestions.
+        You become the project leader. The discipline suggests a review panel. Shared details are entered once and shown on every form.
       </p>
-      {printed && member ? (
-        <section className="rec-card rec-stack">
-          <h2 className="heading">{member.protocol.title}</h2>
-          <p className="body-sm">This is how the researcher line prints on the form.</p>
-          <p className="body">{printed.name}</p>
-          <p className="body">{printed.designation}</p>
-          <p className="body">{printed.email}</p>
-        </section>
-      ) : null}
       {suggestions.emails.length === 0 ? (
         <p className="rec-alert" role="alert">
           Verify an email before creating a protocol.
         </p>
+      ) : disciplines.length === 0 ? (
+        <p className="rec-alert" role="alert">
+          Disciplines are not set up yet. Ask REC Staff to seed the panels.
+        </p>
       ) : (
-        <ProtocolAffiliationForm emails={suggestions.emails} student={suggestions.student} faculty={suggestions.faculty} />
+        <ProtocolWizard
+          emails={suggestions.emails}
+          disciplines={disciplines.map((discipline) => ({
+            id: discipline.id,
+            name: discipline.name,
+            panelName: discipline.panel.name,
+          }))}
+          student={suggestions.student}
+          faculty={suggestions.faculty}
+        />
       )}
     </article>
   );

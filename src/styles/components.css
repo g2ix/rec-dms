@@ -876,6 +876,49 @@ html.theme-fade * {
   .rec-assess__label { display: block; margin-bottom: var(--space-1); }
 }
 
+/* ---------- protocols ---------- */
+.rec-proto-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+.rec-proto-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.rec-proto-nav a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--primary);
+}
+.rec-avatar-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.rec-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  font: 500 12px/16px var(--font-sans);
+}
+.rec-proto-list { display: grid; gap: var(--space-3); }
+.rec-proto-card {
+  display: grid;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: inherit;
+}
+.rec-proto-card:hover { border-color: var(--border-control); }
+.rec-inline { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 120ms !important;

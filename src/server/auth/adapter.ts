@@ -9,6 +9,7 @@ import { prisma } from "@/server/db";
 import { autoApproveDomains } from "@/server/auth/domains";
 import { userForProviderAccount } from "@/server/auth/linking";
 import { createPerson } from "@/server/auth/users";
+import { bindInvitesForEmail } from "@/server/protocols/invites";
 
 type NamedUser = {
   id: string;
@@ -85,6 +86,7 @@ export function createRecAdapter(db: PrismaClient = prisma): Adapter {
           where: { userId: id, email: user.email, verifiedAt: null },
           data: { verifiedAt: emailVerified },
         });
+        await bindInvitesForEmail(id, user.email, db);
       }
       return toAdapterUser(user);
     },

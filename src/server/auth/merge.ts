@@ -140,6 +140,12 @@ async function moveUserInto(
   await tx.notification.updateMany({ where: { userId: secondary.id }, data: { userId: primary.id } });
   await tx.task.updateMany({ where: { assigneeUserId: secondary.id }, data: { assigneeUserId: primary.id } });
   await tx.protocol.updateMany({ where: { createdById: secondary.id }, data: { createdById: primary.id } });
+  await tx.protocol.updateMany({ where: { leaderUserId: secondary.id }, data: { leaderUserId: primary.id } });
+  await tx.protocolVersion.updateMany({ where: { submittedById: secondary.id }, data: { submittedById: primary.id } });
+  await tx.storedFile.updateMany({ where: { uploadedById: secondary.id }, data: { uploadedById: primary.id } });
+  await tx.feeVerification.updateMany({ where: { verifiedById: secondary.id }, data: { verifiedById: primary.id } });
+  await tx.uploadIntent.updateMany({ where: { uploadedById: secondary.id }, data: { uploadedById: primary.id } });
+  await tx.protocolMember.updateMany({ where: { invitedById: secondary.id }, data: { invitedById: primary.id } });
   await tx.emailCode.updateMany({ where: { userId: secondary.id }, data: { userId: primary.id } });
   await tx.session.deleteMany({ where: { userId: secondary.id } });
 

@@ -26,6 +26,21 @@ export const AuditAction = {
   versionCreated: "form.version_created",
   markedComplete: "form.marked_complete",
   reopened: "form.reopened",
+  protocolCreated: "protocol.created",
+  protocolUpdated: "protocol.updated",
+  memberInvited: "protocol.member_invited",
+  memberAccepted: "protocol.member_accepted",
+  inviteBound: "protocol.invite_bound",
+  memberRemoved: "protocol.member_removed",
+  leadershipTransferred: "protocol.leadership_transferred",
+  rosterReordered: "protocol.roster_reordered",
+  panelChanged: "protocol.panel_changed",
+  fileUploaded: "protocol.file_uploaded",
+  fileDownloaded: "protocol.file_downloaded",
+  versionSubmitted: "protocol.version_submitted",
+  revisionStarted: "protocol.revision_started",
+  feeVerified: "protocol.fee_verified",
+  feeRejected: "protocol.fee_rejected",
 } as const;
 
 const LABELS: Record<string, string> = {
@@ -56,6 +71,21 @@ const LABELS: Record<string, string> = {
   [AuditAction.versionCreated]: "Form version created",
   [AuditAction.markedComplete]: "Form marked complete",
   [AuditAction.reopened]: "Form reopened",
+  [AuditAction.protocolCreated]: "Protocol created",
+  [AuditAction.protocolUpdated]: "Shared details saved",
+  [AuditAction.memberInvited]: "Member invited",
+  [AuditAction.memberAccepted]: "Invitation accepted",
+  [AuditAction.inviteBound]: "Invitation linked to an account",
+  [AuditAction.memberRemoved]: "Member removed",
+  [AuditAction.leadershipTransferred]: "Leadership transferred",
+  [AuditAction.rosterReordered]: "Roster reordered",
+  [AuditAction.panelChanged]: "Panel changed",
+  [AuditAction.fileUploaded]: "File uploaded",
+  [AuditAction.fileDownloaded]: "File downloaded",
+  [AuditAction.versionSubmitted]: "Version submitted",
+  [AuditAction.revisionStarted]: "Revision started",
+  [AuditAction.feeVerified]: "Fee receipt verified",
+  [AuditAction.feeRejected]: "Fee receipt rejected",
 };
 
 const INTERNAL_PREFIXES = ["auth.", "user.", "role.", "setting."];

@@ -33,10 +33,10 @@ describe("account merge", () => {
     });
 
     const primaryProtocol = await prisma.protocol.create({
-      data: { title: "Faculty study", createdById: primary.id },
+      data: { title: "Faculty study", createdById: primary.id, leaderUserId: primary.id },
     });
     const secondaryProtocol = await prisma.protocol.create({
-      data: { title: "Student study", code: "USC-REC-2026-0002", createdById: secondary.id },
+      data: { title: "Student study", code: "USC-REC-2026-0002", createdById: secondary.id, leaderUserId: secondary.id },
     });
     await prisma.protocolMember.create({
       data: {
@@ -124,7 +124,7 @@ describe("account merge", () => {
     const primary = await makeUser({ email: "proponent@usc.edu.ph", firstName: "Paolo", familyName: "Lim" });
     const secondary = await makeUser({ email: "reviewer@gmail.com", firstName: "Paolo", familyName: "Lim" });
     const protocol = await prisma.protocol.create({
-      data: { title: "Shared river study", code: "USC-REC-2026-0044", createdById: primary.id },
+      data: { title: "Shared river study", code: "USC-REC-2026-0044", createdById: primary.id, leaderUserId: primary.id },
     });
     await prisma.protocolMember.create({
       data: {
