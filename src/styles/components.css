@@ -724,6 +724,34 @@ html.theme-fade * {
   border-radius: var(--radius-lg);
   padding: var(--space-6);
 }
+.auth-form,
+.rec-stack { display: grid; gap: var(--space-4); }
+.rec-form { display: grid; gap: var(--space-4); max-width: var(--form-max); }
+.rec-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.rec-banner {
+  background: var(--warning-soft);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+.rec-alert {
+  color: var(--danger);
+  font: 400 14px/20px var(--font-sans);
+}
+.rec-methods { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.rec-method {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+}
+.auth-card h2,
+.rec-card h2 { margin: 0; }
 
 /* ---------- dev gallery ---------- */
 .dev-ui { background: var(--bg); color: var(--ink); min-height: 100vh; }

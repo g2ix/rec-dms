@@ -17,3 +17,343 @@ model Setting {
 
   @@map("settings")
 }
+
+enum UserStatus {
+  ACTIVE
+  PENDING_APPROVAL
+  SUSPENDED
+  MERGED
+}
+
+enum EmailCodePurpose {
+  VERIFY_EMAIL
+  LINK_EMAIL
+  STEP_UP
+}
+
+enum RoleScope {
+  GLOBAL
+  PANEL
+  PROTOCOL
+}
+
+enum ProtocolMemberRole {
+  PROPONENT
+  ADVISER
+  REVIEWER
+  PRIMARY_REVIEWER
+  INDEPENDENT_CONSULTANT
+}
+
+enum AffiliationKind {
+  STUDENT
+  FACULTY
+}
+
+/// One person. Merged rows stay so the audit chain can still point at them.
+model User {
+  id             String     @id @default(uuid())
+  firstName      String     @map("first_name")
+  middleInitial  String?    @map("middle_initial")
+  familyName     String     @map("family_name")
+  displayName    String     @map("display_name")
+  name           String?
+  email          String?    @unique
+  emailVerified  DateTime?  @map("email_verified")
+  image          String?
+  status         UserStatus @default(PENDING_APPROVAL)
+  passwordHash   String?    @map("password_hash")
+  primaryEmailId String?    @unique @map("primary_email_id")
+  approvedById   String?    @map("approved_by_id")
+  approvedAt     DateTime?  @map("approved_at")
+  mergedIntoId   String?    @map("merged_into_id")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  primaryEmail           UserEmail?       @relation("PrimaryEmail", fields: [primaryEmailId], references: [id], onDelete: SetNull)
+  emails                 UserEmail[]      @relation("UserEmails")
+  accounts               Account[]
+  sessions               Session[]
+  approvedBy             User?            @relation("Approvals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedUsers          User[]           @relation("Approvals")
+  mergedInto             User?            @relation("Merges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom             User[]           @relation("Merges")
+  emailCodes             EmailCode[]
+  roles                  UserRole[]
+  memberships            ProtocolMember[]
+  signatures             Signature[]
+  notifications          Notification[]
+  tasks                  Task[]
+  protocolsCreated       Protocol[]       @relation("ProtocolCreator")
+  mergeSessionsPrimary   MergeSession[]   @relation("MergePrimary")
+  mergeSessionsSecondary MergeSession[]   @relation("MergeSecondary")
+  mergeSessionsCreated   MergeSession[]   @relation("MergeCreator")
+  auditEvents            AuditEvent[]
+
+  @@index([status])
+  @@index([mergedIntoId])
+  @@map("users")
+}
+
+model UserEmail {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  email      String    @unique
+  verifiedAt DateTime? @map("verified_at")
+  isContact  Boolean   @default(false) @map("is_contact")
+  isPrimary  Boolean   @default(false) @map("is_primary")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user        User             @relation("UserEmails", fields: [userId], references: [id], onDelete: Cascade)
+  primaryFor  User?            @relation("PrimaryEmail")
+  memberships ProtocolMember[]
+
+  @@index([userId])
+  @@map("user_emails")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  email             String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+model EmailCode {
+  id         String           @id @default(uuid())
+  email      String
+  purpose    EmailCodePurpose
+  codeHash   String           @map("code_hash")
+  expiresAt  DateTime         @map("expires_at")
+  attempts   Int              @default(0)
+  userId     String?          @map("user_id")
+  payload    Json?
+  consumedAt DateTime?        @map("consumed_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, purpose])
+  @@map("email_codes")
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int
+  windowStart DateTime @map("window_start")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("rate_limits")
+}
+
+model MergeSession {
+  id                String    @id @default(uuid())
+  primaryUserId     String    @map("primary_user_id")
+  secondaryUserId   String    @map("secondary_user_id")
+  primaryStepUpAt   DateTime? @map("primary_step_up_at")
+  secondaryStepUpAt DateTime? @map("secondary_step_up_at")
+  createdById       String    @map("created_by_id")
+  mode              String
+  expiresAt         DateTime  @map("expires_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  primaryUser   User @relation("MergePrimary", fields: [primaryUserId], references: [id])
+  secondaryUser User @relation("MergeSecondary", fields: [secondaryUserId], references: [id])
+  createdBy     User @relation("MergeCreator", fields: [createdById], references: [id])
+
+  @@index([primaryUserId])
+  @@map("merge_sessions")
+}
+
+/// Introduced for account merge. M02 adds permissions and the admin UI on these rows.
+model Role {
+  id          String    @id @default(uuid())
+  key         String    @unique
+  name        String
+  scope       RoleScope
+  description String    @default("")
+  isSystem    Boolean   @default(true) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  grants UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  roleId      String    @map("role_id")
+  panelId     String?   @map("panel_id")
+  grantedById String?   @map("granted_by_id")
+  grantedAt   DateTime  @default(now()) @map("granted_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@index([userId])
+  @@map("user_roles")
+}
+
+/// Minimal protocol row so memberships and merge have somewhere to live. M05 adds the rest.
+model Protocol {
+  id          String   @id @default(uuid())
+  title       String
+  code        String?  @unique
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User             @relation("ProtocolCreator", fields: [createdById], references: [id])
+  members   ProtocolMember[]
+
+  @@map("protocols")
+}
+
+model ProtocolMember {
+  id             String              @id @default(uuid())
+  protocolId     String              @map("protocol_id")
+  userId         String              @map("user_id")
+  role           ProtocolMemberRole
+  isLeader       Boolean             @default(false) @map("is_leader")
+  rosterOrder    Int                 @default(1) @map("roster_order")
+  status         String              @default("ACTIVE")
+  contactEmailId String              @map("contact_email_id")
+  affiliationKind AffiliationKind    @map("affiliation_kind")
+  course         String?
+  yearLabel      String?             @map("year_label")
+  position       String?
+  unit           String?
+  institution    String
+  designation    String
+  contactNumber  String?             @map("contact_number")
+  invitedEmail   String?             @map("invited_email")
+  invitedById    String?             @map("invited_by_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  protocol     Protocol  @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id])
+  contactEmail UserEmail @relation(fields: [contactEmailId], references: [id])
+
+  @@unique([protocolId, userId])
+  @@index([userId])
+  @@map("protocol_members")
+}
+
+model Signature {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  version   Int      @default(1)
+  imageKey  String   @map("image_key")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("signatures")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  type      String
+  payload   Json
+  readAt    DateTime? @map("read_at")
+  emailedAt DateTime? @map("emailed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  assigneeUserId String   @map("assignee_user_id")
+  title          String
+  status         String   @default("OPEN")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  assignee User @relation(fields: [assigneeUserId], references: [id], onDelete: Cascade)
+
+  @@index([assigneeUserId])
+  @@map("tasks")
+}
+
+/// Append-only hash chain. M03 adds the admin views; merge writes `user.merged` now.
+model AuditEvent {
+  id          String   @id @default(uuid())
+  seq         BigInt   @unique @default(autoincrement())
+  occurredAt  DateTime @map("occurred_at")
+  actorUserId String?  @map("actor_user_id")
+  actingRole  String?  @map("acting_role")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  protocolId  String?  @map("protocol_id")
+  diff        Json
+  meta        Json
+  prevHash    String   @map("prev_hash")
+  hash        String
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+
+  @@index([action])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}

@@ -14,9 +14,13 @@ import Link from "next/link";
 export function AppShell({
   collapsed: collapsedInitial,
   children,
+  pageTitle,
+  account,
 }: {
   collapsed: boolean;
   children: React.ReactNode;
+  pageTitle?: string;
+  account?: { name: string; email: string };
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(collapsedInitial);
@@ -35,7 +39,13 @@ export function AppShell({
         Skip to content
       </a>
       <div className="rec-side--desktop">
-        <SidebarPanel pathname={pathname} collapsed={collapsed} onToggle={toggleCollapsed} markerId="nav-marker-desktop" />
+        <SidebarPanel
+          pathname={pathname}
+          collapsed={collapsed}
+          onToggle={toggleCollapsed}
+          markerId="nav-marker-desktop"
+          account={account}
+        />
       </div>
       <div className="rec-main">
         <header className="rec-top">
@@ -63,6 +73,7 @@ export function AppShell({
                     collapsed={false}
                     markerId="nav-marker-drawer"
                     showCollapse={false}
+                    account={account}
                   />
                 </motion.div>
               </DialogPrimitive.Popup>
@@ -73,7 +84,7 @@ export function AppShell({
               <li>
                 <Link href="/app">REC-DMS</Link>
               </li>
-              <li aria-current="page">{page?.title ?? "Page"}</li>
+              <li aria-current="page">{pageTitle ?? page?.title ?? "Page"}</li>
             </ol>
           </nav>
           <div className="rec-top__end">

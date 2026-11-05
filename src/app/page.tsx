@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main className="rec-content">
@@ -7,6 +9,9 @@ export default function HomePage() {
         Ethics Committee with one web system. Proponents fill the REC forms once,
         reviewers assess inside the system, and every step is tracked, signed and
         logged.
+      </p>
+      <p className="body">
+        <Link href="/sign-in">Sign in</Link>
       </p>
     </main>
   );

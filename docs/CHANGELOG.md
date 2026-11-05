@@ -1,5 +1,23 @@
 # Changelog
 
+## M01 — Authentication, account linking, and merge (2026-11-05)
+
+People can register, verify a 6-digit code, and sign in with a password, a magic link, or Google. A person can link any number of Google accounts. Signing in with any linked, verified email or Google identity reaches the same account. `usc.edu.ph` addresses (and subdomains) become `ACTIVE`; other addresses stay `PENDING_APPROVAL` and can sign in, with submit actions blocked by `requireActiveUser()`.
+
+Linking an identity that already belongs to someone else offers a merge. The person confirms both accounts in that flow (password or emailed step-up code on each). REC Staff bootstrap admins can merge two users from `/admin/users`. The merge moves accounts, emails, protocol memberships, roles, signatures, notifications, and tasks in one transaction, marks the other user `MERGED`, and appends `user.merged` to the audit hash chain. It refuses when the two users are proponent/adviser and reviewer on the same protocol, and names that protocol.
+
+Creating or joining a protocol stores the contact email and designation on the membership (course, year, and institution for a student; position, unit, and institution for faculty or staff). The last values are suggested next time. Forms bind to the printed designation for that membership.
+
+### Deviation from the spec and the M01 prompt
+
+- The M01 prompt deferred account merge and audit events. This change adds both, because one person may hold separate faculty and student Google accounts that already exist as two users. Other auth actions still have `// AUDIT:` comments for M03.
+- `MERGED` is an additional user status. The row is kept and `mergedIntoId` points at the account that remains. Sign-in to the merged row is blocked.
+- Rejecting a pending account sets `SUSPENDED`. There is no separate rejected status.
+- Minimal `roles`, `user_roles`, `protocols`, `protocol_members`, `signatures`, `notifications`, and `tasks` tables exist so a merge has real rows to move. Later milestones add the rest of their columns.
+- Google client id and secret are optional, so the app runs before a Google OAuth client exists. Linking stays explicit: `allowDangerousEmailAccountLinking` is off.
+- Until M02, approving users and merging accounts is limited to `BOOTSTRAP_ADMIN_EMAILS`, not a role.
+- Protocol affiliation is stored now, ahead of the full protocol wizard in M05.
+
 ## M00b — Design system and app shell (2026-11-05)
 
 The REC tokens, Light/Dark/System theme, primitives, blur loading, and the signed-in sidebar shell. `/dev/ui` shows every primitive in both themes. Signed-in pages live under `/app`. The sign-in frame is at `/sign-in`.

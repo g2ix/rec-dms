@@ -122,7 +122,25 @@ const LEDES: Record<string, string> = {
   "/app/audit": "The audit log will be listed here.",
 };
 
+const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [
+  {
+    href: "/app/account/sign-in-methods",
+    title: "Sign-in methods",
+    lede: "Google accounts, emails, and your password.",
+  },
+  {
+    href: "/app/account/merge",
+    title: "Merge accounts",
+    lede: "Confirm both accounts before they become one.",
+  },
+];
+
 export function pageForPath(pathname: string): { href: string; title: string; lede: string } | null {
+  if (pathname.startsWith("/app/account/merge/")) {
+    return EXTRA_PAGES[1] ?? null;
+  }
+  const extra = EXTRA_PAGES.find((page) => page.href === pathname);
+  if (extra) return extra;
   const items = Object.values(NAV).flatMap((groups) => groups.flatMap((group) => group.items));
   const match = items
     .filter((item) => item.href === pathname)

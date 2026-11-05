@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen, UserRound } from "lucide-react";
+import { signOutAction } from "@/server/auth/actions";
 import { LayoutGroup, motion } from "motion/react";
 import { Seal } from "@/components/brand/seal";
 import { Icon } from "@/components/icons";
@@ -9,6 +10,7 @@ import { ThemeSwitch } from "@/components/theme/theme-switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,6 +26,7 @@ export function SidebarPanel({
   markerId,
   showCollapse = true,
   counts,
+  account,
 }: {
   pathname: string;
   collapsed: boolean;
@@ -33,6 +36,7 @@ export function SidebarPanel({
   markerId: string;
   showCollapse?: boolean;
   counts?: Record<string, { value: number; overdue?: boolean }>;
+  account?: { name: string; email: string };
 }) {
   const groups = NAV[roleView];
   const items = groups.flatMap((group) => group.items);
@@ -85,13 +89,19 @@ export function SidebarPanel({
         <DropdownMenu>
           <DropdownMenuTrigger className="rec-user" aria-label="Account">
             <Icon icon={UserRound} />
-            <span className="rec-side__label">Account</span>
+            <span className="rec-side__label">{account?.name ?? "Account"}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start">
+            {account ? <DropdownMenuLabel>{account.email}</DropdownMenuLabel> : null}
             <div className="rec-menu__theme">
               <ThemeSwitch />
             </div>
-            <DropdownMenuLabel>Sign-in arrives in the next milestone.</DropdownMenuLabel>
+            <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
+            <form action={signOutAction}>
+              <button type="submit" className="rec-menu__item">
+                Sign out
+              </button>
+            </form>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

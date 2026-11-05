@@ -17,6 +17,9 @@ const envSchema = z.object({
   SMTP_URL: z.string().min(1),
   EMAIL_FROM: z.string().min(1),
   APP_TIMEZONE: z.string().min(1).default("Asia/Manila"),
+  GOOGLE_CLIENT_ID: z.string().default(""),
+  GOOGLE_CLIENT_SECRET: z.string().default(""),
+  BOOTSTRAP_ADMIN_EMAILS: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;
