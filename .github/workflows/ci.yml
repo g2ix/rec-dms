@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: recdms
+          POSTGRES_PASSWORD: recdms
+          POSTGRES_DB: recdms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recdms -d recdms_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://recdms:recdms@localhost:5432/recdms_test
+      DIRECT_URL: postgresql://recdms:recdms@localhost:5432/recdms_test
+      AUTH_SECRET: ci-secret
+      AUTH_URL: http://127.0.0.1:3000
+      SMTP_URL: smtp://127.0.0.1:1025
+      EMAIL_FROM: REC-DMS <noreply@localhost>
+      APP_TIMEZONE: Asia/Manila
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e

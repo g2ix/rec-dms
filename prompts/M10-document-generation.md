@@ -19,7 +19,10 @@ Every form prints in the official USC REC layout — DOCX identical to the sourc
 2. Upload templates through the admin form editor (store as `File` kind TEMPLATE, link `templateFileId`), with `placeholderMap` (template tag → data path or helper) editable as JSON with validation against `templates:check` output.
 3. Renderer `src/server/docs/render.ts`:
    - `renderDocx(formInstanceId)` → Buffer: build the view model from instance data + bound shared fields + signature events (fetch images from storage, scale to the box size set in the map), run docxtemplater (+ image module; paragraphLoop, linebreaks on).
-   - `renderPdf(formInstanceId)` → POST the DOCX to Gotenberg `/forms/libreoffice/convert` with `GOTENBERG_SECRET` header (configure Gotenberg basic auth or put it behind the tunnel with a shared secret); timeout 30 s; retry once.
+   - `PdfConverter` in `src/server/docs/pdf.ts`, chosen by `PDF_CONVERTER`:
+     - `gotenberg` — POST the DOCX to Gotenberg `/forms/libreoffice/convert` with the `GOTENBERG_SECRET` header (basic auth or the tunnel shared secret); timeout 30 s; retry once.
+     - `soffice` — local LibreOffice: `soffice --headless --convert-to pdf`, for machines without Docker.
+   - `renderPdf(formInstanceId)` calls the selected implementation.
    - Ensure fonts: document in DEPLOY.md that the Gotenberg image must have Times New Roman (msttcorefonts) installed — build a small custom image `docker/gotenberg/Dockerfile` FROM gotenberg/gotenberg:8 that installs `ttf-mscorefonts-installer` and the fonts used by the templates.
    - Cache: store generated files as `File` (GENERATED_DOCX / GENERATED_PDF) with sha256 and the instance revision; return the stored file if the revision is unchanged. Locked (submitted) versions render once and keep that file.
 4. UI on each form: "Download DOCX", "Download PDF", "Print" (opens the PDF in a new tab for the browser print dialog). Audited.

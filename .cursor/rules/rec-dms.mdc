@@ -14,10 +14,18 @@ If the spec and a prompt disagree, stop and ask. Do not invent REC process rules
 - Tailwind CSS + shadcn/ui; React Hook Form + Zod
 - Auth.js v5 (next-auth@beta) + @auth/prisma-adapter
 - PostgreSQL 16 + Prisma ORM. No Supabase-specific features (no RLS auth, no supabase-js in business logic)
-- S3-compatible storage via @aws-sdk/client-s3 (MinIO locally)
-- docxtemplater + pizzip (+ image module) for DOCX; Gotenberg 8 for DOCX→PDF
+- S3-compatible storage via @aws-sdk/client-s3 (Supabase Storage locally, MinIO on the USC server)
+- docxtemplater + pizzip (+ image module) for DOCX; PDF via a PdfConverter (Gotenberg on the USC server, or local LibreOffice) chosen by env in M10
 - Vitest for unit/integration tests, Playwright for E2E
 - pnpm as package manager
+
+## Local infrastructure
+This workstation has no Docker. Do not require `docker compose` for local development.
+- Postgres and files: Supabase project rec-dms (`jrgsxhcegqstegpqgbyv`) via `DATABASE_URL`, `DIRECT_URL`, and `S3_*`. S3 API only. No `supabase-js` and no RLS-based authorization.
+- App tables live in schema `recdms`. `public` already holds another application's data. Never reset or migrate `public`.
+- SMTP: Mailpit's standalone binary (`pnpm mailpit`), SMTP 1025, UI 8025.
+- `docker-compose.yml` is the USC server deployment (Postgres 16, MinIO, Gotenberg, Mailpit), not the local loop.
+- PDF conversion arrives in M10: `PdfConverter` with Gotenberg and local `soffice --headless --convert-to pdf`, chosen by `PDF_CONVERTER`.
 
 ## Architecture rules
 - Folder layout:
