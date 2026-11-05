@@ -113,7 +113,7 @@ describe("account merge", () => {
     expect((await userForProviderAccount("google", "google-secondary"))?.id).toBe(primary.id);
     await expect(assertCanAuthenticate(secondary.id)).rejects.toMatchObject({ code: "SIGN_IN_BLOCKED" });
 
-    const chain = await audit.verifyChain(prisma);
+    const chain = await audit.verifyChain();
     expect(chain.ok).toBe(true);
     const event = await prisma.auditEvent.findFirstOrThrow({ where: { action: "user.merged" } });
     expect(event.diff).toMatchObject({ primaryUserId: primary.id, secondaryUserId: secondary.id });

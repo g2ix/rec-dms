@@ -357,5 +357,8 @@ model AuditEvent {
 
   @@index([action])
   @@index([entityType, entityId])
+  @@index([protocolId])
+  @@index([actorUserId])
+  @@index([occurredAt])
   @@map("audit_events")
 }

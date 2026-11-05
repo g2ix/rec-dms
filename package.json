@@ -15,6 +15,7 @@
     "db:seed": "node scripts/with-env.mjs node --experimental-strip-types prisma/seed.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
     "mailpit": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mailpit.ps1",
+    "audit:verify": "node scripts/with-env.mjs node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/audit-verify.ts",
     "postinstall": "prisma generate"
   },
   "pnpm": {
@@ -40,6 +41,8 @@
     "@zxcvbn-ts/language-en": "^4.1.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
     "lucide-react": "^1.68.0",
     "motion": "^14.9.1",
     "next": "15.5.29",

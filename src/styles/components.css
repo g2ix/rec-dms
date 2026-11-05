@@ -731,6 +731,25 @@ html.theme-fade * {
 .rec-stack { display: grid; gap: var(--space-4); }
 .rec-form { display: grid; gap: var(--space-4); max-width: var(--form-max); }
 .rec-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.rec-filters {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--form-max);
+}
+@media (min-width: 720px) {
+  .rec-filters { grid-template-columns: 1fr 1fr; }
+}
+.rec-filters .rec-actions { grid-column: 1 / -1; }
+.rec-audit-diff {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rec-method__meta {
+  max-width: 280px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
 .rec-banner {
   background: var(--warning-soft);
   color: var(--ink);

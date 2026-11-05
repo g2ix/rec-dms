@@ -4,7 +4,9 @@ import { statusForEmail } from "@/lib/approval";
 import { SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { normalizeEmail } from "@/lib/email";
 import { signUpSchema } from "@/lib/auth-schemas";
+import { AuditAction } from "@/lib/audit-log";
 import { prisma } from "@/server/db";
+import { audit, auditRequestMeta, diffOf, recordAudit } from "@/server/audit";
 import { AppError } from "@/server/errors";
 import { autoApproveDomains } from "@/server/auth/domains";
 import { issueEmailCode, verifyEmailCode } from "@/server/auth/codes";
@@ -50,7 +52,12 @@ export async function startRegistration(
       passwordHash,
     },
   });
-  // AUDIT: auth.sign_up_started
+  await recordAudit({
+    action: AuditAction.signUpStarted,
+    entityType: "registration",
+    entityId: email,
+    meta: { email },
+  });
   return { email };
 }
 
@@ -60,16 +67,29 @@ export async function confirmRegistration(email: string, code: string) {
   if (!payload.success) throw new AppError("CODE_INVALID", "That code is not valid.", 400);
   const domains = await autoApproveDomains();
   const status = statusForEmail(normalizeEmail(email), domains);
-  const user = await createPerson({
-    firstName: payload.data.firstName,
-    middleInitial: payload.data.middleInitial,
-    familyName: payload.data.familyName,
-    email,
-    passwordHash: payload.data.passwordHash,
-    status,
+  const meta = await auditRequestMeta();
+  return prisma.$transaction(async (tx) => {
+    const user = await createPerson(
+      {
+        firstName: payload.data.firstName,
+        middleInitial: payload.data.middleInitial,
+        familyName: payload.data.familyName,
+        email,
+        passwordHash: payload.data.passwordHash,
+        status,
+      },
+      tx,
+    );
+    await audit.record(tx, {
+      actorUserId: user.id,
+      action: AuditAction.emailVerified,
+      entityType: "user",
+      entityId: user.id,
+      diff: diffOf({}, { status: user.status, email: normalizeEmail(email) }),
+      meta,
+    });
+    return user;
   });
-  // AUDIT: auth.email_verified
-  return user;
 }
 
 export async function authenticatePassword(email: string, password: string) {
@@ -90,6 +110,5 @@ export async function authenticatePassword(email: string, password: string) {
   } catch {
     return null;
   }
-  // AUDIT: auth.sign_in
   return user;
 }

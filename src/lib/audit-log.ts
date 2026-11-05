@@ -1,0 +1,74 @@
+export const AuditAction = {
+  signIn: "auth.sign_in",
+  signOut: "auth.sign_out",
+  signInFailed: "auth.sign_in_failed",
+  signUpStarted: "auth.sign_up_started",
+  emailVerified: "auth.email_verified",
+  identityLinked: "auth.identity_linked",
+  identityUnlinked: "auth.identity_unlinked",
+  emailRemoved: "auth.email_removed",
+  passwordSet: "auth.password_set",
+  passwordRemoved: "auth.password_removed",
+  contactEmailSet: "auth.contact_email_set",
+  userApproved: "user.approved",
+  userRejected: "user.rejected",
+  userSuspended: "user.suspended",
+  userMerged: "user.merged",
+  roleGranted: "user.role_granted",
+  roleRevoked: "user.role_revoked",
+  permissionChanged: "role.permission_changed",
+  settingChanged: "setting.changed",
+} as const;
+
+const LABELS: Record<string, string> = {
+  [AuditAction.signIn]: "Signed in",
+  [AuditAction.signOut]: "Signed out",
+  [AuditAction.signInFailed]: "Sign-in failed",
+  [AuditAction.signUpStarted]: "Sign-up started",
+  [AuditAction.emailVerified]: "Email verified",
+  [AuditAction.identityLinked]: "Sign-in method linked",
+  [AuditAction.identityUnlinked]: "Sign-in method removed",
+  [AuditAction.emailRemoved]: "Email removed",
+  [AuditAction.passwordSet]: "Password set",
+  [AuditAction.passwordRemoved]: "Password removed",
+  [AuditAction.contactEmailSet]: "Contact email changed",
+  [AuditAction.userApproved]: "User approved",
+  [AuditAction.userRejected]: "User rejected",
+  [AuditAction.userSuspended]: "User suspended",
+  [AuditAction.userMerged]: "Accounts merged",
+  [AuditAction.roleGranted]: "Role granted",
+  [AuditAction.roleRevoked]: "Role revoked",
+  [AuditAction.permissionChanged]: "Role permissions changed",
+  [AuditAction.settingChanged]: "Setting changed",
+};
+
+const INTERNAL_PREFIXES = ["auth.", "user.", "role.", "setting."];
+
+export function auditActionLabel(action: string): string {
+  return LABELS[action] ?? action;
+}
+
+export function isInternalAuditAction(action: string): boolean {
+  return INTERNAL_PREFIXES.some((prefix) => action.startsWith(prefix));
+}
+
+export function formatSeq(seq: bigint | number): string {
+  const text = typeof seq === "bigint" ? seq.toString() : String(seq);
+  return text.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function chainStatusLabel(
+  result: { ok: true; seq: bigint | null } | { ok: false; seq: bigint },
+  timeLabel: string,
+): { tone: "success" | "danger"; label: string } {
+  if (!result.ok) {
+    return { tone: "danger", label: `Chain broken at #${formatSeq(result.seq)}` };
+  }
+  const seq = result.seq === null ? "0" : formatSeq(result.seq);
+  return { tone: "success", label: `Chain verified up to #${seq} at ${timeLabel}` };
+}
+
+export function changedFields(diff: unknown): string {
+  if (!diff || typeof diff !== "object" || Array.isArray(diff)) return "";
+  return Object.keys(diff).join(", ");
+}

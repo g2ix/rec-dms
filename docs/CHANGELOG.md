@@ -1,5 +1,18 @@
 # Changelog
 
+## M03 — Audit trail (2026-11-05)
+
+Meaningful actions are appended to `audit_events` in the same transaction as the change. Each row stores the previous row's hash. `pg_advisory_xact_lock` keeps `seq` and the hash chain in one order. `pnpm audit:verify` and `GET /api/internal/audit/verify` report the first broken sequence. A trigger rejects `UPDATE` and `DELETE`. `/admin/audit` filters the log, exports CSV, and shows whether the chain still verifies. `<AuditTimeline protocolId>` is the protocol activity list, with a simplified mode that hides IP, user agent, and account, role, and settings actions.
+
+Sign-up, email verification, sign-in, failed sign-in, sign-out, linking, unlinking, password set and removal, contact email, approval, rejection, and account merge write audit rows. Diffs keep changed fields only. Password hashes, tokens, and 4–8 digit codes are stored as `[redacted]`.
+
+### Deviation from the spec and the M03 prompt
+
+- The append-only trigger was added with account linking. This milestone reinstalls it and indexes actor, protocol, and time.
+- `audit.view` is still the bootstrap-admin check. M02's `authorize(user, "audit.view")` is not in the tree yet.
+- Role grant, role revoke, permission edits, and settings edits have no mutation yet, so there is nothing to record. Rejection sets `SUSPENDED` and is stored as `user.rejected`. A separate suspend action can use `user.suspended` when it exists.
+- The chain badge is computed when the audit page renders. M09's cron will call the internal route and can store that run.
+
 ## M01 — Authentication, account linking, and merge (2026-11-05)
 
 People can register, verify a 6-digit code, and sign in with a password, a magic link, or Google. A person can link any number of Google accounts. Signing in with any linked, verified email or Google identity reaches the same account. `usc.edu.ph` addresses (and subdomains) become `ACTIVE`; other addresses stay `PENDING_APPROVAL` and can sign in, with submit actions blocked by `requireActiveUser()`.
@@ -10,7 +23,7 @@ Creating or joining a protocol stores the contact email and designation on the m
 
 ### Deviation from the spec and the M01 prompt
 
-- The M01 prompt deferred account merge and audit events. This change adds both, because one person may hold separate faculty and student Google accounts that already exist as two users. Other auth actions still have `// AUDIT:` comments for M03.
+- The M01 prompt deferred account merge and audit events. This change adds merge, because one person may hold separate faculty and student Google accounts that already exist as two users. The other auth actions are audited in M03.
 - `MERGED` is an additional user status. The row is kept and `mergedIntoId` points at the account that remains. Sign-in to the merged row is blocked.
 - Rejecting a pending account sets `SUSPENDED`. There is no separate rejected status.
 - Minimal `roles`, `user_roles`, `protocols`, `protocol_members`, `signatures`, `notifications`, and `tasks` tables exist so a merge has real rows to move. Later milestones add the rest of their columns.

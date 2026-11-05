@@ -1,7 +1,9 @@
 import "server-only";
 import type { ProtocolMemberRole } from "@prisma/client";
+import { AuditAction } from "@/lib/audit-log";
 import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
+import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { AppError } from "@/server/errors";
 import { ensureVerifiedEmail } from "@/server/auth/users";
 
@@ -81,17 +83,27 @@ export async function linkProviderAccount(input: {
     const session = await findOrStartSelfMerge(input.userId, emailOwner.userId);
     return { mergeSessionId: session.id };
   }
-  await prisma.account.create({
-    data: {
-      userId: input.userId,
-      type: input.type ?? "oidc",
-      provider: input.provider,
-      providerAccountId: input.providerAccountId,
-      email,
-    },
+  const meta = await auditRequestMeta({ provider: input.provider, email });
+  await prisma.$transaction(async (tx) => {
+    const account = await tx.account.create({
+      data: {
+        userId: input.userId,
+        type: input.type ?? "oidc",
+        provider: input.provider,
+        providerAccountId: input.providerAccountId,
+        email,
+      },
+    });
+    await ensureVerifiedEmail(input.userId, email, tx);
+    await audit.record(tx, {
+      actorUserId: input.userId,
+      action: AuditAction.identityLinked,
+      entityType: "account",
+      entityId: account.id,
+      diff: diffOf({}, { provider: input.provider, email }),
+      meta,
+    });
   });
-  await ensureVerifiedEmail(input.userId, email);
-  // AUDIT: auth.identity_linked
   return { linked: true };
 }
 
@@ -141,15 +153,35 @@ export async function removeSignInMethod(
     throw new AppError("LAST_METHOD", "The last sign-in method cannot be removed.", 400);
   }
   if (method.kind === "password") {
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash: null } });
-    // AUDIT: auth.password_removed
+    const meta = await auditRequestMeta();
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { passwordHash: null } });
+      await audit.record(tx, {
+        actorUserId: userId,
+        action: AuditAction.passwordRemoved,
+        entityType: "user",
+        entityId: userId,
+        diff: diffOf({ passwordHash: "set" }, { passwordHash: null }),
+        meta,
+      });
+    });
     return;
   }
   if (method.kind === "oauth") {
     const account = current.accounts.find((item) => item.id === method.accountId);
     if (!account) throw new AppError("NOT_FOUND", "That sign-in method was not found.", 404);
-    await prisma.account.delete({ where: { id: account.id } });
-    // AUDIT: auth.identity_unlinked
+    const meta = await auditRequestMeta({ provider: account.provider });
+    await prisma.$transaction(async (tx) => {
+      await tx.account.delete({ where: { id: account.id } });
+      await audit.record(tx, {
+        actorUserId: userId,
+        action: AuditAction.identityUnlinked,
+        entityType: "account",
+        entityId: account.id,
+        diff: diffOf({ provider: account.provider, email: account.email }, { provider: null, email: null }),
+        meta,
+      });
+    });
     return;
   }
   const email = current.emails.find((item) => item.id === method.emailId);
@@ -163,6 +195,7 @@ export async function removeSignInMethod(
     );
   }
   const replacement = current.emails.find((item) => item.id !== email.id);
+  const meta = await auditRequestMeta({ email: email.email });
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
     if (user.primaryEmailId === email.id) {
@@ -191,23 +224,50 @@ export async function removeSignInMethod(
       }
     }
     await tx.userEmail.delete({ where: { id: email.id } });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.emailRemoved,
+      entityType: "user_email",
+      entityId: email.id,
+      diff: diffOf({ email: email.email }, { email: null }),
+      meta,
+    });
   });
-  // AUDIT: auth.email_removed
 }
 
 export async function setContactEmail(userId: string, emailId: string) {
   const email = await prisma.userEmail.findFirst({ where: { id: emailId, userId, verifiedAt: { not: null } } });
   if (!email) throw new AppError("NOT_FOUND", "That email is not on this account.", 404);
-  await prisma.$transaction([
-    prisma.userEmail.updateMany({ where: { userId }, data: { isContact: false } }),
-    prisma.userEmail.update({ where: { id: emailId }, data: { isContact: true } }),
-  ]);
-  // AUDIT: auth.contact_email_set
+  const previous = await prisma.userEmail.findFirst({ where: { userId, isContact: true } });
+  const meta = await auditRequestMeta();
+  await prisma.$transaction(async (tx) => {
+    await tx.userEmail.updateMany({ where: { userId }, data: { isContact: false } });
+    await tx.userEmail.update({ where: { id: emailId }, data: { isContact: true } });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.contactEmailSet,
+      entityType: "user_email",
+      entityId: emailId,
+      diff: diffOf({ contactEmail: previous?.email ?? null }, { contactEmail: email.email }),
+      meta,
+    });
+  });
 }
 
 export async function setPassword(userId: string, passwordHash: string) {
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
-  // AUDIT: auth.password_set
+  const meta = await auditRequestMeta();
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.passwordSet,
+      entityType: "user",
+      entityId: userId,
+      diff: diffOf({ passwordHash: before.passwordHash }, { passwordHash }),
+      meta,
+    });
+  });
 }
 
 export async function startEmailLink(userId: string, email: string) {

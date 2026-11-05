@@ -6,7 +6,9 @@ import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { normalizeEmail } from "@/lib/email";
 import { env } from "@/lib/env";
+import { AuditAction } from "@/lib/audit-log";
 import { prisma } from "@/server/db";
+import { audit, auditRequestMeta, diffOf, recordAudit } from "@/server/audit";
 import { AppError } from "@/server/errors";
 import { createRecAdapter } from "@/server/auth/adapter";
 import { authConfig } from "@/server/auth.config";
@@ -47,15 +49,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials, request) {
         const headerList = new Headers(request?.headers);
+        const email = normalizeEmail(String(credentials?.email ?? ""));
+        const failed = (reason: string) =>
+          recordAudit(
+            {
+              action: AuditAction.signInFailed,
+              entityType: "user",
+              entityId: email || "unknown",
+              meta: { reason, email },
+            },
+            headerList,
+          );
         const hit = await rateLimiter.hit(`signin:${clientIp(headerList)}`, SIGN_IN_LIMIT.limit, SIGN_IN_LIMIT.windowMs);
-        if (!hit.ok) return null;
+        if (!hit.ok) {
+          await failed("rate_limited");
+          return null;
+        }
         try {
-          const user = await authenticatePassword(String(credentials?.email ?? ""), String(credentials?.password ?? ""));
-          if (!user) return null;
-          // AUDIT: auth.sign_in
+          const user = await authenticatePassword(email, String(credentials?.password ?? ""));
+          if (!user) {
+            await failed("invalid_credentials");
+            return null;
+          }
           return { id: user.id, email: user.email ?? undefined };
         } catch (error) {
-          if (error instanceof AppError && error.code === "SUSPENDED") return null;
+          if (error instanceof AppError && error.code === "SUSPENDED") {
+            await failed("suspended");
+            return null;
+          }
           throw error;
         }
       },
@@ -163,31 +184,83 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (user.id) {
         const row = await prisma.user.findUnique({ where: { id: user.id } });
-        if (row?.status === "SUSPENDED") return "/sign-in?error=Suspended";
+        if (row?.status === "SUSPENDED") {
+          await recordAudit({
+            actorUserId: user.id,
+            action: AuditAction.signInFailed,
+            entityType: "user",
+            entityId: user.id,
+            meta: { reason: "suspended" },
+          });
+          return "/sign-in?error=Suspended";
+        }
         if (row && (row.status === "MERGED" || row.mergedIntoId)) {
+          await recordAudit({
+            actorUserId: user.id,
+            action: AuditAction.signInFailed,
+            entityType: "user",
+            entityId: user.id,
+            meta: { reason: "merged" },
+          });
           return "/sign-in?error=AccessDenied";
         }
       }
-      // AUDIT: auth.sign_in
       return true;
     },
   },
   events: {
+    async signIn({ user, account }) {
+      if (!user.id) return;
+      await recordAudit({
+        actorUserId: user.id,
+        action: AuditAction.signIn,
+        entityType: "user",
+        entityId: user.id,
+        meta: { provider: account?.provider ?? "credentials" },
+      });
+    },
+    async signOut(message) {
+      const token = message && "token" in message ? message.token : null;
+      const userId =
+        token && typeof token.userId === "string"
+          ? token.userId
+          : token && typeof token.sub === "string"
+            ? token.sub
+            : null;
+      if (!userId) return;
+      await recordAudit({
+        actorUserId: userId,
+        action: AuditAction.signOut,
+        entityType: "user",
+        entityId: userId,
+      });
+    },
     async linkAccount({ user, account, profile }) {
       const email = await profileEmail(profile, user.email);
       if (!user.id || !email) return;
-      await ensureVerifiedEmail(user.id, email);
-      await prisma.account.update({
-        where: {
-          provider_providerAccountId: {
-            provider: account.provider,
-            providerAccountId: account.providerAccountId,
+      const normalized = normalizeEmail(email);
+      const meta = await auditRequestMeta({ provider: account.provider, email: normalized });
+      await prisma.$transaction(async (tx) => {
+        await ensureVerifiedEmail(user.id!, normalized, tx);
+        const linked = await tx.account.update({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
           },
-        },
-        data: { email: normalizeEmail(email) },
+          data: { email: normalized },
+        });
+        await audit.record(tx, {
+          actorUserId: user.id,
+          action: AuditAction.identityLinked,
+          entityType: "account",
+          entityId: linked.id,
+          diff: diffOf({}, { provider: account.provider, email: normalized }),
+          meta,
+        });
       });
       await clearLinkIntent();
-      // AUDIT: auth.identity_linked
     },
   },
 });

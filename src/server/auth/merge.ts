@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
-import { audit } from "@/server/audit";
+import { audit, auditRequestMeta } from "@/server/audit";
 import { conflictMessage, rolesConflict } from "@/server/auth/conflicts";
 import { verifyPassword } from "@/server/auth/passwords";
 import { verifyEmailCode } from "@/server/auth/codes";
@@ -178,7 +178,7 @@ async function moveUserInto(
       secondaryUserId: secondary.id,
       moved,
     },
-    meta: { via: input.via },
+    meta: await auditRequestMeta({ via: input.via }),
   });
 
   return moved;

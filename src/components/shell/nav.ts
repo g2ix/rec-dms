@@ -57,7 +57,7 @@ const chairItems: NavItem[] = [
   { href: "/app/workflows", label: "Workflows", icon: Workflow },
   { href: "/app/forms", label: "Forms", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings },
-  { href: "/app/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ];
 
 export const NAV: Record<RoleView, NavGroup[]> = {
@@ -120,7 +120,7 @@ const LEDES: Record<string, string> = {
   "/app/workflows": "Workflow versions will be listed here.",
   "/app/forms": "Form definitions will be listed here.",
   "/app/settings": "Committee settings will be edited here.",
-  "/app/audit": "The audit log will be listed here.",
+  "/admin/audit": "Recorded actions and the hash chain.",
 };
 
 const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [

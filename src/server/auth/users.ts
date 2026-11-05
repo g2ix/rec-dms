@@ -1,8 +1,10 @@
 import "server-only";
 import type { Prisma, UserStatus } from "@prisma/client";
+import { AuditAction } from "@/lib/audit-log";
 import { formatDisplayName } from "@/lib/display-name";
 import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
+import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { AppError } from "@/server/errors";
 
 type Writer = Prisma.TransactionClient | typeof prisma;
@@ -87,4 +89,30 @@ export async function ensureVerifiedEmail(userId: string, email: string, db: Wri
     });
   }
   return created;
+}
+
+export async function decidePendingUser(input: {
+  actorUserId: string;
+  userId: string;
+  decision: "approve" | "reject";
+}) {
+  const before = await prisma.user.findUnique({ where: { id: input.userId }, select: { status: true } });
+  if (!before) throw new AppError("NOT_FOUND", "That account was not found.", 404);
+  const status = input.decision === "approve" ? "ACTIVE" : "SUSPENDED";
+  const meta = await auditRequestMeta();
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id: input.userId },
+      data: { status, approvedById: input.actorUserId, approvedAt: new Date() },
+    });
+    await audit.record(tx, {
+      actorUserId: input.actorUserId,
+      action: input.decision === "approve" ? AuditAction.userApproved : AuditAction.userRejected,
+      entityType: "user",
+      entityId: input.userId,
+      diff: diffOf({ status: before.status }, { status }),
+      meta,
+    });
+    return updated;
+  });
 }

@@ -2,12 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { AuditAction } from "@/lib/audit-log";
 import { postSignInPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { affiliationSchema } from "@/lib/auth-schemas";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
 import { codeSchema, emailOnlySchema, signInSchema, signUpSchema } from "@/lib/auth-schemas";
 import { prisma } from "@/server/db";
+import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { actionError, isNextRedirect, type ActionState } from "@/server/action-state";
 import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
 import { issueEmailCode, verifyEmailCode } from "@/server/auth/codes";
@@ -18,7 +20,7 @@ import { assertPasswordAcceptable, hashPassword, verifyPassword } from "@/server
 import { authenticatePassword, confirmRegistration, startRegistration } from "@/server/auth/register";
 import { signIn, signOut } from "@/server/auth";
 import { redirectToStartPage } from "@/server/auth/gate";
-import { ensureVerifiedEmail } from "@/server/auth/users";
+import { decidePendingUser, ensureVerifiedEmail } from "@/server/auth/users";
 import { requireUser } from "@/server/session";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 
@@ -161,8 +163,18 @@ export async function confirmEmailAction(_prev: ActionState, formData: FormData)
     const user = await requireUser();
     const parsed = codeSchema.parse({ email: formData.get("email"), code: formData.get("code") });
     await verifyEmailCode({ email: parsed.email, purpose: "LINK_EMAIL", code: parsed.code });
-    await ensureVerifiedEmail(user.id, parsed.email);
-    // AUDIT: auth.identity_linked
+    const meta = await auditRequestMeta();
+    await prisma.$transaction(async (tx) => {
+      const row = await ensureVerifiedEmail(user.id, parsed.email, tx);
+      await audit.record(tx, {
+        actorUserId: user.id,
+        action: AuditAction.identityLinked,
+        entityType: "user_email",
+        entityId: row.id,
+        diff: diffOf({}, { email: normalizeEmail(parsed.email) }),
+        meta,
+      });
+    });
     redirect("/app/account/sign-in-methods");
   } catch (error) {
     return actionError(error, "That code could not be confirmed.");
@@ -263,11 +275,7 @@ export async function approveUserAction(formData: FormData) {
   const actor = await requireUser();
   await assertBootstrapAdmin(actor.id);
   const userId = String(formData.get("userId") ?? "");
-  await prisma.user.update({
-    where: { id: userId },
-    data: { status: "ACTIVE", approvedById: actor.id, approvedAt: new Date() },
-  });
-  // AUDIT: user.approved
+  await decidePendingUser({ actorUserId: actor.id, userId, decision: "approve" });
   redirect("/admin/users/pending");
 }
 
@@ -275,11 +283,7 @@ export async function rejectUserAction(formData: FormData) {
   const actor = await requireUser();
   await assertBootstrapAdmin(actor.id);
   const userId = String(formData.get("userId") ?? "");
-  await prisma.user.update({
-    where: { id: userId },
-    data: { status: "SUSPENDED", approvedById: actor.id, approvedAt: new Date() },
-  });
-  // AUDIT: user.rejected
+  await decidePendingUser({ actorUserId: actor.id, userId, decision: "reject" });
   redirect("/admin/users/pending");
 }
 

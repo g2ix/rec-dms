@@ -20,6 +20,8 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),
   BOOTSTRAP_ADMIN_EMAILS: z.string().default(""),
+  // Bearer secret for the M09 chain-verification cron. Empty refuses the route.
+  CRON_SECRET: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;
