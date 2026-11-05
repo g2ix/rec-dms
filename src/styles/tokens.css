@@ -1,0 +1,100 @@
+/* USC REC-DMS — generated from tokens.json */
+:root, [data-theme="light"] {
+  --bg: #fafaf7;
+  --surface: #ffffff;
+  --surface-sunken: #f2f4ef;
+  --surface-raised: #ffffff;
+  --border: #e1e4de;
+  --border-control: #858e87;
+  --ink: #121714;
+  --ink-muted: #545d57;
+  --primary: #007a3a;
+  --primary-hover: #006b33;
+  --on-primary: #ffffff;
+  --primary-soft: #e5f4eb;
+  --primary-ink: #005c2c;
+  --danger: #c8231b;
+  --on-danger: #ffffff;
+  --danger-soft: #fdecea;
+  --danger-ink: #a11c15;
+  --info: #0074a8;
+  --info-soft: #e4f2fa;
+  --info-ink: #005a82;
+  --warning: #8a5a00;
+  --warning-soft: #fff4d6;
+  --focus: #0074a8;
+  --brand-green: #00a950;
+  --brand-red: #ee2e24;
+  --brand-blue: #009ddc;
+  --brand-gold: #ffc423;
+  --scrim: rgba(18, 23, 20, 0.45);
+  --shadow-pop: 0 8px 24px rgba(18, 23, 20, 0.12), 0 1px 2px rgba(18, 23, 20, 0.08);
+}
+[data-theme="dark"] {
+  --bg: #0f1412;
+  --surface: #161c19;
+  --surface-sunken: #0b0f0d;
+  --surface-raised: #1e2622;
+  --border: #2a332e;
+  --border-control: #6b766f;
+  --ink: #e8ece9;
+  --ink-muted: #9ca59f;
+  --primary: #34c77b;
+  --primary-hover: #4ad58b;
+  --on-primary: #0b1510;
+  --primary-soft: #12301f;
+  --primary-ink: #7fe3ae;
+  --danger: #ff6b62;
+  --on-danger: #1a0503;
+  --danger-soft: #3a1614;
+  --danger-ink: #ff9c95;
+  --info: #4cc3f5;
+  --info-soft: #0e2a38;
+  --info-ink: #8ed8f8;
+  --warning: #ffd25c;
+  --warning-soft: #33280a;
+  --focus: #4cc3f5;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 360ms;
+  --dur-reveal: 520ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --blur-loading: 10px;
+  --blur-stale: 2px;
+  --sidebar-width: 264px;
+  --sidebar-rail: 72px;
+  --topbar-height: 56px;
+  --control-height: 40px;
+  --content-max: 1120px;
+  --font-sans: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+.display { font-family: var(--font-serif); font-size: 32px; line-height: 38px; font-weight: 600; letter-spacing: -0.01em; }
+.title { font-family: var(--font-serif); font-size: 24px; line-height: 30px; font-weight: 600; }
+.heading { font-family: var(--font-sans); font-size: 18px; line-height: 26px; font-weight: 600; }
+.subheading { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 15px; line-height: 24px; font-weight: 400; }
+.body-sm { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
+.caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.code { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; }

@@ -1,5 +1,16 @@
 # Changelog
 
+## M00b — Design system and app shell (2026-11-05)
+
+The REC tokens, Light/Dark/System theme, primitives, blur loading, and the signed-in sidebar shell. `/dev/ui` shows every primitive in both themes. Signed-in pages live under `/app`. The sign-in frame is at `/sign-in`.
+
+### Deviation from the spec and the M00b prompt
+
+- Tailwind 4 is configured in `src/app/globals.css` (`@theme`), which is this project's Tailwind config. The default color palette is removed. Spacing, radius, shadow, duration, and easing utilities point at the tokens.
+- The kit has no separate `icon-512.png`. The 512 manifest icon is `usc-seal-512.png`.
+- Playwright visual baselines are Windows Chromium snapshots. The visual test is skipped on other platforms because text rendering differs.
+- The Next.js dev tools indicator is off so it does not cover the gallery.
+
 ## M00 — Project setup (2026-11-04)
 
 Next.js 15 app (App Router, TypeScript strict, `src/`) with Tailwind, shadcn/ui, Prisma, Vitest, and Playwright. The home page states what REC-DMS is. `pnpm mailpit` runs Mailpit's Windows binary for SMTP.
