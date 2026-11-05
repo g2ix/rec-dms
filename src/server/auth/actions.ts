@@ -2,36 +2,40 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { APP_HOME, safeCallbackPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { affiliationSchema } from "@/lib/auth-schemas";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
 import { codeSchema, emailOnlySchema, signInSchema, signUpSchema } from "@/lib/auth-schemas";
 import { prisma } from "@/server/db";
-import { actionError, type ActionState } from "@/server/action-state";
+import { actionError, isNextRedirect, type ActionState } from "@/server/action-state";
 import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
 import { issueEmailCode, verifyEmailCode } from "@/server/auth/codes";
 import { writeLinkIntent } from "@/server/auth/link-intent";
 import { removeSignInMethod, setContactEmail, setPassword, startEmailLink } from "@/server/auth/linking";
 import { completeSelfMerge, confirmMergeStepUp, mergeAsAdmin } from "@/server/auth/merge";
 import { assertPasswordAcceptable, hashPassword, verifyPassword } from "@/server/auth/passwords";
-import { confirmRegistration, startRegistration } from "@/server/auth/register";
+import { authenticatePassword, confirmRegistration, startRegistration } from "@/server/auth/register";
 import { signIn, signOut } from "@/server/auth";
 import { ensureVerifiedEmail } from "@/server/auth/users";
 import { requireUser } from "@/server/session";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 
+function afterSignIn(formData: FormData): string {
+  return safeCallbackPath(String(formData.get("callbackUrl") ?? "")) ?? APP_HOME;
+}
+
 export async function signOutAction() {
   await signOut({ redirectTo: "/sign-in" });
 }
 
-export async function signInWithGoogle(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+export async function signInWithGoogle(_prev: ActionState, formData: FormData): Promise<ActionState> {
   void _prev;
-  void _formData;
   try {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       return { ok: false, error: "Google sign-in is not configured." };
     }
-    await signIn("google", { redirectTo: "/app" });
+    await signIn("google", { redirectTo: afterSignIn(formData) });
     return null;
   } catch (error) {
     return actionError(error, "Google sign-in did not complete.");
@@ -39,26 +43,36 @@ export async function signInWithGoogle(_prev: ActionState, _formData: FormData):
 }
 
 export async function signInWithPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter your email and password." };
+  }
   try {
-    const parsed = signInSchema.parse({
-      email: formData.get("email"),
-      password: formData.get("password"),
-    });
     await signIn("credentials", {
-      email: parsed.email,
-      password: parsed.password,
-      redirectTo: "/app",
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirectTo: afterSignIn(formData),
     });
     return null;
   } catch (error) {
-    return actionError(error, "The email or password is not right, or this account cannot sign in.");
+    if (isNextRedirect(error)) throw error;
+    try {
+      await authenticatePassword(parsed.data.email, parsed.data.password);
+    } catch (inner) {
+      const state = actionError(inner, SUSPENDED_SIGN_IN_MESSAGE);
+      if (state?.error === SUSPENDED_SIGN_IN_MESSAGE) return state;
+    }
+    return { ok: false, error: "The email or password is not right, or this account cannot sign in." };
   }
 }
 
 export async function sendMagicLink(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const parsed = emailOnlySchema.parse({ email: formData.get("email") });
-    await signIn("nodemailer", { email: parsed.email, redirectTo: "/app" });
+    await signIn("nodemailer", { email: parsed.email, redirectTo: afterSignIn(formData) });
     return null;
   } catch (error) {
     return actionError(error, "The sign-in link could not be sent.");

@@ -23,7 +23,15 @@ function FormError({ state }: { state: ActionState }) {
   );
 }
 
-export function SignInForm({ notice, googleEnabled }: { notice?: string; googleEnabled: boolean }) {
+export function SignInForm({
+  notice,
+  googleEnabled,
+  callbackUrl = "",
+}: {
+  notice?: string;
+  googleEnabled: boolean;
+  callbackUrl?: string;
+}) {
   const [passwordState, passwordAction, passwordPending] = useActionState(signInWithPassword, null);
   const [linkState, linkAction, linkPending] = useActionState(sendMagicLink, null);
   const [googleState, googleAction, googlePending] = useActionState(signInWithGoogle, null);
@@ -34,6 +42,7 @@ export function SignInForm({ notice, googleEnabled }: { notice?: string; googleE
       {notice ? <p className="rec-banner">{notice}</p> : null}
       <FormError state={passwordState} />
       <form action={passwordAction} className="auth-form">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <Field label="Email" htmlFor="sign-in-email">
           <Input id="sign-in-email" name="email" type="email" autoComplete="username" required />
         </Field>
@@ -45,6 +54,7 @@ export function SignInForm({ notice, googleEnabled }: { notice?: string; googleE
         </BusyButton>
       </form>
       <form action={linkAction} className="auth-form">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <FormError state={linkState} />
         <Field label="Email a sign-in link" htmlFor="magic-email" help="For an email already on your account.">
           <Input id="magic-email" name="email" type="email" autoComplete="email" required />
@@ -54,6 +64,7 @@ export function SignInForm({ notice, googleEnabled }: { notice?: string; googleE
         </BusyButton>
       </form>
       <form action={googleAction}>
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <FormError state={googleState} />
         <BusyButton type="submit" busy={googlePending} busyLabel="Opening Google…" disabled={!googleEnabled}>
           Continue with Google

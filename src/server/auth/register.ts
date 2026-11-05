@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { statusForEmail } from "@/lib/approval";
+import { SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { normalizeEmail } from "@/lib/email";
 import { signUpSchema } from "@/lib/auth-schemas";
 import { prisma } from "@/server/db";
@@ -81,6 +82,9 @@ export async function authenticatePassword(email: string, password: string) {
   if (!row?.verifiedAt || !user?.passwordHash) return null;
   const matches = await verifyPassword(user.passwordHash, password);
   if (!matches) return null;
+  if (user.status === "SUSPENDED") {
+    throw new AppError("SUSPENDED", SUSPENDED_SIGN_IN_MESSAGE, 403);
+  }
   try {
     await assertCanAuthenticate(user.id);
   } catch {

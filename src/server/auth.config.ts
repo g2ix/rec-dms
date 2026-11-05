@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { APP_HOME, safeInternalPath } from "@/lib/auth-redirect";
 
 export const authConfig = {
   trustHost: true,
@@ -10,16 +11,25 @@ export const authConfig = {
   },
   providers: [],
   callbacks: {
-    authorized({ auth }) {
-      return Boolean(auth?.user?.id);
+    authorized() {
+      return true;
+    },
+    redirect({ url, baseUrl }) {
+      const path = safeInternalPath(url, baseUrl);
+      return new URL(path === "/" ? APP_HOME : path, baseUrl).toString();
     },
     jwt({ token, user }) {
       const userId = user?.id ?? (typeof token.userId === "string" ? token.userId : undefined) ?? token.sub;
       if (!userId) return token;
-      return { sub: userId, userId };
+      token.sub = String(userId);
+      token.userId = String(userId);
+      return token;
     },
     session({ session, token }) {
       session.user.id = String(token.userId ?? token.sub ?? "");
+      session.user.status = typeof token.status === "string" ? token.status : undefined;
+      session.user.identityDefaultView =
+        typeof token.identityDefaultView === "string" ? token.identityDefaultView : null;
       return session;
     },
   },

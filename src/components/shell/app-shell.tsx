@@ -7,7 +7,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Icon } from "@/components/icons";
 import { SidebarPanel } from "@/components/shell/sidebar";
-import { pageForPath } from "@/components/shell/nav";
+import { pageForPath, type RoleView } from "@/components/shell/nav";
 import { ThemeSwitch } from "@/components/theme/theme-switch";
 import Link from "next/link";
 
@@ -15,11 +15,13 @@ export function AppShell({
   collapsed: collapsedInitial,
   children,
   pageTitle,
+  roleView = "proponent",
   account,
 }: {
   collapsed: boolean;
   children: React.ReactNode;
   pageTitle?: string;
+  roleView?: RoleView;
   account?: { name: string; email: string };
 }) {
   const pathname = usePathname();
@@ -43,6 +45,7 @@ export function AppShell({
           pathname={pathname}
           collapsed={collapsed}
           onToggle={toggleCollapsed}
+          roleView={roleView}
           markerId="nav-marker-desktop"
           account={account}
         />
@@ -71,6 +74,7 @@ export function AppShell({
                   <SidebarPanel
                     pathname={pathname}
                     collapsed={false}
+                    roleView={roleView}
                     markerId="nav-marker-drawer"
                     showCollapse={false}
                     account={account}

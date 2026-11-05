@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { redirectAwayFromAuthEntry } from "@/server/auth/gate";
 
-export default function HomePage() {
+export default async function HomePage() {
+  await redirectAwayFromAuthEntry("/", "");
   return (
     <main className="rec-content">
       <h1 className="title">USC REC-DMS</h1>

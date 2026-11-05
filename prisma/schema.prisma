@@ -100,8 +100,9 @@ model UserEmail {
   userId     String    @map("user_id")
   email      String    @unique
   verifiedAt DateTime? @map("verified_at")
-  isContact  Boolean   @default(false) @map("is_contact")
-  isPrimary  Boolean   @default(false) @map("is_primary")
+  isContact   Boolean   @default(false) @map("is_contact")
+  isPrimary   Boolean   @default(false) @map("is_primary")
+  defaultView String?   @map("default_view")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
@@ -127,6 +128,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
+  defaultView       String?  @map("default_view")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 

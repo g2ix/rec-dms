@@ -18,8 +18,9 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import type { RoleView } from "@/lib/role-view";
 
-export type RoleView = "proponent" | "adviser" | "reviewer" | "panel-chair" | "staff" | "chair";
+export type { RoleView } from "@/lib/role-view";
 
 export type NavItem = {
   href: string;

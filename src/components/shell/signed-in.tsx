@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
+import { knownRoleView } from "@/lib/role-view";
+import { signOut } from "@/server/auth";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 
@@ -15,16 +16,21 @@ export async function SignedInChrome({
   try {
     user = await requireUser();
   } catch (error) {
-    if (error instanceof AppError && (error.code === "UNAUTHENTICATED" || error.code === "SUSPENDED")) {
-      redirect(error.code === "SUSPENDED" ? "/sign-in?error=AccessDenied" : "/sign-in");
+    if (error instanceof AppError && error.code === "SUSPENDED") {
+      await signOut({ redirectTo: "/sign-in?error=Suspended" });
+    }
+    if (error instanceof AppError && error.code === "UNAUTHENTICATED") {
+      await signOut({ redirectTo: "/sign-in" });
     }
     throw error;
   }
   const jar = await cookies();
+  const roleView = knownRoleView(jar.get("activeView")?.value) ?? "proponent";
   return (
     <AppShell
       collapsed={jar.get("sidebar")?.value === "rail"}
       pageTitle={pageTitle}
+      roleView={roleView}
       account={{ name: user.displayName, email: user.email ?? "" }}
     >
       {user.status === "PENDING_APPROVAL" ? (

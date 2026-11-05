@@ -4,16 +4,17 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
-import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
+import { env } from "@/lib/env";
 import { prisma } from "@/server/db";
+import { AppError } from "@/server/errors";
 import { createRecAdapter } from "@/server/auth/adapter";
 import { authConfig } from "@/server/auth.config";
 import { clearLinkIntent, readLinkIntent } from "@/server/auth/link-intent";
 import { findOrStartSelfMerge } from "@/server/auth/linking";
-import { ensureVerifiedEmail } from "@/server/auth/users";
-import { authenticatePassword } from "@/server/auth/register";
 import { clientIp, rateLimiter, SIGN_IN_LIMIT } from "@/server/auth/rate-limit";
+import { authenticatePassword } from "@/server/auth/register";
+import { ensureVerifiedEmail } from "@/server/auth/users";
 
 async function profileEmail(profile: unknown, fallback?: string | null): Promise<string | null> {
   if (profile && typeof profile === "object" && "email" in profile && typeof profile.email === "string") {
@@ -48,15 +49,66 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const headerList = new Headers(request?.headers);
         const hit = await rateLimiter.hit(`signin:${clientIp(headerList)}`, SIGN_IN_LIMIT.limit, SIGN_IN_LIMIT.windowMs);
         if (!hit.ok) return null;
-        const user = await authenticatePassword(String(credentials?.email ?? ""), String(credentials?.password ?? ""));
-        if (!user) return null;
-        // AUDIT: auth.sign_in
-        return { id: user.id };
+        try {
+          const user = await authenticatePassword(String(credentials?.email ?? ""), String(credentials?.password ?? ""));
+          if (!user) return null;
+          // AUDIT: auth.sign_in
+          return { id: user.id, email: user.email ?? undefined };
+        } catch (error) {
+          if (error instanceof AppError && error.code === "SUSPENDED") return null;
+          throw error;
+        }
       },
     }),
   ],
   callbacks: {
     ...authConfig.callbacks,
+    async jwt({ token, user, account }) {
+      const userId = user?.id ?? (typeof token.userId === "string" ? token.userId : undefined) ?? token.sub;
+      if (userId) {
+        token.sub = String(userId);
+        token.userId = String(userId);
+      }
+      if (user) {
+        const signedInEmail = typeof user.email === "string" ? normalizeEmail(user.email) : null;
+        let view: string | null = null;
+        if (account && account.provider !== "credentials" && account.providerAccountId) {
+          const linked = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            },
+            select: { defaultView: true, email: true },
+          });
+          view = linked?.defaultView ?? null;
+          if (!view && linked?.email) {
+            const emailRow = await prisma.userEmail.findUnique({
+              where: { email: normalizeEmail(linked.email) },
+              select: { defaultView: true },
+            });
+            view = emailRow?.defaultView ?? null;
+          }
+        }
+        if (!view && signedInEmail) {
+          const emailRow = await prisma.userEmail.findUnique({
+            where: { email: signedInEmail },
+            select: { defaultView: true },
+          });
+          view = emailRow?.defaultView ?? null;
+        }
+        token.identityDefaultView = view;
+      }
+      if (userId) {
+        const row = await prisma.user.findUnique({
+          where: { id: String(userId) },
+          select: { status: true, mergedIntoId: true },
+        });
+        token.status = !row || row.mergedIntoId ? "MERGED" : row.status;
+      }
+      return token;
+    },
     async signIn({ user, account, profile, email }) {
       if (account?.provider !== "credentials") {
         const headerList = await headers();
@@ -111,7 +163,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (user.id) {
         const row = await prisma.user.findUnique({ where: { id: user.id } });
-        if (row && (row.status === "MERGED" || row.status === "SUSPENDED" || row.mergedIntoId)) {
+        if (row?.status === "SUSPENDED") return "/sign-in?error=Suspended";
+        if (row && (row.status === "MERGED" || row.mergedIntoId)) {
           return "/sign-in?error=AccessDenied";
         }
       }
