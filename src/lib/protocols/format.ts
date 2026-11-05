@@ -23,9 +23,21 @@ export function formHasSignature(schema: FormSchema): boolean {
   return schema.sections.some((section) => section.fields.some((field) => field.type === "signature"));
 }
 
-export function formProgress(schema: FormSchema, data: unknown, revision: number): FormProgress {
+function schemaRequiresSignature(schema: FormSchema): boolean {
+  return schema.sections.some((section) =>
+    section.fields.some((field) => field.type === "signature" && field.validation?.required === true),
+  );
+}
+
+export function formProgress(
+  schema: FormSchema,
+  data: unknown,
+  revision: number,
+  signatures?: { needsSignatures: boolean },
+): FormProgress {
   if (validateInstance({ schema }, data).length === 0) {
-    return formHasSignature(schema) ? "Needs signatures" : "Complete";
+    if (signatures) return signatures.needsSignatures ? "Needs signatures" : "Complete";
+    return schemaRequiresSignature(schema) ? "Needs signatures" : "Complete";
   }
   const record = data && typeof data === "object" && !Array.isArray(data) ? data : {};
   if (revision === 0 && Object.keys(record).length === 0) return "Not started";

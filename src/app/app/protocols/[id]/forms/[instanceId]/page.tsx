@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ProtocolForm } from "@/components/protocols/protocol-form";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { boundValues, formForEdit } from "@/server/protocols/read";
+import { loadSignaturePanel } from "@/server/signatures/views";
 import { requireUser } from "@/server/session";
 
 export default async function ProtocolFormPage({
@@ -12,6 +13,15 @@ export default async function ProtocolFormPage({
   const { id, instanceId } = await params;
   const user = await requireUser();
   const [form, bound] = await Promise.all([formForEdit(user.id, id, instanceId), boundValues(id)]);
+  const roles = form.roles.filter(isRoleKey) as RoleKey[];
+  const signatures = await loadSignaturePanel({
+    userId: user.id,
+    hasPassword: Boolean(user.passwordHash),
+    protocolId: id,
+    instanceId: form.instance.id,
+    schema: form.schema,
+    roles,
+  });
   const editing = form.version.state === "WORKING" && form.instance.status === "DRAFT" && form.roles.length > 0;
   const data = form.instance.data && typeof form.instance.data === "object" && !Array.isArray(form.instance.data)
     ? (form.instance.data as Record<string, unknown>)
@@ -29,8 +39,15 @@ export default async function ProtocolFormPage({
         initialData={data}
         initialRevision={form.instance.revision}
         mode={editing ? "edit" : "view"}
-        roles={form.roles.filter(isRoleKey) as RoleKey[]}
+        roles={roles}
         boundValues={bound}
+        signatureSlots={signatures.byField}
+        signing={{
+          instanceId: form.instance.id,
+          hasPassword: signatures.hasPassword,
+          fresh: signatures.fresh,
+          email: signatures.email,
+        }}
       />
     </div>
   );

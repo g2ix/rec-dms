@@ -14,6 +14,8 @@ import { getPath, setPath } from "@/lib/forms/paths";
 import { computedText } from "@/lib/forms/recompute";
 import type { RoleKey } from "@/lib/forms/roles";
 import type { ColumnType, FormColumn, FormField, FormSchema } from "@/lib/forms/schema";
+import type { SignatureSlotView, SigningPrompt } from "@/lib/signatures/view";
+import { SignatureFields } from "@/components/forms/signature-field";
 
 export type FormMode = "edit" | "view" | "print";
 
@@ -36,6 +38,8 @@ export function FormRenderer({
   boundValues = {},
   onUseTheirs,
   onKeepMine,
+  signatureSlots,
+  signing = null,
 }: {
   schema: FormSchema;
   data: Record<string, unknown>;
@@ -47,6 +51,8 @@ export function FormRenderer({
   boundValues?: Record<string, unknown>;
   onUseTheirs?: (path: string) => void;
   onKeepMine?: (path: string) => void;
+  signatureSlots?: Record<string, SignatureSlotView[]>;
+  signing?: SigningPrompt | null;
 }) {
   const editable = getEditableFields({ schema }, { status: mode === "edit" ? "DRAFT" : "LOCKED", data }, { id: "renderer" }, roles, stepKey);
   const editing = mode === "edit";
@@ -74,6 +80,8 @@ export function FormRenderer({
               boundValues={boundValues}
               onUseTheirs={onUseTheirs}
               onKeepMine={onKeepMine}
+              signatureSlots={signatureSlots}
+              signing={signing}
             />
           ))}
         </section>
@@ -93,6 +101,8 @@ function FieldBlock(props: {
   boundValues: Record<string, unknown>;
   onUseTheirs?: (path: string) => void;
   onKeepMine?: (path: string) => void;
+  signatureSlots?: Record<string, SignatureSlotView[]>;
+  signing?: SigningPrompt | null;
 }) {
   const { field, data, boundValues } = props;
   if (field.type === "staticText") {
@@ -103,15 +113,14 @@ function FieldBlock(props: {
       </div>
     );
   }
-  if (field.type === "signature" || field.type === "fileRef") {
+  if (field.type === "signature") {
+    return <SignatureFields field={field} slots={props.signatureSlots?.[field.id] ?? []} signing={props.signing ?? null} />;
+  }
+  if (field.type === "fileRef") {
     return (
       <div className="rec-field">
         <p className="label">{field.label}</p>
-        <p className="rec-field__help">
-          {field.type === "signature"
-            ? "A signature is collected when this form is signed."
-            : "Files are attached with the protocol uploads."}
-        </p>
+        <p className="rec-field__help">Files are attached with the protocol uploads.</p>
       </div>
     );
   }

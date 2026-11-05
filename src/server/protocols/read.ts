@@ -7,6 +7,7 @@ import { AppError } from "@/server/errors";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { ensureWorkingForms, sharedSnapshot } from "@/server/protocols/versions";
 import { suggestedManuscriptName } from "@/lib/protocols/format";
+import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
 
 const memberInclude = {
   user: true,
@@ -119,11 +120,19 @@ export async function listWorkingForms(userId: string, protocolId: string): Prom
   await prisma.$transaction(async (tx) => {
     await ensureWorkingForms(tx, version.id);
   });
-  const instances = await prisma.formInstance.findMany({
-    where: { ownerType: "PROTOCOL_VERSION", ownerId: version.id },
-    include: { formDefinition: true },
-    orderBy: { formDefinition: { code: "asc" } },
-  });
+  const [instances, memberRows] = await Promise.all([
+    prisma.formInstance.findMany({
+      where: { ownerType: "PROTOCOL_VERSION", ownerId: version.id },
+      include: { formDefinition: true },
+      orderBy: { formDefinition: { code: "asc" } },
+    }),
+    prisma.protocolMember.findMany({
+      where: { protocolId, status: { in: ["ACTIVE", "INVITED"] } },
+      include: { user: { select: { displayName: true } } },
+    }),
+  ]);
+  const marks = await signatureMarks(prisma, instances.map((instance) => instance.id));
+  const roster = toRoster(memberRows);
   return instances.flatMap((instance) => {
     const parsed = validateSchema(instance.formDefinition.schema);
     if (!parsed.ok) return [];
@@ -132,7 +141,9 @@ export async function listWorkingForms(userId: string, protocolId: string): Prom
         instanceId: instance.id,
         code: instance.formDefinition.code,
         title: instance.formDefinition.title,
-        progress: formProgress(parsed.schema, instance.data, instance.revision),
+        progress: formProgress(parsed.schema, instance.data, instance.revision, {
+          needsSignatures: formNeedsSignatures(parsed.schema, roster, marks.get(instance.id) ?? []),
+        }),
       },
     ];
   });

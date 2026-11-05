@@ -6,7 +6,14 @@ import { prismaMembershipReader, type ProtocolMembershipReader } from "@/server/
 import { decideProtocolAction } from "@/server/authz/policy";
 import { isCommitteeStaff } from "@/server/authz/staff";
 
-const FORM_ACTIONS = new Set(["forms.view", "forms.edit", "forms.fill"]);
+const FORM_ACTIONS = new Set([
+  "forms.view",
+  "forms.edit",
+  "forms.fill",
+  "workflow.view",
+  "workflow.edit",
+  "holiday.edit",
+]);
 
 let reader: ProtocolMembershipReader = prismaMembershipReader();
 
@@ -51,6 +58,21 @@ export async function authorize(
     });
     if (decision === "allow") return;
     throw new AppError("FORBIDDEN", forbiddenMessage(action), 403);
+  }
+
+  if (action === "task.reassign") {
+    if (await isCommitteeStaff(user.id)) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff can reassign a task.", 403);
+  }
+  if (action === "task.complete" || action === "task.claim") {
+    if (!resource?.id) throw new AppError("FORBIDDEN", "You cannot do that.", 403);
+    const task = await prisma.task.findUnique({ where: { id: resource.id }, select: { assigneeUserId: true, status: true } });
+    if (!task) throw new AppError("NOT_FOUND", "That task was not found.", 404);
+    if (task.status === "COMPLETED") return;
+    if (task.assigneeUserId && task.assigneeUserId !== user.id) {
+      throw new AppError("FORBIDDEN", "This task is not assigned to you.", 403);
+    }
+    return;
   }
 
   if (!FORM_ACTIONS.has(action)) {

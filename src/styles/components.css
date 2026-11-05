@@ -919,6 +919,49 @@ html.theme-fade * {
 .rec-proto-card:hover { border-color: var(--border-control); }
 .rec-inline { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 
+.rec-sign {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 600px;
+}
+.rec-sign__slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rec-sign__plate {
+  background: var(--plate);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.rec-sign__plate img,
+.rec-sign__canvas {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  background: var(--plate);
+}
+.rec-sign__canvas {
+  height: 200px;
+  touch-action: none;
+  cursor: crosshair;
+  color: var(--ink);
+}
+.rec-sign__void {
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+.rec-sign__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 120ms !important;

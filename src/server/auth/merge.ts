@@ -136,7 +136,16 @@ async function moveUserInto(
     movedRoles += 1;
   }
 
+  const primaryHasActive = await tx.signature.findFirst({
+    where: { userId: primary.id, active: true },
+    select: { id: true },
+  });
+  if (primaryHasActive) {
+    await tx.signature.updateMany({ where: { userId: secondary.id, active: true }, data: { active: false } });
+  }
   await tx.signature.updateMany({ where: { userId: secondary.id }, data: { userId: primary.id } });
+  await tx.signatureEvent.updateMany({ where: { userId: secondary.id }, data: { userId: primary.id } });
+  await tx.signingStepUp.deleteMany({ where: { userId: secondary.id } });
   await tx.notification.updateMany({ where: { userId: secondary.id }, data: { userId: primary.id } });
   await tx.task.updateMany({ where: { assigneeUserId: secondary.id }, data: { assigneeUserId: primary.id } });
   await tx.protocol.updateMany({ where: { createdById: secondary.id }, data: { createdById: primary.id } });

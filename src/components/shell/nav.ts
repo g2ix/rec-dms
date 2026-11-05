@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   ChartColumn,
   ClipboardCheck,
   FilePlus,
@@ -44,6 +45,7 @@ export const ROLE_LABEL: Record<RoleView, string> = {
 
 const staffItems: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/app/tasks", label: "My tasks", icon: ListChecks },
   { href: "/app/screening", label: "Screening queue", icon: Inbox },
   { href: "/app/receipts", label: "Fee receipts", icon: Receipt },
   { href: "/app/releases", label: "Releases", icon: Send },
@@ -54,7 +56,8 @@ const staffItems: NavItem[] = [
 
 const chairItems: NavItem[] = [
   ...staffItems,
-  { href: "/app/workflows", label: "Workflows", icon: Workflow },
+  { href: "/admin/workflows", label: "Workflows", icon: Workflow },
+  { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
   { href: "/admin/forms", label: "Forms", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
@@ -84,6 +87,7 @@ export const NAV: Record<RoleView, NavGroup[]> = {
     {
       items: [
         { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/app/tasks", label: "My tasks", icon: ListChecks },
         { href: "/app/reviews", label: "My reviews", icon: ClipboardCheck },
       ],
     },
@@ -92,6 +96,7 @@ export const NAV: Record<RoleView, NavGroup[]> = {
     {
       items: [
         { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/app/tasks", label: "My tasks", icon: ListChecks },
         { href: "/app/decisions", label: "Decisions", icon: Gavel },
         { href: "/app/panel", label: "Panel protocols", icon: FolderOpen },
         { href: "/app/reviewers", label: "Reviewers", icon: UserRound },

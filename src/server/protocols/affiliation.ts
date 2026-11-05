@@ -7,6 +7,7 @@ import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
 import { ensureWorkingForms, openWorkingVersion } from "@/server/protocols/versions";
+import { maybeStartInitial } from "@/server/workflow/engine";
 
 type StoredAffiliation = Affiliation & { contactEmailId: string };
 
@@ -85,7 +86,7 @@ export async function createProtocolForUser(
     : null;
   if (input.disciplineId && !discipline) throw new AppError("NOT_FOUND", "Choose a discipline.", 400);
   const meta = await auditRequestMeta({});
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const protocol = await tx.protocol.create({
       data: {
         title: input.title.trim(),
@@ -131,6 +132,8 @@ export async function createProtocolForUser(
     });
     return { protocol, member, version };
   });
+  await maybeStartInitial(created.protocol.id, created.version.id, userId);
+  return created;
 }
 
 export async function joinProtocol(input: {

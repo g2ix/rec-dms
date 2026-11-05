@@ -1,6 +1,8 @@
 import { AuditTimeline } from "@/components/audit/audit-timeline";
+import { ProtocolFlow } from "@/components/workflow/protocol-flow";
 import { BusyButton } from "@/components/ui/busy-button";
 import { roster } from "@/server/protocols/read";
+import { protocolFlow } from "@/server/workflow/read";
 import { startRevisionAction, submitVersionAction } from "@/server/protocols/actions";
 import { protocolHeader } from "@/server/protocols/read";
 import { requireUser } from "@/server/session";
@@ -15,8 +17,9 @@ export default async function ProtocolOverviewPage({
   const { id } = await params;
   const { error } = await searchParams;
   const user = await requireUser();
-  const [header, people] = await Promise.all([protocolHeader(user.id, id), roster(user.id, id)]);
+  const [header, people, flow] = await Promise.all([protocolHeader(user.id, id), roster(user.id, id), protocolFlow(id, user.id)]);
   const leader = header.mine?.isLeader && header.mine.role === "PROPONENT" && header.mine.status === "ACTIVE";
+  const workflowRunning = flow?.instance.status === "RUNNING";
   return (
     <div className="rec-stack">
       {error ? (
@@ -39,7 +42,8 @@ export default async function ProtocolOverviewPage({
           ))}
         </ul>
       </section>
-      {leader && header.working ? (
+      <ProtocolFlow protocolId={id} userId={user.id} />
+      {leader && header.working && !workflowRunning ? (
         <form action={submitVersionAction}>
           <input type="hidden" name="protocolId" value={id} />
           <BusyButton type="submit" variant="primary">

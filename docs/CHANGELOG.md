@@ -1,5 +1,39 @@
 # Changelog
 
+## M07 — Configurable workflow engine (2026-11-05)
+
+A review runs from a versioned graph. Publishing a new version does not move protocols that already started. The engine opens steps, creates tasks, counts working days in Asia/Manila (skipping weekends and holidays), and writes the audit event in the same transaction. Completing a task that is already complete returns the earlier result. Notifications are rows in `jobs`; nothing is emailed yet.
+
+Admins edit drafts at `/admin/workflows`, validate them, publish them, and walk a simulation. Holidays are kept at `/admin/holidays`. `/app/tasks` lists open tasks for the role being viewed, with due soon and overdue called out in words. A protocol page shows the open step, who holds it, the due date, and the step history.
+
+Submit completes the project leader’s open task on the initial-submission workflow when that workflow is published. Another workflow running on the same version is left alone. Until an initial workflow is published, submit still uses the earlier required-forms and required-uploads settings.
+
+### Deviation from the spec and the M07 prompt
+
+- The M01 `tasks` table was extended in place. `title` stays so account merge still moves those rows. Workflow tasks leave it as the step name. `assignee_user_id` can be empty until someone claims a role task.
+- Reviewers chosen on a step are stored on the instance as `assignments`. A later step with `ASSIGNED_IN_STEP` reads that list. They are required only when the chosen outcome moves to that step, so a return does not ask for reviewers.
+- Actions carry an optional `hook` of `onEnter` or `onExit`. An automatic step runs its enter actions and then follows the matching transition.
+- `SNAPSHOT_VERSION` freezes the working version. A later return to the same step does not freeze it again. Reviewer forms opened after that stay editable while the reviewer’s task is open. Forms locked at submission stay locked.
+- No initial or resubmission graph is seeded. That waits for M08. Creating a protocol starts `INITIAL_SUBMISSION` only when a version of it is published. A revision starts `RESUBMISSION` only when that definition is published.
+- The builder edits steps, assignee rules, deadlines, forms, outcomes, notifications, and transitions (including a JSON condition). The graph on the right is laid out with dagre and is not dragged.
+
+## M06 — Digital signatures (2026-11-05)
+
+A person saves a signature image from My signature, either drawn on a pad or uploaded as a PNG or JPG. The image is trimmed, the white background is made transparent, and it is stored as a PNG no larger than 600×200. Saving a new image deactivates the previous one and keeps it for forms already signed.
+
+Signing a field asks the person to confirm with their password, or with a 6-digit code when the account has no password. That confirmation lasts 10 minutes and is only for signing. The signature event stores the image version, the form, the protocol version, the time, the IP, the user agent, and a SHA-256 hash of the form data with signature fields removed. The public page `/verify/[ref]` shows the form code, the protocol code when one is assigned, the signer, the time, and whether that hash still matches. It does not show the rest of the protocol.
+
+Editing any other field voids the signatures on that form, writes `form.signature_voided`, and leaves an in-app notice for each signer. The form says the signature is void and must be signed again. Submit stays closed until every required signature on the required forms is signed and not void.
+
+### Deviation from the spec and the M06 prompt
+
+- The stub `signatures.image_key` column stays so earlier rows and the account merge still have a storage key. New images also set `file_id` on `files`. One active image per person is enforced with a partial unique index.
+- A signature field names its signer with `signer.role`. Proponent signatures set `signer.each` to `researchers`, which creates `signatures.researchers[0]`, `signatures.researchers[1]`, and so on in roster order. An adviser field such as `adviser_signature` is signed by the adviser member. A signature counts as required when the field says `validation.required`.
+- Signing confirmation is stored on `signing_step_ups`. It is separate from the confirmation used to merge accounts.
+- `/verify` is still the email-code page. `/verify/[ref]` is the public signature check and does not send a signed-in person back to the app home.
+- Void notices are rows in `notifications` only. Email for that notice waits for M09.
+- The processed signature PNG is marked `CLEAN` because the server re-encoded it. The original upload is not kept.
+
 ## M05 — Protocols, collaboration, uploads, versions (2026-11-05)
 
 A proponent can open a protocol, invite co-proponents and an adviser, fill shared details once, edit the working forms together, upload the manuscript, cover letter, and fee receipt, and submit a version. The creator is the project leader. A discipline suggests a panel. REC Staff (a bootstrap administrator until role grants exist) can change the panel and verify or reject a receipt.

@@ -4,7 +4,13 @@ import { SignedInChrome } from "@/components/shell/signed-in";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const headerList = await headers();
   const pathname = headerList.get("x-rec-pathname") ?? "";
-  const pageTitle = pathname.startsWith("/admin/audit")
+  const pageTitle = pathname.startsWith("/admin/workflows/")
+    ? "Workflow"
+    : pathname.startsWith("/admin/workflows")
+      ? "Workflows"
+      : pathname.startsWith("/admin/holidays")
+        ? "Holidays"
+        : pathname.startsWith("/admin/audit")
     ? "Audit log"
     : pathname.includes("/try")
       ? "Try form"

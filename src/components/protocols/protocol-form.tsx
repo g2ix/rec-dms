@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { FormRenderer, patchData, readData, type FieldUi } from "@/components/forms/form-renderer";
 import { displayInitials } from "@/lib/protocols/format";
 import { formatConflict, isConflict, type SaveConflict } from "@/lib/forms/conflict";
 import type { RoleKey } from "@/lib/forms/roles";
 import type { FormSchema } from "@/lib/forms/schema";
+import type { SignatureSlotView, SigningPrompt } from "@/lib/signatures/view";
 import { saveFieldAction } from "@/server/forms/actions";
 import { presenceAction } from "@/server/protocols/actions";
 
@@ -19,6 +21,8 @@ export function ProtocolForm({
   mode,
   roles,
   boundValues,
+  signatureSlots,
+  signing = null,
 }: {
   instanceId: string;
   schema: FormSchema;
@@ -27,7 +31,10 @@ export function ProtocolForm({
   mode: "edit" | "view";
   roles: RoleKey[];
   boundValues: Record<string, unknown>;
+  signatureSlots?: Record<string, SignatureSlotView[]>;
+  signing?: SigningPrompt | null;
 }) {
+  const router = useRouter();
   const [data, setData] = useState(initialData);
   const [ui, setUi] = useState<Record<string, Ui>>({});
   const [viewers, setViewers] = useState<{ id: string; name: string }[]>([]);
@@ -88,6 +95,7 @@ export function ProtocolForm({
         return next;
       });
       setUi((current) => ({ ...current, [path]: { state: "saved" } }));
+      if (result.signaturesVoided) router.refresh();
     } else if (isConflict(result)) {
       revision.current = result.revision;
       blocked.current.add(path);
@@ -161,6 +169,8 @@ export function ProtocolForm({
         }}
         onKeepMine={keepMine}
         onUseTheirs={useTheirs}
+        signatureSlots={signatureSlots}
+        signing={signing}
       />
     </div>
   );

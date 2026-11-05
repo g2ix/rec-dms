@@ -19,6 +19,9 @@ export const AuditAction = {
   permissionChanged: "role.permission_changed",
   settingChanged: "setting.changed",
   fieldSaved: "form.field_saved",
+  formSigned: "form.signed",
+  signatureVoided: "form.signature_voided",
+  signatureSaved: "signature.saved",
   definitionCreated: "form.definition_created",
   definitionUpdated: "form.definition_updated",
   definitionPublished: "form.definition_published",
@@ -41,6 +44,16 @@ export const AuditAction = {
   revisionStarted: "protocol.revision_started",
   feeVerified: "protocol.fee_verified",
   feeRejected: "protocol.fee_rejected",
+  instanceStarted: "workflow.instance_started",
+  stepEntered: "workflow.step_entered",
+  instanceCompleted: "workflow.instance_completed",
+  instanceCancelled: "workflow.instance_cancelled",
+  taskCompleted: "task.completed",
+  taskClaimed: "task.claimed",
+  taskReassigned: "task.reassigned",
+  workflowPublished: "workflow.published",
+  workflowSaved: "workflow.saved",
+  holidaySaved: "holiday.saved",
 } as const;
 
 const LABELS: Record<string, string> = {
@@ -64,6 +77,9 @@ const LABELS: Record<string, string> = {
   [AuditAction.permissionChanged]: "Role permissions changed",
   [AuditAction.settingChanged]: "Setting changed",
   [AuditAction.fieldSaved]: "Form field saved",
+  [AuditAction.formSigned]: "Form signed",
+  [AuditAction.signatureVoided]: "Signature voided",
+  [AuditAction.signatureSaved]: "Signature saved",
   [AuditAction.definitionCreated]: "Form definition created",
   [AuditAction.definitionUpdated]: "Form definition updated",
   [AuditAction.definitionPublished]: "Form definition published",
@@ -86,6 +102,16 @@ const LABELS: Record<string, string> = {
   [AuditAction.revisionStarted]: "Revision started",
   [AuditAction.feeVerified]: "Fee receipt verified",
   [AuditAction.feeRejected]: "Fee receipt rejected",
+  [AuditAction.instanceStarted]: "Workflow started",
+  [AuditAction.stepEntered]: "Step opened",
+  [AuditAction.instanceCompleted]: "Workflow completed",
+  [AuditAction.instanceCancelled]: "Workflow cancelled",
+  [AuditAction.taskCompleted]: "Task completed",
+  [AuditAction.taskClaimed]: "Task claimed",
+  [AuditAction.taskReassigned]: "Task reassigned",
+  [AuditAction.workflowPublished]: "Workflow published",
+  [AuditAction.workflowSaved]: "Workflow draft saved",
+  [AuditAction.holidaySaved]: "Holiday saved",
 };
 
 const INTERNAL_PREFIXES = ["auth.", "user.", "role.", "setting."];

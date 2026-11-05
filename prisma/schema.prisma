@@ -116,8 +116,12 @@ model User {
   roles                  UserRole[]
   memberships            ProtocolMember[]
   signatures             Signature[]
+  signatureEvents        SignatureEvent[]
+  signingStepUps        SigningStepUp[]
   notifications          Notification[]
-  tasks                  Task[]
+  tasks                  Task[]               @relation("TaskAssignee")
+  tasksCompleted         Task[]               @relation("TaskCompleter")
+  workflowsPublished     WorkflowVersion[]    @relation("WorkflowPublisher")
   protocolsCreated       Protocol[]       @relation("ProtocolCreator")
   mergeSessionsPrimary   MergeSession[]   @relation("MergePrimary")
   mergeSessionsSecondary MergeSession[]   @relation("MergeSecondary")
@@ -342,8 +346,9 @@ model Protocol {
   leader     User             @relation("ProtocolLeader", fields: [leaderUserId], references: [id])
   discipline Discipline?      @relation(fields: [disciplineId], references: [id])
   panel      Panel?           @relation(fields: [panelId], references: [id])
-  members    ProtocolMember[]
-  versions   ProtocolVersion[]
+  members            ProtocolMember[]
+  versions           ProtocolVersion[]
+  workflowInstances  WorkflowInstance[]
 
   @@index([status])
   @@index([leaderUserId])
@@ -401,8 +406,10 @@ model ProtocolVersion {
 
   protocol    Protocol         @relation(fields: [protocolId], references: [id], onDelete: Cascade)
   submittedBy User?            @relation("VersionSubmitter", fields: [submittedById], references: [id])
-  files       StoredFile[]
-  fee         FeeVerification?
+  files             StoredFile[]
+  fee               FeeVerification?
+  signatureEvents   SignatureEvent[]
+  workflowInstances WorkflowInstance[]
 
   @@unique([protocolId, number])
   @@index([protocolId, state])
@@ -427,6 +434,7 @@ model StoredFile {
 
   protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
   uploadedBy      User             @relation(fields: [uploadedById], references: [id])
+  signatures      Signature[]
 
   @@index([protocolVersionId, kind])
   @@map("files")
@@ -484,19 +492,78 @@ model UploadIntent {
   @@map("upload_intents")
 }
 
-model Signature {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  version   Int      @default(1)
-  imageKey  String   @map("image_key")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+enum SignatureCapture {
+  DRAWN
+  UPLOADED
+}
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+enum SignatureEventMethod {
+  IMAGE
+}
+
+/// Versioned signature image. One active row per user. Past versions stay for events that used them.
+model Signature {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  version   Int              @default(1)
+  imageKey  String           @map("image_key")
+  fileId    String?          @unique @map("file_id")
+  method    SignatureCapture @default(UPLOADED)
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file   StoredFile?     @relation(fields: [fileId], references: [id])
+  events SignatureEvent[]
 
   @@index([userId])
   @@map("signatures")
+}
+
+/// A successful identity confirmation. Valid for signing only, and only until expiresAt.
+model SigningStepUp {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  confirmedAt DateTime @map("confirmed_at")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("signing_step_ups")
+}
+
+/// One act of signing one field. method stays IMAGE until certificate signatures exist.
+model SignatureEvent {
+  id                String               @id @default(uuid())
+  formInstanceId    String               @map("form_instance_id")
+  fieldPath         String               @map("field_path")
+  userId            String               @map("user_id")
+  signatureId       String               @map("signature_id")
+  dataHash          String               @map("data_hash")
+  protocolVersionId String?              @map("protocol_version_id")
+  signedAt          DateTime             @map("signed_at")
+  ip                String?
+  userAgent         String?              @map("user_agent")
+  voidedAt          DateTime?            @map("voided_at")
+  voidReason        String?              @map("void_reason")
+  verifyRef         String               @unique @map("verify_ref")
+  method            SignatureEventMethod @default(IMAGE)
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  formInstance    FormInstance     @relation(fields: [formInstanceId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id])
+  signature       Signature        @relation(fields: [signatureId], references: [id])
+  protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
+
+  @@index([formInstanceId])
+  @@index([userId])
+  @@index([protocolVersionId])
+  @@map("signature_events")
 }
 
 model Notification {
@@ -515,18 +582,136 @@ model Notification {
   @@map("notifications")
 }
 
+/// One unit of work on a workflow instance. assignee is empty until a role task is claimed.
 model Task {
+  id             String    @id @default(uuid())
+  instanceId     String?   @map("instance_id")
+  stepKey        String?   @map("step_key")
+  assigneeUserId String?   @map("assignee_user_id")
+  candidateRule  Json?     @map("candidate_rule")
+  title          String    @default("")
+  status         String    @default("OPEN")
+  outcome        String?
+  comment        String?
+  dueAt          DateTime? @map("due_at")
+  remindedAt     Json?     @map("reminded_at")
+  escalatedAt    DateTime? @map("escalated_at")
+  completedAt    DateTime? @map("completed_at")
+  completedById  String?   @map("completed_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  instance    WorkflowInstance? @relation(fields: [instanceId], references: [id])
+  assignee    User?             @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: Cascade)
+  completedBy User?             @relation("TaskCompleter", fields: [completedById], references: [id])
+
+  @@index([assigneeUserId])
+  @@index([instanceId, stepKey])
+  @@index([status, dueAt])
+  @@map("tasks")
+}
+
+enum WorkflowVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum WorkflowInstanceStatus {
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+/// One submission type. Only one version is published at a time.
+model WorkflowDefinition {
   id             String   @id @default(uuid())
-  assigneeUserId String   @map("assignee_user_id")
-  title          String
-  status         String   @default("OPEN")
+  key            String   @unique
+  name           String
+  submissionType String   @map("submission_type")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  assignee User @relation(fields: [assigneeUserId], references: [id], onDelete: Cascade)
+  versions WorkflowVersion[]
 
-  @@index([assigneeUserId])
-  @@map("tasks")
+  @@map("workflow_definitions")
+}
+
+/// The graph is one jsonb document so a version publishes atomically.
+model WorkflowVersion {
+  id            String                @id @default(uuid())
+  definitionId  String                @map("definition_id")
+  number        Int
+  status        WorkflowVersionStatus @default(DRAFT)
+  graph         Json
+  notes         String?
+  publishedById String?               @map("published_by_id")
+  publishedAt   DateTime?             @map("published_at")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  definition  WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  publishedBy User?              @relation("WorkflowPublisher", fields: [publishedById], references: [id])
+  instances   WorkflowInstance[]
+
+  @@unique([definitionId, number])
+  @@index([definitionId, status])
+  @@map("workflow_versions")
+}
+
+/// A protocol submission pinned to the version that was published when it started.
+model WorkflowInstance {
+  id                String                 @id @default(uuid())
+  versionId         String                 @map("version_id")
+  protocolId        String                 @map("protocol_id")
+  protocolVersionId String                 @map("protocol_version_id")
+  status            WorkflowInstanceStatus @default(RUNNING)
+  currentStepKeys   String[]               @default([]) @map("current_step_keys")
+  /// Reviewer user ids chosen at a step, keyed by that step's key.
+  assignments       Json                   @default("{}")
+  startedAt         DateTime               @default(now()) @map("started_at")
+  endedAt           DateTime?              @map("ended_at")
+  parentInstanceId  String?                @map("parent_instance_id")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  version         WorkflowVersion   @relation(fields: [versionId], references: [id])
+  protocol        Protocol          @relation(fields: [protocolId], references: [id])
+  protocolVersion ProtocolVersion   @relation(fields: [protocolVersionId], references: [id])
+  parent          WorkflowInstance? @relation("InstanceChain", fields: [parentInstanceId], references: [id])
+  children        WorkflowInstance[] @relation("InstanceChain")
+  tasks           Task[]
+
+  @@index([protocolId, status])
+  @@index([protocolVersionId])
+  @@index([versionId])
+  @@map("workflow_instances")
+}
+
+model Holiday {
+  id        String   @id @default(uuid())
+  date      DateTime @unique @db.Date
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("holidays")
+}
+
+/// Outbox. M09 delivers these. This milestone only enqueues them.
+model Job {
+  id        String    @id @default(uuid())
+  kind      String
+  payload   Json
+  runAt     DateTime  @map("run_at")
+  attempts  Int       @default(0)
+  lastError String?   @map("last_error")
+  doneAt    DateTime? @map("done_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([doneAt, runAt])
+  @@map("jobs")
 }
 
 /// Append-only hash chain. M03 adds the admin views; merge writes `user.merged` now.
@@ -612,9 +797,10 @@ model FormInstance {
   createdAt        DateTime              @default(now()) @map("created_at")
   updatedAt        DateTime              @updatedAt @map("updated_at")
 
-  formDefinition FormDefinition      @relation(fields: [formDefinitionId], references: [id])
-  filledByMember ProtocolMember?     @relation(fields: [filledByMemberId], references: [id])
-  revisions      FormFieldRevision[]
+  formDefinition  FormDefinition      @relation(fields: [formDefinitionId], references: [id])
+  filledByMember  ProtocolMember?     @relation(fields: [filledByMemberId], references: [id])
+  revisions       FormFieldRevision[]
+  signatureEvents SignatureEvent[]
 
   @@index([formDefinitionId])
   @@index([ownerType, ownerId])

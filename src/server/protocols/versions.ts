@@ -4,12 +4,16 @@ import { AuditAction } from "@/lib/audit-log";
 import { validateSchema } from "@/lib/forms/schema";
 import { validateInstance } from "@/lib/forms/validate";
 import { versionLabel } from "@/lib/protocols/format";
-import { appTimeZone, formatManila } from "@/lib/time";
+import { appTimeZone } from "@/lib/time";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
-import { prisma } from "@/server/db";
+import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
-import { toJson } from "@/server/forms/json";
+import { freezeWorkingVersion, sharedSnapshot } from "@/server/protocols/snapshot";
+import { completeLeaderSubmissionTx, maybeStartInitial, maybeStartResubmissionTx } from "@/server/workflow/engine";
 import { requiredFormCodes, requiredUploadKinds } from "@/server/protocols/settings";
+import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
+
+export { sharedSnapshot };
 
 type Tx = Prisma.TransactionClient;
 
@@ -55,57 +59,6 @@ export async function ensureWorkingForms(tx: Tx, versionId: string) {
   }
 }
 
-type MemberRow = {
-  role: string;
-  status: string;
-  rosterOrder: number;
-  contactNumber: string | null;
-  designation: string;
-  user: { displayName: string } | null;
-  contactEmail: { email: string } | null;
-};
-
-export function sharedSnapshot(
-  protocol: {
-    code: string | null;
-    title: string;
-    institution: string;
-    institutionAddress: string;
-    researchType: string;
-    durationMonths: number | null;
-    expectedParticipants: number | null;
-    studySite: string;
-    fundingSources: Prisma.JsonValue;
-    disciplineId: string | null;
-    panelId: string | null;
-    members: MemberRow[];
-  },
-  label: string,
-  submittedAt: Date | null,
-) {
-  const proponents = protocol.members
-    .filter((member) => member.role === "PROPONENT" && member.status === "ACTIVE" && member.user)
-    .sort((a, b) => a.rosterOrder - b.rosterOrder);
-  return {
-    "protocol.code": protocol.code,
-    "protocol.title": protocol.title,
-    "protocol.versionLabel": label,
-    "protocol.researchers": proponents.map((member) => member.user?.displayName ?? ""),
-    "protocol.contactNumbers": proponents.map((member) => member.contactNumber).filter((value): value is string => Boolean(value)),
-    "protocol.emails": proponents.map((member) => member.contactEmail?.email).filter((value): value is string => Boolean(value)),
-    "protocol.institution": protocol.institution,
-    "protocol.institutionAddress": protocol.institutionAddress,
-    "protocol.submissionDate": submittedAt ? formatManila(submittedAt, "yyyy-MM-dd") : null,
-    researchType: protocol.researchType,
-    durationMonths: protocol.durationMonths,
-    expectedParticipants: protocol.expectedParticipants,
-    studySite: protocol.studySite,
-    fundingSources: protocol.fundingSources,
-    disciplineId: protocol.disciplineId,
-    panelId: protocol.panelId,
-  };
-}
-
 async function loadProtocol(tx: Tx, protocolId: string) {
   const protocol = await tx.protocol.findUnique({
     where: { id: protocolId },
@@ -123,7 +76,9 @@ export async function submitVersion(protocolId: string, userId: string) {
     throw new AppError("PENDING_APPROVAL", "Your account is waiting for REC Staff approval.", 403);
   }
   const meta = await auditRequestMeta({});
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(
+    async (tx) => {
+    await useAppSchema(tx);
     const member = await tx.protocolMember.findFirst({
       where: { protocolId, userId, status: "ACTIVE" },
     });
@@ -133,12 +88,30 @@ export async function submitVersion(protocolId: string, userId: string) {
     const version = await tx.protocolVersion.findFirst({ where: { protocolId, state: "WORKING" } });
     if (!version) throw new AppError("NOT_FOUND", "There is no working version to submit.", 404);
 
+    const routed = await tx.workflowInstance.findFirst({
+      where: { protocolId, protocolVersionId: version.id, status: "RUNNING" },
+      select: { id: true },
+    });
+    const published = routed
+      ? null
+      : await tx.workflowVersion.findFirst({
+          where: { status: "PUBLISHED", definition: { key: "INITIAL_SUBMISSION" } },
+          select: { id: true },
+        });
+    if (routed || published) {
+      return completeLeaderSubmissionTx(tx, protocolId, version.id, userId, meta);
+    }
+
     const codes = await requiredFormCodes(tx);
     const missing: string[] = [];
+    const needsSignatures: string[] = [];
     const instances = await tx.formInstance.findMany({
       where: { ownerType: "PROTOCOL_VERSION", ownerId: version.id },
       include: { formDefinition: true },
     });
+    const protocol = await loadProtocol(tx, protocolId);
+    const roster = toRoster(protocol.members);
+    const marks = await signatureMarks(tx, instances.map((instance) => instance.id));
     for (const code of codes) {
       const instance = instances.find((item) => item.formDefinition.code === code);
       if (!instance) {
@@ -150,10 +123,21 @@ export async function submitVersion(protocolId: string, userId: string) {
         throw new AppError("INVALID", `${code} has a schema that cannot be checked.`, 400);
       }
       const issues = validateInstance({ schema: parsed.schema }, instance.data);
-      if (issues.length > 0) missing.push(code);
+      if (issues.length > 0) {
+        missing.push(code);
+        continue;
+      }
+      if (formNeedsSignatures(parsed.schema, roster, marks.get(instance.id) ?? [])) needsSignatures.push(code);
     }
     if (missing.length > 0) {
       throw new AppError("INCOMPLETE", `Finish these forms before submitting: ${missing.join(", ")}.`, 400);
+    }
+    if (needsSignatures.length > 0) {
+      throw new AppError(
+        "INCOMPLETE",
+        `Collect the required signatures on these forms: ${needsSignatures.join(", ")}.`,
+        400,
+      );
     }
 
     const kinds = await requiredUploadKinds(tx);
@@ -163,40 +147,17 @@ export async function submitVersion(protocolId: string, userId: string) {
       throw new AppError("INCOMPLETE", `Upload these files before submitting: ${absent.join(", ")}.`, 400);
     }
 
-    const submittedAt = new Date();
-    const protocol = await loadProtocol(tx, protocolId);
-    const snapshot = sharedSnapshot(protocol, version.label, submittedAt);
-    await tx.protocolVersion.update({
-      where: { id: version.id },
-      data: {
-        state: "SUBMITTED",
-        submittedAt,
-        submittedById: userId,
-        snapshot: toJson(snapshot),
-      },
-    });
-    await tx.formInstance.updateMany({
-      where: { ownerType: "PROTOCOL_VERSION", ownerId: version.id, status: { not: "LOCKED" } },
-      data: { status: "LOCKED" },
-    });
-    await tx.protocol.update({ where: { id: protocolId }, data: { status: "SUBMITTED" } });
-    await audit.record(tx, {
-      actorUserId: userId,
-      actingRole: "PROJECT_LEADER",
-      action: AuditAction.versionSubmitted,
-      entityType: "protocol_version",
-      entityId: version.id,
-      protocolId,
-      diff: diffOf({ state: "WORKING", status: protocol.status }, { state: "SUBMITTED", status: "SUBMITTED", label: version.label }),
-      meta,
-    });
-    return { versionId: version.id, label: version.label };
-  });
+    const frozen = await freezeWorkingVersion(tx, { protocolId, userId, meta, status: "SUBMITTED" });
+    return { versionId: frozen.versionId, label: frozen.label };
+  },
+    { timeout: 20_000, maxWait: 10_000 },
+  );
 }
 
 export async function startRevision(protocolId: string, userId: string) {
   const meta = await auditRequestMeta({});
-  return prisma.$transaction(async (tx) => {
+  let startInitial: string | null = null;
+  const version = await prisma.$transaction(async (tx) => {
     const member = await tx.protocolMember.findFirst({ where: { protocolId, userId, status: "ACTIVE" } });
     if (!member?.isLeader || member.role !== "PROPONENT") {
       throw new AppError("FORBIDDEN", "Only the project leader can start a revision.", 403);
@@ -210,6 +171,7 @@ export async function startRevision(protocolId: string, userId: string) {
     const created = await openWorkingVersion(tx, protocolId);
     if (!previous) {
       await ensureWorkingForms(tx, created.id);
+      startInitial = created.id;
       await audit.record(tx, {
         actorUserId: userId,
         actingRole: "PROJECT_LEADER",
@@ -237,7 +199,8 @@ export async function startRevision(protocolId: string, userId: string) {
       });
     }
     await ensureWorkingForms(tx, created.id);
-    await tx.protocol.update({ where: { id: protocolId }, data: { status: "DRAFT" } });
+    const resubmission = await maybeStartResubmissionTx(tx, protocolId, created.id, userId, meta);
+    if (!resubmission) await tx.protocol.update({ where: { id: protocolId }, data: { status: "DRAFT" } });
     await audit.record(tx, {
       actorUserId: userId,
       actingRole: "PROJECT_LEADER",
@@ -250,4 +213,6 @@ export async function startRevision(protocolId: string, userId: string) {
     });
     return created;
   });
+  if (startInitial) await maybeStartInitial(protocolId, startInitial, userId);
+  return version;
 }

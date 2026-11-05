@@ -7,7 +7,7 @@ export const APP_HOME = "/app";
 const AUTH_ENTRY = new Set(["/", "/sign-in", "/sign-up"]);
 
 export function isAuthEntryPath(pathname: string): boolean {
-  return AUTH_ENTRY.has(pathname) || pathname === "/verify" || pathname.startsWith("/verify/");
+  return AUTH_ENTRY.has(pathname) || pathname === "/verify";
 }
 
 export function isProtectedPath(pathname: string): boolean {

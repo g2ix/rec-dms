@@ -71,6 +71,14 @@ const validationSchema = z
   })
   .strict();
 
+/** Who a signature field belongs to. `each: "researchers"` makes one slot per proponent. */
+const signerSchema = z
+  .object({
+    role: z.enum(ROLE_KEYS),
+    each: z.literal("researchers").optional(),
+  })
+  .strict();
+
 const columnSchema = z
   .object({
     id: keySchema,
@@ -105,6 +113,7 @@ export const fieldSchema = z
     columns: z.array(columnSchema).optional(),
     rows: z.array(rowSchema).optional(),
     formula: z.string().optional(),
+    signer: signerSchema.optional(),
   })
   .strict();
 
@@ -247,6 +256,25 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
   }
   if (field.type !== "assessmentTable" && field.rows) {
     issues.push({ path: `${path}.rows`, message: "Only an assessment table uses fixed rows." });
+  }
+
+  if (field.signer && field.type !== "signature") {
+    issues.push({ path: `${path}.signer`, message: "Only a signature field names a signer." });
+  }
+  if (field.type === "signature" && field.signer?.each === "researchers" && field.signer.role !== "PROPONENT") {
+    issues.push({ path: `${path}.signer.each`, message: "A researcher signature list is for proponents." });
+  }
+  if (field.type === "signature" && field.signer?.role === "PROPONENT" && field.signer.each !== "researchers") {
+    issues.push({
+      path: `${path}.signer`,
+      message: "Proponent signatures list each researcher. Set each to researchers.",
+    });
+  }
+  if (field.signer && field.fillers.length > 0 && !field.fillers.includes(field.signer.role)) {
+    issues.push({
+      path: `${path}.fillers`,
+      message: `${field.signer.role} signs this field, so list that role under who fills it.`,
+    });
   }
 
   if (field.type === "computed") {

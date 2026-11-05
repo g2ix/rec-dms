@@ -13,15 +13,18 @@ import { recompute } from "@/lib/forms/recompute";
 import { findField, validateSchema, type FormField, type FormSchema } from "@/lib/forms/schema";
 import { validateCellValue, validateDraftValue, validateInstance, type FieldIssue } from "@/lib/forms/validate";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
-import { prisma } from "@/server/db";
+import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson, toJsonValue } from "@/server/forms/json";
+import { voidSignaturesForDataChange } from "@/server/signatures/sign";
+import { editingStepFor } from "@/server/workflow/access";
 
 export type SaveSuccess = {
   ok: true;
   revision: number;
   data: Record<string, unknown>;
   writtenPaths: string[];
+  signaturesVoided: boolean;
 };
 
 export type SaveFailure = { ok: false; code: string; message: string };
@@ -187,6 +190,7 @@ export async function saveField(input: {
   }
   const meta = await auditRequestMeta({ path: input.path });
   return prisma.$transaction(async (tx) => {
+    await useAppSchema(tx);
     await tx.$queryRaw`SELECT id FROM form_instances WHERE id = ${input.instanceId} FOR UPDATE`;
     const instance = await tx.formInstance.findUnique({
       where: { id: input.instanceId },
@@ -217,7 +221,11 @@ export async function saveField(input: {
       }
     }
 
-    if (instance.status !== "DRAFT" || context.submitted) {
+    const openStep =
+      instance.ownerType === "PROTOCOL_VERSION"
+        ? await editingStepFor(tx, input.userId, instance.ownerId, instance.formDefinition.code)
+        : null;
+    if (instance.status !== "DRAFT" || (context.submitted && !openStep)) {
       throw new AppError(
         "LOCKED",
         instance.status === "LOCKED" || context.submitted
@@ -236,7 +244,7 @@ export async function saveField(input: {
       { status: instance.status, data: instance.data, filledByUserId: null },
       { id: input.userId },
       roles,
-      step,
+      openStep ?? step,
     );
     assertEditable(editable, target, input.path);
 
@@ -284,7 +292,20 @@ export async function saveField(input: {
       meta,
     });
 
-    return { ok: true, revision, data: next, writtenPaths };
+    const voided =
+      target.kind === "field" && target.field.type === "signature"
+        ? 0
+        : await voidSignaturesForDataChange(tx, {
+            instance,
+            schema,
+            before: previous,
+            after: next,
+            protocolId: context.protocolId,
+            actorUserId: input.userId,
+            meta,
+          });
+
+    return { ok: true, revision, data: next, writtenPaths, signaturesVoided: voided > 0 };
   });
 }
 
@@ -326,6 +347,7 @@ export async function setSandboxPreview(input: { instanceId: string; roles: Role
 export async function markComplete(instanceId: string, userId: string): Promise<{ ok: true } | { ok: false; errors: FieldIssue[] }> {
   const meta = await auditRequestMeta({});
   return prisma.$transaction(async (tx) => {
+    await useAppSchema(tx);
     await tx.$queryRaw`SELECT id FROM form_instances WHERE id = ${instanceId} FOR UPDATE`;
     const instance = await tx.formInstance.findUnique({
       where: { id: instanceId },
