@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/shell/app-shell";
-import { knownRoleView } from "@/lib/role-view";
+import { knownRoleView, viewsForRoleKeys, type RoleView } from "@/lib/role-view";
 import { signOut } from "@/server/auth";
+import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 
@@ -25,12 +26,21 @@ export async function SignedInChrome({
     throw error;
   }
   const jar = await cookies();
-  const roleView = knownRoleView(jar.get("activeView")?.value) ?? "proponent";
+  const grants = await prisma.userRole.findMany({
+    where: { userId: user.id, revokedAt: null },
+    select: { role: { select: { key: true } } },
+  });
+  const grantedViews = viewsForRoleKeys(grants.map((grant) => grant.role.key));
+  const requested = knownRoleView(jar.get("activeView")?.value);
+  const roleViews: RoleView[] =
+    grantedViews.length > 0 ? grantedViews : [requested ?? "proponent"];
+  const roleView = requested && roleViews.includes(requested) ? requested : roleViews[0]!;
   return (
     <AppShell
       collapsed={jar.get("sidebar")?.value === "rail"}
       pageTitle={pageTitle}
       roleView={roleView}
+      roleViews={roleViews}
       account={{ name: user.displayName, email: user.email ?? "" }}
     >
       {user.status === "PENDING_APPROVAL" ? (

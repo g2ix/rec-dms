@@ -500,6 +500,7 @@ html.theme-fade * {
 .rec-menu__item--danger { color: var(--danger); }
 .rec-menu__sep { height: 1px; margin: var(--space-1) 0; background: var(--border); }
 .rec-menu__item svg { width: 16px; height: 16px; flex: none; }
+.rec-menu__check { margin-left: auto; }
 
 .rec-tooltip {
   z-index: 50;
@@ -619,6 +620,8 @@ html.theme-fade * {
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
+  cursor: pointer;
+  text-align: left;
 }
 .rec-role svg { width: 16px; height: 16px; flex: none; color: var(--ink-muted); }
 .rec-side__foot { margin-top: auto; display: grid; gap: var(--space-2); }

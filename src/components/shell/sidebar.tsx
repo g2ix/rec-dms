@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ChevronsUpDown, PanelLeftClose, PanelLeftOpen, UserRound } from "lucide-react";
 import { signOutAction } from "@/server/auth/actions";
 import { LayoutGroup, motion } from "motion/react";
 import { Seal } from "@/components/brand/seal";
@@ -22,6 +23,7 @@ export function SidebarPanel({
   collapsed,
   onToggle,
   roleView = "proponent",
+  roleViews,
   roleSwitcher,
   markerId,
   showCollapse = true,
@@ -32,6 +34,7 @@ export function SidebarPanel({
   collapsed: boolean;
   onToggle?: () => void;
   roleView?: RoleView;
+  roleViews?: RoleView[];
   roleSwitcher?: React.ReactNode;
   markerId: string;
   showCollapse?: boolean;
@@ -49,10 +52,7 @@ export function SidebarPanel({
         <span className="subheading rec-side__label">REC-DMS</span>
       </Link>
       {roleSwitcher ?? (
-        <div className="rec-role">
-          <Icon icon={ChevronsUpDown} size={16} />
-          <span className="rec-side__label">{ROLE_LABEL[roleView]}</span>
-        </div>
+        <RoleSwitch roleView={roleView} roleViews={roleViews ?? [roleView]} />
       )}
       <LayoutGroup id={markerId}>
         {groups.map((group) => (
@@ -106,6 +106,46 @@ export function SidebarPanel({
         </DropdownMenu>
       </div>
     </div>
+  );
+}
+
+function RoleSwitch({ roleView, roleViews }: { roleView: RoleView; roleViews: RoleView[] }) {
+  const router = useRouter();
+  if (roleViews.length < 2) {
+    return (
+      <div className="rec-role">
+        <Icon icon={ChevronsUpDown} size={16} />
+        <span className="rec-side__label">{ROLE_LABEL[roleView]}</span>
+      </div>
+    );
+  }
+
+  function select(view: RoleView) {
+    document.cookie = `activeView=${view}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    router.refresh();
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="rec-role" aria-label="Switch role">
+        <Icon icon={ChevronsUpDown} size={16} />
+        <span className="rec-side__label">{ROLE_LABEL[roleView]}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        {roleViews.map((view) => (
+          <DropdownMenuItem
+            key={view}
+            aria-current={view === roleView ? "true" : undefined}
+            onClick={() => {
+              if (view !== roleView) select(view);
+            }}
+          >
+            {ROLE_LABEL[view]}
+            {view === roleView ? <Icon icon={Check} size={16} className="rec-menu__check" /> : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -16,12 +16,14 @@ export function AppShell({
   children,
   pageTitle,
   roleView = "proponent",
+  roleViews,
   account,
 }: {
   collapsed: boolean;
   children: React.ReactNode;
   pageTitle?: string;
   roleView?: RoleView;
+  roleViews?: RoleView[];
   account?: { name: string; email: string };
 }) {
   const pathname = usePathname();
@@ -46,6 +48,7 @@ export function AppShell({
           collapsed={collapsed}
           onToggle={toggleCollapsed}
           roleView={roleView}
+          roleViews={roleViews}
           markerId="nav-marker-desktop"
           account={account}
         />
@@ -75,6 +78,7 @@ export function AppShell({
                     pathname={pathname}
                     collapsed={false}
                     roleView={roleView}
+                    roleViews={roleViews}
                     markerId="nav-marker-drawer"
                     showCollapse={false}
                     account={account}
@@ -102,7 +106,7 @@ export function AppShell({
             </div>
           </div>
         </header>
-        <main key={pathname} id="content" className="rec-page rec-content">
+        <main key={`${pathname}:${roleView}`} id="content" className="rec-page rec-content">
           {children}
         </main>
       </div>
