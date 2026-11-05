@@ -1,10 +1,31 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { isAuthEntryPath, resolveStartPage, verificationEmail } from "@/lib/auth-redirect";
+import { isAuthEntryPath, postSignInPath, resolveStartPage, verificationEmail } from "@/lib/auth-redirect";
 import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
 import { auth, signOut } from "@/server/auth";
+
+const ACTIVE_VIEW = {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365,
+  sameSite: "lax" as const,
+};
+
+/** Password sign-in lands here in one redirect: identity default view, then last used view, then /app. */
+export async function redirectToStartPage(callback: string | null | undefined, identityDefaultView?: string | null) {
+  const requested = postSignInPath(callback);
+  const jar = await cookies();
+  const start =
+    requested === "/"
+      ? resolveStartPage({
+          identityDefaultView,
+          lastUsedView: jar.get("activeView")?.value,
+        })
+      : { path: requested, view: null };
+  if (start.view) jar.set("activeView", start.view, ACTIVE_VIEW);
+  redirect(start.path);
+}
 
 export async function redirectAwayFromAuthEntry(pathname: string, search: string) {
   if (!isAuthEntryPath(pathname)) return;

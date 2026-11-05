@@ -42,7 +42,15 @@ function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
 }
 
 function DropdownMenuLabel({ className, ...props }: MenuPrimitive.GroupLabel.Props) {
-  return <MenuPrimitive.GroupLabel data-slot="dropdown-menu-label" className={cn("rec-menu__label caption", className)} {...props} />;
+  return (
+    <MenuPrimitive.Group data-slot="dropdown-menu-group">
+      <MenuPrimitive.GroupLabel
+        data-slot="dropdown-menu-label"
+        className={cn("rec-menu__label caption", className)}
+        {...props}
+      />
+    </MenuPrimitive.Group>
+  );
 }
 
 function DropdownMenuItem({

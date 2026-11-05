@@ -17,7 +17,7 @@ Creating or joining a protocol stores the contact email and designation on the m
 - Google client id and secret are optional, so the app runs before a Google OAuth client exists. Linking stays explicit: `allowDangerousEmailAccountLinking` is off.
 - Until M02, approving users and merging accounts is limited to `BOOTSTRAP_ADMIN_EMAILS`, not a role.
 - Protocol affiliation is stored now, ahead of the full protocol wizard in M05.
-- A signed-in visit to `/`, `/sign-in`, `/sign-up`, or `/verify` goes to the start page: the default view stored on the sign-in identity (`accounts.default_view` or `user_emails.default_view`), otherwise the `activeView` cookie, otherwise `/app`. A signed-out visit to `/app` or `/admin` returns through a relative `callbackUrl` only. Suspended sessions are signed out with “Your account is suspended. Contact the REC Secretariat.”
+- After sign-in, and when a signed-in person opens `/`, `/sign-in`, `/sign-up`, or `/verify`, the start page is the default view stored on that sign-in identity (`accounts.default_view` or `user_emails.default_view`), otherwise the last used view (`activeView`), otherwise `/app`. A view may be a role such as `staff` or a same-site path such as `/app/tasks`. A callback to a specific page such as `/app/protocols/123` is still honored. A signed-out visit to `/app` or `/admin` returns through a relative `callbackUrl` only. Suspended sessions are signed out with “Your account is suspended. Contact the REC Secretariat.”
 
 ## M00b — Design system and app shell (2026-11-05)
 

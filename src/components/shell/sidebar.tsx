@@ -98,9 +98,9 @@ export function SidebarPanel({
             </div>
             <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
             <form action={signOutAction}>
-              <button type="submit" className="rec-menu__item">
+              <DropdownMenuItem nativeButton render={<button type="submit" />}>
                 Sign out
-              </button>
+              </DropdownMenuItem>
             </form>
           </DropdownMenuContent>
         </DropdownMenu>

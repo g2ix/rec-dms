@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import { APP_HOME, safeInternalPath } from "@/lib/auth-redirect";
+import { safeInternalPath } from "@/lib/auth-redirect";
 
 export const authConfig = {
   trustHost: true,
@@ -15,8 +15,10 @@ export const authConfig = {
       return true;
     },
     redirect({ url, baseUrl }) {
+      // Leave `/` alone. Middleware resolves the start page there: identity
+      // default view, then the last used view, then `/app`.
       const path = safeInternalPath(url, baseUrl);
-      return new URL(path === "/" ? APP_HOME : path, baseUrl).toString();
+      return new URL(path, baseUrl).toString();
     },
     jwt({ token, user }) {
       const userId = user?.id ?? (typeof token.userId === "string" ? token.userId : undefined) ?? token.sub;

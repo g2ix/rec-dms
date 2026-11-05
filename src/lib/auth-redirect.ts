@@ -47,11 +47,45 @@ export function safeInternalPath(url: string, baseUrl: string): string {
   return safeCallbackPath(relative) ?? "/";
 }
 
+function pathnameOf(path: string): string {
+  const query = path.indexOf("?");
+  return query === -1 ? path : path.slice(0, query);
+}
+
+/**
+ * A stored view is either a role (`staff`) or a same-site path (`/app/tasks`).
+ * Auth-entry paths are not destinations — they would send a signed-in person back here.
+ */
+function destinationForView(value: string | null | undefined): { path: string; view: RoleView | null } | null {
+  const view = knownRoleView(value);
+  if (view) return { path: APP_HOME, view };
+  const path = safeCallbackPath(value);
+  if (!path) return null;
+  const pathname = pathnameOf(path);
+  if (pathname === "/" || isAuthEntryPath(pathname)) return null;
+  return { path, view: null };
+}
+
 /** Identity default view, then the last used view, then the app home. */
 export function resolveStartPage(input: {
   identityDefaultView?: string | null;
   lastUsedView?: string | null;
 }): { path: string; view: RoleView | null } {
-  const view = knownRoleView(input.identityDefaultView) ?? knownRoleView(input.lastUsedView);
-  return { path: APP_HOME, view };
+  return (
+    destinationForView(input.identityDefaultView) ??
+    destinationForView(input.lastUsedView) ?? { path: APP_HOME, view: null }
+  );
+}
+
+/**
+ * Where sign-in goes when the form supplies `callbackUrl`.
+ * `/` and `/app` are the generic home, so the start-page resolver can prefer
+ * the identity default view over the last used view. A specific path is kept.
+ */
+export function postSignInPath(callback: string | null | undefined): string {
+  const safe = safeCallbackPath(callback);
+  if (!safe) return "/";
+  const pathname = pathnameOf(safe);
+  if (pathname === "/" || pathname === APP_HOME) return "/";
+  return safe;
 }

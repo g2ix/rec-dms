@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { APP_HOME, safeCallbackPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
+import { postSignInPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { affiliationSchema } from "@/lib/auth-schemas";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
@@ -17,12 +17,27 @@ import { completeSelfMerge, confirmMergeStepUp, mergeAsAdmin } from "@/server/au
 import { assertPasswordAcceptable, hashPassword, verifyPassword } from "@/server/auth/passwords";
 import { authenticatePassword, confirmRegistration, startRegistration } from "@/server/auth/register";
 import { signIn, signOut } from "@/server/auth";
+import { redirectToStartPage } from "@/server/auth/gate";
 import { ensureVerifiedEmail } from "@/server/auth/users";
 import { requireUser } from "@/server/session";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 
 function afterSignIn(formData: FormData): string {
-  return safeCallbackPath(String(formData.get("callbackUrl") ?? "")) ?? APP_HOME;
+  return postSignInPath(String(formData.get("callbackUrl") ?? ""));
+}
+
+function isAuthErrorRedirect(value: unknown): value is string {
+  return typeof value === "string" && authErrorPath(value).startsWith("/sign-in?") && authErrorPath(value).includes("error=");
+}
+
+function authErrorPath(value: string): string {
+  if (value.startsWith("/")) return value;
+  try {
+    const url = new URL(value);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return "/sign-in";
+  }
 }
 
 export async function signOutAction() {
@@ -51,11 +66,18 @@ export async function signInWithPassword(_prev: ActionState, formData: FormData)
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter your email and password." };
   }
   try {
-    await signIn("credentials", {
+    const landed = await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: afterSignIn(formData),
+      redirect: false,
+      redirectTo: "/app",
     });
+    if (isAuthErrorRedirect(landed)) redirect(authErrorPath(landed));
+    const row = await prisma.userEmail.findUnique({
+      where: { email: normalizeEmail(parsed.data.email) },
+      select: { defaultView: true },
+    });
+    await redirectToStartPage(String(formData.get("callbackUrl") ?? ""), row?.defaultView ?? null);
     return null;
   } catch (error) {
     if (isNextRedirect(error)) throw error;

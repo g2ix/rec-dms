@@ -9,12 +9,24 @@ config({ path: ".env" });
 const email = "e2e.redirect@usc.edu.ph";
 const password = "Usc-ethics-review-2026-protocol";
 
+async function setDefaultView(defaultView: string | null) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.userEmail.update({ where: { email }, data: { defaultView } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function ensureUser() {
   const prisma = new PrismaClient();
   try {
     const passwordHash = await hash(password, { memoryCost: 19456, timeCost: 2, parallelism: 1 });
     const existing = await prisma.userEmail.findUnique({ where: { email } });
-    if (existing) return;
+    if (existing) {
+      await prisma.userEmail.update({ where: { email }, data: { defaultView: null } });
+      return;
+    }
     const verifiedAt = new Date();
     const user = await prisma.user.create({
       data: {
@@ -49,6 +61,7 @@ async function signIn(page: Page) {
 
 test.describe.configure({ mode: "serial" });
 test.beforeAll(ensureUser);
+test.afterAll(() => setDefaultView(null));
 test.setTimeout(30_000);
 
 test("signed-in visit to /sign-in opens the dashboard", async ({ page }) => {
@@ -76,4 +89,39 @@ test("an absolute callbackUrl is ignored", async ({ page }) => {
   await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
   expect(page.url()).not.toContain("example.com");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+});
+
+test("sign-in opens the identity default view ahead of the last used view", async ({ page }) => {
+  await setDefaultView("staff");
+  await page.context().addCookies([
+    { name: "activeView", value: "proponent", url: "http://localhost:3000" },
+  ]);
+  await page.goto("/sign-in");
+  await signIn(page);
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(page.getByText("REC Staff", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Screening queue" })).toBeVisible();
+});
+
+test("sign-in keeps the last used view when the identity has none", async ({ page }) => {
+  await setDefaultView(null);
+  await page.context().addCookies([
+    { name: "activeView", value: "reviewer", url: "http://localhost:3000" },
+  ]);
+  await page.goto("/sign-in");
+  await signIn(page);
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(page.getByText("Reviewer", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "My reviews" })).toBeVisible();
+});
+
+test("sign-in opens a path stored as the identity default view", async ({ page }) => {
+  await setDefaultView("/app/tasks");
+  await page.context().addCookies([
+    { name: "activeView", value: "proponent", url: "http://localhost:3000" },
+  ]);
+  await page.goto("/sign-in");
+  await signIn(page);
+  await expect(page).toHaveURL(/\/app\/tasks$/, { timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "My tasks" })).toBeVisible();
 });

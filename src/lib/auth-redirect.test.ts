@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveStartPage, safeCallbackPath, safeInternalPath } from "@/lib/auth-redirect";
+import { postSignInPath, resolveStartPage, safeCallbackPath, safeInternalPath } from "@/lib/auth-redirect";
 
 describe("safeCallbackPath", () => {
   it("keeps a same-site path", () => {
@@ -28,7 +28,7 @@ describe("safeInternalPath", () => {
 });
 
 describe("resolveStartPage", () => {
-  it("prefers the sign-in identity view, then the last used view", () => {
+  it("prefers the sign-in identity view, then the last used view, then /app", () => {
     expect(resolveStartPage({ identityDefaultView: "staff", lastUsedView: "proponent" })).toEqual({
       path: "/app",
       view: "staff",
@@ -41,5 +41,34 @@ describe("resolveStartPage", () => {
       path: "/app",
       view: null,
     });
+  });
+
+  it("uses a stored path as the page and ignores auth-entry and off-site values", () => {
+    expect(resolveStartPage({ identityDefaultView: "/app/tasks", lastUsedView: "proponent" })).toEqual({
+      path: "/app/tasks",
+      view: null,
+    });
+    expect(resolveStartPage({ identityDefaultView: null, lastUsedView: "/app/reviews?mine=1" })).toEqual({
+      path: "/app/reviews?mine=1",
+      view: null,
+    });
+    expect(resolveStartPage({ identityDefaultView: "/sign-in", lastUsedView: "chair" })).toEqual({
+      path: "/app",
+      view: "chair",
+    });
+    expect(resolveStartPage({ identityDefaultView: "https://example.com", lastUsedView: "//evil.com" })).toEqual({
+      path: "/app",
+      view: null,
+    });
+  });
+});
+
+describe("postSignInPath", () => {
+  it("sends a generic home through the start-page resolver and keeps a specific path", () => {
+    expect(postSignInPath("")).toBe("/");
+    expect(postSignInPath("/app")).toBe("/");
+    expect(postSignInPath("/")).toBe("/");
+    expect(postSignInPath("/app/protocols/123")).toBe("/app/protocols/123");
+    expect(postSignInPath("https://example.com")).toBe("/");
   });
 });
