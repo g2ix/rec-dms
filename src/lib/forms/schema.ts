@@ -35,6 +35,7 @@ export const COLUMN_TYPES = [
   "phone",
   "select",
   "yesNoNa",
+  "computed",
 ] as const;
 
 const CHOICE_TYPES = new Set(["select", "radio", "checkboxes"]);
@@ -87,6 +88,16 @@ const columnSchema = z
     fillers: z.array(z.enum(ROLE_KEYS)).min(1, "Say who fills this column."),
     options: z.array(optionSchema).optional(),
     editableInSteps: z.array(z.string().min(1)).optional(),
+    formula: z.string().optional(),
+    /** This column can be edited only on rows the same person commented on in an earlier form. */
+    authoredFrom: z
+      .object({
+        forms: z.array(z.string().min(1)).min(1),
+        field: z.string().min(1),
+        columns: z.array(z.string().min(1)).min(1),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -112,6 +123,8 @@ export const fieldSchema = z
     validation: validationSchema.optional(),
     columns: z.array(columnSchema).optional(),
     rows: z.array(rowSchema).optional(),
+    /** Assessment rows stay hidden until one of these columns has text. */
+    showRowsWhenFilled: z.array(z.string().min(1)).optional(),
     formula: z.string().optional(),
     signer: signerSchema.optional(),
   })
@@ -257,6 +270,14 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
   if (field.type !== "assessmentTable" && field.rows) {
     issues.push({ path: `${path}.rows`, message: "Only an assessment table uses fixed rows." });
   }
+  if (field.showRowsWhenFilled && field.type !== "assessmentTable") {
+    issues.push({ path: `${path}.showRowsWhenFilled`, message: "Only an assessment table can hide empty rows." });
+  }
+  for (const columnId of field.showRowsWhenFilled ?? []) {
+    if (!field.columns?.some((column) => column.id === columnId)) {
+      issues.push({ path: `${path}.showRowsWhenFilled`, message: `“${columnId}” is not a column on this table.` });
+    }
+  }
 
   if (field.signer && field.type !== "signature") {
     issues.push({ path: `${path}.signer`, message: "Only a signature field names a signer." });
@@ -305,11 +326,30 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
   }
 
   columns.forEach((column, index) => {
+    if (column.type === "computed") {
+      if (!column.formula?.trim()) {
+        issues.push({ path: `${path}.columns.${index}.formula`, message: "A computed column needs a formula." });
+      } else {
+        try {
+          parseFormula(column.formula);
+        } catch (error) {
+          issues.push({
+            path: `${path}.columns.${index}.formula`,
+            message: error instanceof Error ? error.message : "That formula could not be read.",
+          });
+        }
+      }
+    } else if (column.formula) {
+      issues.push({ path: `${path}.columns.${index}.formula`, message: "Only a computed column uses a formula." });
+    }
     if (column.type === "select" && !(column.options && column.options.length > 0)) {
       issues.push({ path: `${path}.columns.${index}.options`, message: "Add at least one choice." });
     }
     if (column.options && column.type !== "select") {
       issues.push({ path: `${path}.columns.${index}.options`, message: "Only a select column uses options." });
+    }
+    if (column.authoredFrom && field.type !== "assessmentTable") {
+      issues.push({ path: `${path}.columns.${index}.authoredFrom`, message: "Only an assessment column can be limited to earlier comments." });
     }
     if (field.fillers.length > 0) {
       const outsider = column.fillers.find((role) => !field.fillers.includes(role));

@@ -110,15 +110,26 @@ export async function signField(input: {
         include: { user: { select: { displayName: true } } },
       }),
     );
-    const target = slotByPath(schema, members, input.fieldPath);
+    const filler = instance.filledByMemberId
+      ? await tx.protocolMember.findUnique({ where: { id: instance.filledByMemberId }, select: { userId: true } })
+      : null;
+    const target = slotByPath(schema, members, input.fieldPath, { assigneeUserId: filler?.userId });
     if (!target) throw new AppError("INVALID", "That signature is not on this form.", 400);
     const membership = await tx.protocolMember.findFirst({
       where: { protocolId: version.protocolId, userId: input.userId, status: "ACTIVE" },
     });
+    const grants = await tx.userRole.findMany({
+      where: { userId: input.userId, revokedAt: null },
+      select: { role: { select: { key: true } } },
+    });
+    const roles = [
+      ...actorRoles(membership),
+      ...grants.map((grant) => grant.role.key).filter(isRoleKey),
+    ];
     if (
       !canSignSlot(target.field, target.slot, {
         userId: input.userId,
-        roles: actorRoles(membership),
+        roles,
       })
     ) {
       throw new AppError("FORBIDDEN", "You cannot sign that field.", 403);

@@ -46,6 +46,13 @@ export async function loadSignaturePanel(input: {
   schema: FormSchema;
   roles: string[];
 }): Promise<SignaturePanel> {
+  const instance = await prisma.formInstance.findUnique({
+    where: { id: input.instanceId },
+    select: { filledByMemberId: true },
+  });
+  const filler = instance?.filledByMemberId
+    ? await prisma.protocolMember.findUnique({ where: { id: instance.filledByMemberId }, select: { userId: true } })
+    : null;
   const [memberRows, events, fresh, email] = await Promise.all([
     prisma.protocolMember.findMany({
       where: { protocolId: input.protocolId, status: { in: ["ACTIVE", "INVITED"] } },
@@ -66,7 +73,7 @@ export async function loadSignaturePanel(input: {
   }
   const images = new Map<string, string | null>();
   const byField: Record<string, SignatureSlotView[]> = {};
-  for (const slot of signatureSlots(input.schema, roster)) {
+  for (const slot of signatureSlots(input.schema, roster, { assigneeUserId: filler?.userId })) {
     const field = findField(input.schema, slot.fieldId);
     if (!field) continue;
     const event = latest.get(slot.fieldPath) ?? null;

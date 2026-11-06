@@ -13,7 +13,7 @@ import {
   saveDraftGraph,
   validationIssues,
 } from "@/server/workflow/definitions";
-import { claimTask, completeTask, reassignTask } from "@/server/workflow/engine";
+import { claimTask, completeTask, reassignTask, requestExtension } from "@/server/workflow/engine";
 import { removeHoliday, saveHoliday } from "@/server/workflow/holidays";
 
 function messageOf(error: unknown, fallback: string): string {
@@ -93,9 +93,24 @@ export async function completeTaskAction(formData: FormData): Promise<void> {
       outcome: String(formData.get("outcome") ?? "").trim() || null,
       comment: String(formData.get("comment") ?? "").trim() || null,
       reviewerUserIds: reviewers,
+      newDueAt: String(formData.get("newDueAt") ?? "").trim() || null,
+      meetingDate: String(formData.get("meetingDate") ?? "").trim() || null,
     });
   } catch (error) {
     redirect(`/app/protocols/${protocolId}?error=${encodeURIComponent(messageOf(error, "The task could not be completed."))}`);
+  }
+  revalidatePath(`/app/protocols/${protocolId}`);
+  revalidatePath("/app/tasks");
+}
+
+export async function requestExtensionAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const instanceId = z.string().uuid().parse(formData.get("instanceId"));
+  const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+  try {
+    await requestExtension(instanceId, user.id);
+  } catch (error) {
+    redirect(`/app/protocols/${protocolId}?error=${encodeURIComponent(messageOf(error, "The extension could not be requested."))}`);
   }
   revalidatePath(`/app/protocols/${protocolId}`);
   revalidatePath("/app/tasks");

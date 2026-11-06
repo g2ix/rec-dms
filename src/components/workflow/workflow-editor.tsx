@@ -333,7 +333,7 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
       {assignee?.kind === "ASSIGNED_IN_STEP" ? (
         <label className="rec-field">
           <span className="label">Assigned in</span>
-          <StepSelect value={assignee.stepKey} steps={steps} disabled={false} onChange={(stepKey) => onChange({ ...step, assignee: { kind: "ASSIGNED_IN_STEP", stepKey } })} />
+          <StepSelect value={assignee.stepKey} steps={steps} disabled={false} onChange={(stepKey) => onChange({ ...step, assignee: { ...assignee, stepKey } })} />
         </label>
       ) : null}
       {assignee?.kind === "USER" ? (

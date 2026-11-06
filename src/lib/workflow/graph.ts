@@ -37,7 +37,12 @@ export const assigneeRuleSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("PROTOCOL_LEADER") }),
   z.object({ kind: z.literal("PROTOCOL_PROPONENTS") }),
   z.object({ kind: z.literal("PROTOCOL_ADVISER") }),
-  z.object({ kind: z.literal("ASSIGNED_IN_STEP"), stepKey: z.string().min(1) }),
+  z.object({
+    kind: z.literal("ASSIGNED_IN_STEP"),
+    stepKey: z.string().min(1),
+    /** `parent` reads reviewers chosen on an earlier workflow instance, such as a resubmission. */
+    source: z.enum(["instance", "parent"]).optional(),
+  }),
   z.object({ kind: z.literal("USER"), userId: z.string().uuid() }),
 ]);
 
@@ -51,7 +56,7 @@ const durationSchema = z.object({
 export type Duration = z.infer<typeof durationSchema>;
 
 const autoActionSchema = z.object({
-  kind: z.enum(["ASSIGN_PROTOCOL_CODE", "SNAPSHOT_VERSION", "GENERATE_DOCUMENTS", "NOTIFY", "START_WORKFLOW"]),
+  kind: z.enum(["ASSIGN_PROTOCOL_CODE", "SNAPSHOT_VERSION", "GENERATE_DOCUMENTS", "NOTIFY", "START_WORKFLOW", "PREFILL"]),
   /** onEnter runs when the step opens. onExit runs when it completes. AUTO steps run onEnter before they move on. */
   hook: z.enum(["onEnter", "onExit"]).optional(),
   params: z.record(z.string(), z.unknown()).optional(),
@@ -98,9 +103,12 @@ export const stepSchema = z.object({
     .object({
       roles: z.array(roleKeySchema).min(1),
       min: z.number().int().min(1),
-      max: z.number().int().min(1),
+      /** Omitted means the chair may add more than the minimum. */
+      max: z.number().int().min(1).optional(),
     })
     .optional(),
+  /** Extra facts the assignee records before the step can be completed. */
+  capture: z.object({ meetingDate: z.literal(true).optional() }).optional(),
   deadline: z
     .object({
       amount: z.number().int().positive(),
@@ -110,6 +118,20 @@ export const stepSchema = z.object({
     })
     .optional(),
   statusLabel: z.string().min(1).optional(),
+  /** Outcomes that cannot be chosen until the fee receipt is verified. */
+  feeVerifiedOutcomes: z.array(z.string().min(1)).optional(),
+  /** Extra tasks that do not advance the step, such as an extension request. */
+  sideTasks: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        name: z.string().min(1),
+        assignee: assigneeRuleSchema,
+        outcomes: z.array(z.object({ key: z.string().min(1), label: z.string().min(1) })).min(1),
+        effect: z.enum(["SET_DUE", "NONE"]).optional(),
+      }),
+    )
+    .optional(),
   notify: z
     .object({
       onAssigned: z.string().min(1).optional(),
@@ -129,6 +151,8 @@ export const transitionSchema = z.object({
   when: z.unknown().optional(),
   label: z.string().optional(),
   priority: z.number().int().optional(),
+  /** Replaces the destination step's status when this transition is the one taken. */
+  statusLabel: z.string().min(1).optional(),
 });
 
 export type Transition = z.infer<typeof transitionSchema>;

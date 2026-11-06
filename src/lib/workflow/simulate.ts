@@ -58,7 +58,7 @@ export function simulateGraph(
 function dataFor(stepKey: string, outcome: string | null): LogicData {
   return {
     outcome,
-    protocol: { id: "simulate", reviewType: null, panelId: null, status: "DRAFT", code: null, title: "Simulation" },
+    protocol: { id: "simulate", reviewType: null, panelId: null, status: "DRAFT", code: null, title: "Simulation", hasAdviser: true },
     forms: {},
     step: { key: stepKey },
   };

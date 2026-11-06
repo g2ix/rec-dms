@@ -2,8 +2,11 @@ import "server-only";
 import type { Prisma, ProtocolMemberRole } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { getPath } from "@/lib/forms/paths";
-import { validateSchema } from "@/lib/forms/schema";
+import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
+import { findField, validateSchema } from "@/lib/forms/schema";
 import { validateInstance } from "@/lib/forms/validate";
+import { missingRequiredSignatures } from "@/lib/signatures/target";
+import { manilaDayEnd } from "@/lib/time";
 import { addDuration, manilaDay, subtractDuration } from "@/lib/workflow/calendar";
 import { parseGraph, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
 import { pickTransition, stepIsComplete, type LogicData } from "@/lib/workflow/transitions";
@@ -12,8 +15,10 @@ import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
 import { freezeWorkingVersion } from "@/server/protocols/snapshot";
-import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
+import { signatureMarks, toRoster } from "@/server/signatures/sign";
 import { isCommitteeStaff } from "@/server/authz/staff";
+import { loadAuthoredRows } from "@/server/forms/authored";
+import { prefillForm } from "@/server/workflow/prefill";
 import { readAssignments, readRule, resolveSlots, roleKeysFor, userMatchesRule, type AssigneeSlot } from "@/server/workflow/who";
 
 type Tx = Prisma.TransactionClient;
@@ -25,6 +30,10 @@ export type CompleteInput = {
   outcome?: string | null;
   comment?: string | null;
   reviewerUserIds?: string[];
+  /** yyyy-MM-dd in Asia/Manila. Used when a side task approves a new due date. */
+  newDueAt?: string | null;
+  /** yyyy-MM-dd. Required when the step records a meeting date. */
+  meetingDate?: string | null;
 };
 
 export type TaskResult = {
@@ -154,12 +163,18 @@ export async function maybeStartResubmissionTx(
     select: { id: true },
   });
   if (!published) return null;
+  const parent = await tx.workflowInstance.findFirst({
+    where: { protocolId },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
   return startInstanceTx(tx, {
     definitionKey: "RESUBMISSION",
     protocolId,
     protocolVersionId,
     actorUserId,
     meta,
+    parentInstanceId: parent?.id ?? null,
   });
 }
 
@@ -176,8 +191,9 @@ export async function completeLeaderSubmissionTx(
       protocolId,
       protocolVersionId,
       status: "RUNNING",
-      version: { definition: { key: INITIAL_WORKFLOW_KEY } },
+      version: { definition: { key: { in: [INITIAL_WORKFLOW_KEY, "RESUBMISSION"] } } },
     },
+    orderBy: { startedAt: "desc" },
   });
   if (!instance) {
     instance = await startInstanceTx(tx, {
@@ -191,7 +207,7 @@ export async function completeLeaderSubmissionTx(
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: protocolId } });
   const assignments = readAssignments(instance.assignments);
   const tasks = await tx.task.findMany({
-    where: { instanceId: instance.id, status: { in: ["OPEN", "CLAIMED"] } },
+    where: { instanceId: instance.id, status: { in: ["OPEN", "CLAIMED"] }, kind: "MAIN" },
     orderBy: { createdAt: "asc" },
   });
   let chosen: (typeof tasks)[number] | null = null;
@@ -242,16 +258,18 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
   await tx.$queryRaw`SELECT id FROM workflow_instances WHERE id = ${instance.id} FOR UPDATE`;
   const version = await tx.workflowVersion.findUniqueOrThrow({ where: { id: instance.versionId } });
   const graph = graphOf(version.graph);
+  if (task.kind === "SIDE") return completeSideTask(tx, task, instance, graph, userId, input, meta);
   const step = stepOf(graph, task.stepKey ?? "");
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
   const assignments = readAssignments(instance.assignments);
   await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? step.assignee ?? null, userId, protocol, assignments);
 
   const outcome = input.outcome?.trim() || null;
-  if (step.type === "DECISION") {
+  if (step.type === "DECISION" || ((step.outcomes?.length ?? 0) > 0 && step.type !== "WAIT_PROPONENT")) {
     const keys = new Set((step.outcomes ?? []).map((item) => item.key));
     if (!outcome || !keys.has(outcome)) throw new AppError("INVALID", "Choose one of the outcomes for this step.", 400);
   }
+  const comment = meetingComment(step, input);
   const preview = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
   const previewNext = pickTransition(graph, step.key, preview);
   const previewTarget = previewNext ? graph.steps.find((item) => item.key === previewNext.to) : undefined;
@@ -259,14 +277,23 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
     previewTarget?.assignee?.kind === "ASSIGNED_IN_STEP" && previewTarget.assignee.stepKey === step.key;
   if (step.assignReviewers && (needsReviewers || (input.reviewerUserIds?.length ?? 0) > 0)) {
     const ids = input.reviewerUserIds ?? [];
-    if (ids.length < step.assignReviewers.min || ids.length > step.assignReviewers.max) {
-      throw new AppError("INVALID", `Choose ${step.assignReviewers.min} to ${step.assignReviewers.max} reviewers.`, 400);
+    const max = step.assignReviewers.max;
+    if (ids.length < step.assignReviewers.min || (max != null && ids.length > max)) {
+      const span = max != null ? `${step.assignReviewers.min} to ${max}` : `at least ${step.assignReviewers.min}`;
+      throw new AppError("INVALID", `Choose ${span} reviewers.`, 400);
     }
     if (new Set(ids).size !== ids.length) throw new AppError("INVALID", "Choose each reviewer once.", 400);
     await assertReviewers(tx, protocol.id, ids, step.assignReviewers.roles);
     assignments[step.key] = ids;
     await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(assignments) } });
     for (const reviewerId of ids) await ensureReviewerMember(tx, protocol.id, reviewerId, step.assignReviewers.roles);
+  }
+
+  if (outcome && step.feeVerifiedOutcomes?.includes(outcome)) {
+    const fee = await tx.feeVerification.findUnique({ where: { protocolVersionId: instance.protocolVersionId } });
+    if (fee?.status !== "VERIFIED") {
+      throw new AppError("INCOMPLETE", "Verify the fee receipt before accepting the submission.", 400);
+    }
   }
 
   await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId);
@@ -276,7 +303,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
     data: {
       status: "COMPLETED",
       outcome,
-      comment: input.comment?.trim() || null,
+      comment,
       assigneeUserId: task.assigneeUserId ?? userId,
       completedAt,
       completedById: userId,
@@ -292,7 +319,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
     meta,
   });
 
-  const siblings = await tx.task.findMany({ where: { instanceId: instance.id, stepKey: step.key } });
+  const siblings = await tx.task.findMany({ where: { instanceId: instance.id, stepKey: step.key, kind: "MAIN" } });
   if (!stepIsComplete(step, siblings)) return resultOf(task.id, outcome, instance, false);
 
   await tx.task.updateMany({
@@ -313,7 +340,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
   const next = pickTransition(graph, step.key, logic);
   if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
   const fresh = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
-  await enterStep(tx, fresh, graph, next.to, userId, meta, outcome, []);
+  await enterStep(tx, fresh, graph, next.to, userId, meta, outcome, [], next.statusLabel);
   const after = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
   return resultOf(task.id, outcome, after, false);
 }
@@ -427,6 +454,180 @@ export async function cancelInstance(instanceId: string, actorUserId: string): P
   }, TX);
 }
 
+async function completeSideTask(
+  tx: Tx,
+  task: {
+    id: string;
+    instanceId: string | null;
+    stepKey: string | null;
+    sideKey: string | null;
+    assigneeUserId: string | null;
+    candidateRule: Prisma.JsonValue;
+  },
+  instance: InstanceRow,
+  graph: WorkflowGraph,
+  userId: string,
+  input: CompleteInput,
+  meta: Meta,
+): Promise<TaskResult> {
+  const step = stepOf(graph, task.stepKey ?? "");
+  const side = step.sideTasks?.find((item) => item.key === task.sideKey);
+  if (!side) throw new AppError("INVALID", "That request is no longer part of this step.", 409);
+  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
+  const assignments = readAssignments(instance.assignments);
+  await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? side.assignee, userId, protocol, assignments);
+  const outcome = input.outcome?.trim() || null;
+  if (!outcome || !side.outcomes.some((item) => item.key === outcome)) {
+    throw new AppError("INVALID", "Choose one of the outcomes for this request.", 400);
+  }
+  if ((side.effect ?? "NONE") === "SET_DUE" && outcome === "APPROVE") {
+    if (!input.newDueAt || !/^\d{4}-\d{2}-\d{2}$/.test(input.newDueAt)) {
+      throw new AppError("INVALID", "Choose the new due date.", 400);
+    }
+    const dueAt = manilaDayEnd(input.newDueAt);
+    const waiting = await tx.task.findFirst({
+      where: { instanceId: instance.id, stepKey: step.key, kind: "MAIN", status: { in: ["OPEN", "CLAIMED"] } },
+    });
+    if (!waiting) throw new AppError("INVALID", "That step is no longer waiting.", 409);
+    if (waiting.dueAt && dueAt.getTime() <= waiting.dueAt.getTime()) {
+      throw new AppError("INVALID", "The new due date must be later than the current one.", 400);
+    }
+    await tx.task.update({ where: { id: waiting.id }, data: { dueAt } });
+  }
+  const completedAt = new Date();
+  await tx.task.update({
+    where: { id: task.id },
+    data: {
+      status: "COMPLETED",
+      outcome,
+      comment: input.comment?.trim() || null,
+      assigneeUserId: task.assigneeUserId ?? userId,
+      completedAt,
+      completedById: userId,
+    },
+  });
+  await audit.record(tx, {
+    actorUserId: userId,
+    action: AuditAction.taskCompleted,
+    entityType: "task",
+    entityId: task.id,
+    protocolId: protocol.id,
+    diff: { stepKey: step.key, sideKey: side.key, outcome, status: "COMPLETED" },
+    meta,
+  });
+  return resultOf(task.id, outcome, instance, false);
+}
+
+export async function requestExtension(instanceId: string, userId: string) {
+  return prisma.$transaction(async (tx) => {
+    await useAppSchema(tx);
+    const instance = await tx.workflowInstance.findUnique({ where: { id: instanceId }, include: { version: true } });
+    if (!instance || instance.status !== "RUNNING") throw new AppError("NOT_FOUND", "That workflow was not found.", 404);
+    const graph = graphOf(instance.version.graph);
+    const stepKey = instance.currentStepKeys[0];
+    if (!stepKey) throw new AppError("INVALID", "This workflow has no open step.", 409);
+    const step = stepOf(graph, stepKey);
+    const side = step.sideTasks?.[0];
+    if (!side) throw new AppError("INVALID", "This step does not accept an extension request.", 400);
+    const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
+    if (protocol.leaderUserId !== userId) {
+      throw new AppError("FORBIDDEN", "Only the project leader can request an extension.", 403);
+    }
+    const existing = await tx.task.findFirst({
+      where: { instanceId, stepKey, kind: "SIDE", sideKey: side.key, status: { in: ["OPEN", "CLAIMED"] } },
+    });
+    if (existing) return existing;
+    const assignments = readAssignments(instance.assignments);
+    const slots = await resolveSlots(tx, side.assignee, protocol, assignments);
+    const slot = slots.find((item) => item.userId) ?? slots[0];
+    if (!slot || (!slot.userId && slot.rule.kind !== "ROLE" && slot.rule.kind !== "PANEL_ROLE_OF_PROTOCOL")) {
+      throw new AppError("NO_ASSIGNEE", "Nobody is assigned to decide the extension.", 409);
+    }
+    const created = await tx.task.create({
+      data: {
+        instanceId,
+        stepKey,
+        kind: "SIDE",
+        sideKey: side.key,
+        assigneeUserId: slot.userId,
+        candidateRule: toJson(slot.rule),
+        title: side.name,
+        status: "OPEN",
+      },
+    });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.extensionRequested,
+      entityType: "task",
+      entityId: created.id,
+      protocolId: protocol.id,
+      diff: { stepKey, sideKey: side.key },
+      meta: {},
+    });
+    return created;
+  }, TX);
+}
+
+/** Completes the leader's open proponent-wait, for example when a revision starts. */
+export async function completeOpenWaitTx(
+  tx: Tx,
+  protocolId: string,
+  userId: string,
+  outcome: string,
+  meta: Meta,
+): Promise<void> {
+  const tasks = await tx.task.findMany({
+    where: {
+      kind: "MAIN",
+      status: { in: ["OPEN", "CLAIMED"] },
+      assigneeUserId: userId,
+      instance: { protocolId, status: "RUNNING" },
+    },
+    include: { instance: { include: { version: true } } },
+  });
+  for (const task of tasks) {
+    if (!task.instance || !task.stepKey) continue;
+    const parsed = parseGraph(task.instance.version.graph);
+    if (!parsed.ok) continue;
+    const step = parsed.graph.steps.find((item) => item.key === task.stepKey);
+    if (step?.type !== "WAIT_PROPONENT") continue;
+    await completeTaskTx(tx, task.id, userId, { outcome }, meta);
+  }
+}
+
+/** Completes overdue proponent waits with outcome OVERDUE. The graph decides where that leads. */
+export async function lapseOverdueWaits(now = new Date()): Promise<number> {
+  const tasks = await prisma.task.findMany({
+    where: {
+      kind: "MAIN",
+      status: { in: ["OPEN", "CLAIMED"] },
+      dueAt: { lt: now },
+      assigneeUserId: { not: null },
+      instance: { status: "RUNNING" },
+    },
+    include: { instance: { include: { version: true } } },
+  });
+  let count = 0;
+  for (const task of tasks) {
+    if (!task.instance || !task.stepKey || !task.assigneeUserId) continue;
+    const parsed = parseGraph(task.instance.version.graph);
+    if (!parsed.ok) continue;
+    const step = parsed.graph.steps.find((item) => item.key === task.stepKey);
+    if (step?.type !== "WAIT_PROPONENT") continue;
+    await completeTask(task.id, task.assigneeUserId, { outcome: "OVERDUE" });
+    count += 1;
+  }
+  return count;
+}
+
+function meetingComment(step: Step, input: CompleteInput): string | null {
+  const note = input.comment?.trim() || "";
+  if (!step.capture?.meetingDate) return note || null;
+  const date = input.meetingDate?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new AppError("INVALID", "Enter the meeting date.", 400);
+  return note ? `Meeting date: ${date}\n${note}` : `Meeting date: ${date}`;
+}
+
 async function enterStep(
   tx: Tx,
   instance: InstanceRow,
@@ -436,12 +637,16 @@ async function enterStep(
   meta: Meta,
   outcome: string | null,
   trail: string[],
+  statusLabel?: string,
 ): Promise<void> {
-  if (trail.length > 24) throw new AppError("INVALID", "The workflow is looping without a person to continue it.", 409);
+  if (trail.includes(stepKey) || trail.length > 24) {
+    throw new AppError("INVALID", "The workflow is looping without a person to continue it.", 409);
+  }
   const step = stepOf(graph, stepKey);
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
-  if (step.statusLabel) {
-    await tx.protocol.update({ where: { id: protocol.id }, data: { status: step.statusLabel } });
+  const label = statusLabel || step.statusLabel;
+  if (label) {
+    await tx.protocol.update({ where: { id: protocol.id }, data: { status: label } });
   }
   await audit.record(tx, {
     actorUserId,
@@ -459,7 +664,7 @@ async function enterStep(
     meta,
     instanceId: instance.id,
   };
-  await runActions(tx, step, "onEnter", context);
+  await runActions(tx, step, "onEnter", context, "other");
   if (step.type === "AUTO") {
     await applySetFields(tx, step, outcome, await formData(tx, instance.protocolVersionId), protocol.id);
     const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
@@ -494,6 +699,11 @@ async function enterStep(
   }
 
   const assignments = readAssignments((await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } })).assignments);
+  if (step.assignee?.kind === "ASSIGNED_IN_STEP" && step.assignee.source === "parent" && instance.parentInstanceId) {
+    const parent = await tx.workflowInstance.findUnique({ where: { id: instance.parentInstanceId } });
+    assignments[step.assignee.stepKey] = readAssignments(parent?.assignments)[step.assignee.stepKey] ?? [];
+    await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(assignments) } });
+  }
   const rule = step.assignee ?? (step.type === "WAIT_PROPONENT" ? { kind: "PROTOCOL_LEADER" as const } : null);
   if (!rule) throw new AppError("INVALID", `“${step.name}” has no assignee.`, 409);
   const slots = await resolveSlots(tx, rule, protocol, assignments);
@@ -523,6 +733,7 @@ async function enterStep(
   }
   if (tasks.length === 0) throw new AppError("NO_ASSIGNEE", `“${step.name}” has nobody to assign.`, 409);
   await openForms(tx, step, instance.protocolVersionId, slots);
+  await runActions(tx, step, "onEnter", context, "prefill");
   await tx.workflowInstance.update({ where: { id: instance.id }, data: { currentStepKeys: [step.key] } });
 }
 
@@ -596,7 +807,7 @@ function reviewRole(keys: string[], allowed: string[]): ProtocolMemberRole {
 async function assertStepReady(tx: Tx, protocolVersionId: string, protocolId: string, step: Step, userId: string) {
   const member = await tx.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
   for (const form of step.forms ?? []) {
     if (!form.required || form.mode === "VIEW") continue;
@@ -617,8 +828,10 @@ async function assertStepReady(tx: Tx, protocolVersionId: string, protocolId: st
     if (!instance) throw new AppError("INCOMPLETE", `Finish ${form.code} before completing this step.`, 400);
     const parsed = validateSchema(definition.schema);
     if (!parsed.ok) throw new AppError("INVALID", `${form.code} has a schema that cannot be checked.`, 400);
+    const actorRoles = await actorRoleKeys(tx, protocolId, userId);
+    const allowedRows = await loadAuthoredRows(tx, userId, protocolVersionId, parsed.schema);
     if (form.mode === "FILL" || form.mode === "SIGN") {
-      const issues = validateInstance({ schema: parsed.schema }, instance.data);
+      const issues = validateInstance({ schema: parsed.schema }, instance.data, { roles: actorRoles, stepKey: step.key, allowedRows });
       if (issues.length > 0) throw new AppError("INCOMPLETE", `Finish ${form.code} before completing this step.`, 400);
     }
     if (form.mode === "SIGN" || form.mode === "FILL") {
@@ -629,7 +842,14 @@ async function assertStepReady(tx: Tx, protocolVersionId: string, protocolId: st
         }),
       );
       const marks = await signatureMarks(tx, [instance.id]);
-      if (formNeedsSignatures(parsed.schema, roster, marks.get(instance.id) ?? [])) {
+      const missing = missingRequiredSignatures(parsed.schema, roster, marks.get(instance.id) ?? [], {
+        assigneeUserId: form.perAssignee ? member?.userId : null,
+      }).filter((slot) => {
+        const field = findField(parsed.schema, slot.fieldId);
+        if (!field?.editableInSteps?.length) return true;
+        return field.editableInSteps.includes(step.key);
+      });
+      if (missing.length > 0) {
         throw new AppError("INCOMPLETE", `Sign ${form.code} before completing this step.`, 400);
       }
     }
@@ -661,13 +881,16 @@ async function openForms(tx: Tx, step: Step, protocolVersionId: string, slots: A
           where: { formDefinitionId: definition.id, ownerType: "PROTOCOL_VERSION", ownerId: protocolVersionId, filledByMemberId: member.id },
         });
         if (existing) continue;
+        const shared = await tx.formInstance.findFirst({
+          where: { formDefinitionId: definition.id, ownerType: "PROTOCOL_VERSION", ownerId: protocolVersionId, filledByMemberId: null },
+        });
         await tx.formInstance.create({
           data: {
             formDefinitionId: definition.id,
             ownerType: "PROTOCOL_VERSION",
             ownerId: protocolVersionId,
             filledByMemberId: member.id,
-            data: {},
+            data: shared?.data ?? {},
             status: "DRAFT",
           },
         });
@@ -695,10 +918,13 @@ async function runActions(
   step: Step,
   hook: "onEnter" | "onExit",
   ctx: { protocolId: string; protocolVersionId: string; userId: string | null; meta: Meta; instanceId: string },
+  which: "all" | "prefill" | "other" = "all",
 ) {
   for (const action of step.actions ?? []) {
     const when = action.hook ?? "onEnter";
     if (when !== hook) continue;
+    if (which === "prefill" && action.kind !== "PREFILL") continue;
+    if (which === "other" && action.kind === "PREFILL") continue;
     if (action.kind === "SNAPSHOT_VERSION") {
       if (!ctx.userId) continue;
       await freezeWorkingVersion(tx, { protocolId: ctx.protocolId, userId: ctx.userId, meta: ctx.meta });
@@ -712,6 +938,8 @@ async function runActions(
           runAt: new Date(),
         },
       });
+    } else if (action.kind === "PREFILL") {
+      await prefillForm(tx, action.params ?? {}, { ...ctx, stepKey: step.key });
     } else if (action.kind === "START_WORKFLOW") {
       const definitionKey = typeof action.params?.definitionKey === "string" ? action.params.definitionKey : "";
       if (!definitionKey) throw new AppError("INVALID", `“${step.name}” starts a workflow without naming it.`, 400);
@@ -785,6 +1013,16 @@ async function logicData(
   outcome: string | null,
 ): Promise<LogicData> {
   const fresh = await tx.protocol.findUniqueOrThrow({ where: { id: protocol.id } });
+  const completed = await tx.task.findMany({
+    where: { instance: { protocolVersionId }, status: "COMPLETED", kind: "MAIN", outcome: { not: null } },
+    orderBy: { completedAt: "asc" },
+    select: { stepKey: true, outcome: true },
+  });
+  const decisions: Record<string, string | null> = {};
+  for (const task of completed) {
+    if (task.stepKey) decisions[task.stepKey] = task.outcome;
+  }
+  if (outcome) decisions[stepKey] = outcome;
   return {
     outcome,
     protocol: {
@@ -794,10 +1032,28 @@ async function logicData(
       status: fresh.status,
       code: fresh.code,
       title: fresh.title,
+      hasAdviser: Boolean(
+        await tx.protocolMember.findFirst({
+          where: { protocolId: fresh.id, role: "ADVISER", status: "ACTIVE", userId: { not: null } },
+          select: { id: true },
+        }),
+      ),
     },
     forms: await formData(tx, protocolVersionId),
     step: { key: stepKey },
+    decisions,
   };
+}
+
+async function actorRoleKeys(tx: Tx, protocolId: string, userId: string): Promise<RoleKey[]> {
+  const member = await tx.protocolMember.findFirst({ where: { protocolId, userId, status: "ACTIVE" } });
+  const roles: RoleKey[] = [];
+  if (member && isRoleKey(member.role)) roles.push(member.role);
+  if (member?.isLeader && !roles.includes("PROJECT_LEADER")) roles.push("PROJECT_LEADER");
+  for (const key of await roleKeysFor(tx, userId)) {
+    if (isRoleKey(key) && !roles.includes(key)) roles.push(key);
+  }
+  return roles;
 }
 
 async function holidaySet(tx: Tx): Promise<Set<string>> {

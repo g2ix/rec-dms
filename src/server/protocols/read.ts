@@ -1,4 +1,5 @@
 import "server-only";
+import { isRoleKey } from "@/lib/forms/roles";
 import { validateSchema } from "@/lib/forms/schema";
 import { formProgress, type FormProgress } from "@/lib/protocols/format";
 import { diffFieldValues, type FieldChange } from "@/lib/protocols/format";
@@ -167,10 +168,19 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
   const member = await prisma.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
   });
-  const roles = [];
-  if (member?.role === "PROPONENT" || member?.role === "ADVISER") roles.push(member.role);
-  if (member?.isLeader) roles.push("PROJECT_LEADER" as const);
-  return { instance, version, schema: parsed.schema, roles };
+  const grants = await prisma.userRole.findMany({
+    where: { userId, revokedAt: null },
+    select: { role: { select: { key: true } } },
+  });
+  const roles: string[] = [];
+  if (member && isRoleKey(member.role)) roles.push(member.role);
+  if (member?.isLeader) roles.push("PROJECT_LEADER");
+  for (const grant of grants) {
+    if (isRoleKey(grant.role.key) && !roles.includes(grant.role.key)) roles.push(grant.role.key);
+  }
+  const { editingStepFor } = await import("@/server/workflow/access");
+  const stepKey = await editingStepFor(prisma, userId, version.id, instance.formDefinition.code);
+  return { instance, version, schema: parsed.schema, roles, stepKey };
 }
 
 export async function listUploads(userId: string, protocolId: string) {

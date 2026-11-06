@@ -50,7 +50,10 @@ function formError(error: unknown, fallback: string): { ok: false; message: stri
 }
 
 async function authorizeInstance(user: { id: string }, instanceId: string) {
-  const instance = await prisma.formInstance.findUnique({ where: { id: instanceId } });
+  const instance = await prisma.formInstance.findUnique({
+    where: { id: instanceId },
+    include: { formDefinition: { select: { code: true } } },
+  });
   if (!instance) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
   if (instance.ownerType === "SANDBOX") {
     await authorize(user, "forms.fill");
@@ -59,7 +62,10 @@ async function authorizeInstance(user: { id: string }, instanceId: string) {
   }
   const version = await prisma.protocolVersion.findUnique({ where: { id: instance.ownerId } });
   if (!version) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
-  await authorize(user, "protocol.edit", { type: "protocol", id: version.protocolId });
+  const { editingStepFor } = await import("@/server/workflow/access");
+  const step = await editingStepFor(prisma, user.id, version.id, instance.formDefinition.code);
+  if (step) return;
+  await authorize(user, "protocol.fill", { type: "protocol", id: version.protocolId });
 }
 
 export async function saveFieldAction(input: unknown): Promise<SaveFieldResult> {

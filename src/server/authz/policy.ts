@@ -40,6 +40,10 @@ export function decideProtocolAction(input: ProtocolDecisionInput): "allow" | "d
     case "protocol.edit":
     case "protocol.upload":
       return active && (active.role === "PROPONENT" || active.role === "ADVISER") ? "allow" : "deny";
+    case "protocol.fill":
+      if (staff) return "allow";
+      if (!active) return "deny";
+      return active.role === "PROPONENT" || active.role === "ADVISER" || REVIEW_ROLES.has(active.role) ? "allow" : "deny";
     case "protocol.members":
       return active?.isLeader && active.role === "PROPONENT" ? "allow" : "deny";
     case "protocol.submit":

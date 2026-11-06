@@ -15,6 +15,7 @@ import { validateCellValue, validateDraftValue, validateInstance, type FieldIssu
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
+import { loadAuthoredRows } from "@/server/forms/authored";
 import { toJson, toJsonValue } from "@/server/forms/json";
 import { voidSignaturesForDataChange } from "@/server/signatures/sign";
 import { editingStepFor } from "@/server/workflow/access";
@@ -162,13 +163,21 @@ async function rolesFor(
       select: { protocolId: true },
     });
     if (!version) return { roles: [], step: null };
-    const member = await tx.protocolMember.findFirst({
-      where: { protocolId: version.protocolId, userId, status: "ACTIVE" },
-    });
-    if (!member) return { roles: [], step: null };
+    const [member, grants] = await Promise.all([
+      tx.protocolMember.findFirst({
+        where: { protocolId: version.protocolId, userId, status: "ACTIVE" },
+      }),
+      tx.userRole.findMany({
+        where: { userId, revokedAt: null },
+        select: { role: { select: { key: true } } },
+      }),
+    ]);
     const roles: RoleKey[] = [];
-    if (isRoleKey(member.role)) roles.push(member.role);
-    if (member.isLeader) roles.push("PROJECT_LEADER");
+    if (member && isRoleKey(member.role)) roles.push(member.role);
+    if (member?.isLeader) roles.push("PROJECT_LEADER");
+    for (const grant of grants) {
+      if (isRoleKey(grant.role.key) && !roles.includes(grant.role.key)) roles.push(grant.role.key);
+    }
     return { roles, step: null };
   }
   const grants = await tx.userRole.findMany({
@@ -225,7 +234,15 @@ export async function saveField(input: {
       instance.ownerType === "PROTOCOL_VERSION"
         ? await editingStepFor(tx, input.userId, instance.ownerId, instance.formDefinition.code)
         : null;
-    if (instance.status !== "DRAFT" || (context.submitted && !openStep)) {
+    const running =
+      instance.ownerType === "PROTOCOL_VERSION"
+        ? await tx.workflowInstance.findFirst({
+            where: { protocolVersionId: instance.ownerId, status: "RUNNING" },
+            select: { id: true },
+          })
+        : null;
+    const reviewerPass = Boolean(openStep) && (instance.status === "DRAFT" || instance.status === "LOCKED");
+    if (instance.status === "COMPLETE" || (instance.status === "LOCKED" && !reviewerPass) || (running && !openStep && !reviewerPass)) {
       throw new AppError(
         "LOCKED",
         instance.status === "LOCKED" || context.submitted
@@ -239,12 +256,15 @@ export async function saveField(input: {
     const target = resolveTarget(schema, input.path);
     if (!target) throw new AppError("INVALID", "That field is not on this form.", 400);
     const { roles, step } = await rolesFor(tx, instance, input.userId);
+    const allowedRows =
+      instance.ownerType === "PROTOCOL_VERSION" ? await loadAuthoredRows(tx, input.userId, instance.ownerId, schema) : undefined;
     const editable = getEditableFields(
       { schema },
-      { status: instance.status, data: instance.data, filledByUserId: null },
+      { status: instance.status === "LOCKED" && reviewerPass ? "DRAFT" : instance.status, data: instance.data, filledByUserId: null },
       { id: input.userId },
       roles,
       openStep ?? step,
+      allowedRows,
     );
     assertEditable(editable, target, input.path);
 
@@ -258,6 +278,7 @@ export async function saveField(input: {
     const writtenPaths = [input.path, ...computed.changed.filter((id) => id !== input.path)];
     const at = new Date();
 
+    if (reviewerPass) await tx.$executeRaw`SELECT set_config('recdms.form_review', 'on', true)`;
     await tx.formInstance.update({
       where: { id: instance.id },
       data: { data: toJson(next), revision },

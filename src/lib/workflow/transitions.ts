@@ -10,9 +10,12 @@ export type LogicData = {
     status: string;
     code: string | null;
     title: string;
+    hasAdviser: boolean;
   };
   forms: Record<string, unknown>;
   step: { key: string };
+  /** Latest completed outcome for each step on this version. */
+  decisions?: Record<string, string | null>;
 };
 
 export function pickTransition(graph: WorkflowGraph, from: string, data: LogicData): Transition | null {

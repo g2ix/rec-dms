@@ -20,6 +20,8 @@ export function ProtocolForm({
   initialRevision,
   mode,
   roles,
+  stepKey = null,
+  allowedRows,
   boundValues,
   signatureSlots,
   signing = null,
@@ -30,6 +32,8 @@ export function ProtocolForm({
   initialRevision: number;
   mode: "edit" | "view";
   roles: RoleKey[];
+  stepKey?: string | null;
+  allowedRows?: Record<string, readonly string[]>;
   boundValues: Record<string, unknown>;
   signatureSlots?: Record<string, SignatureSlotView[]>;
   signing?: SigningPrompt | null;
@@ -160,7 +164,8 @@ export function ProtocolForm({
         data={data}
         mode={mode}
         roles={roles}
-        stepKey={null}
+        stepKey={stepKey}
+        allowedRows={allowedRows}
         boundValues={boundValues}
         fieldState={ui}
         onChange={(path, value) => {

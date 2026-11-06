@@ -73,10 +73,10 @@ export function structuralIssues(graph: WorkflowGraph, publishedFormCodes: Reado
         }
       }
     }
-    if (step.assignReviewers && step.assignReviewers.min > step.assignReviewers.max) {
+    if (step.assignReviewers?.max != null && step.assignReviewers.min > step.assignReviewers.max) {
       issues.push({ stepKey: step.key, message: `“${step.name}” asks for more reviewers than it allows.` });
     }
-    if (step.assignee?.kind === "ASSIGNED_IN_STEP") {
+    if (step.assignee?.kind === "ASSIGNED_IN_STEP" && step.assignee.source !== "parent") {
       const earlier = byKey.get(step.assignee.stepKey);
       if (!earlier) {
         issues.push({ stepKey: step.key, message: `“${step.name}” uses reviewers from “${step.assignee.stepKey}”, which is not a step.` });

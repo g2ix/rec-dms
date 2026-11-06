@@ -4,6 +4,25 @@ import { findField, type FormField, type FormSchema } from "@/lib/forms/schema";
 
 export function recompute(schema: FormSchema, data: Record<string, unknown>): { data: Record<string, unknown>; changed: string[] } {
   const next = { ...data };
+  for (const field of schema.sections.flatMap((section) => section.fields)) {
+    if (field.type !== "repeatingTable") continue;
+    const rows = next[field.id];
+    if (!Array.isArray(rows)) continue;
+    const computed = (field.columns ?? []).filter((column) => column.type === "computed" && column.formula);
+    if (computed.length === 0) continue;
+    next[field.id] = rows.map((row) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) return row;
+      const copy = { ...(row as Record<string, unknown>) };
+      for (const column of computed) {
+        try {
+          copy[column.id] = evaluateFormula(parseFormula(column.formula ?? ""), copy);
+        } catch {
+          copy[column.id] = 0;
+        }
+      }
+      return copy;
+    });
+  }
   const fields = schema.sections
     .flatMap((section) => section.fields)
     .filter((field) => field.type === "computed" && field.formula);

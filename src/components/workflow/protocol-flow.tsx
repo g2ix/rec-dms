@@ -4,7 +4,7 @@ import { auditActionLabel } from "@/lib/audit-log";
 import { dueState } from "@/lib/workflow/due";
 import { formatManila } from "@/lib/time";
 import { isCommitteeStaff } from "@/server/authz/staff";
-import { claimTaskAction, completeTaskAction, reassignTaskAction } from "@/server/workflow/actions";
+import { claimTaskAction, completeTaskAction, reassignTaskAction, requestExtensionAction } from "@/server/workflow/actions";
 import { protocolFlow, reviewerOptions } from "@/server/workflow/read";
 import { readRule } from "@/server/workflow/who";
 
@@ -41,9 +41,24 @@ export async function ProtocolFlow({ protocolId, userId }: { protocolId: string;
           </article>
         );
       })}
+      {flow.extension?.step ? (
+        <form action={requestExtensionAction} className="rec-card rec-stack">
+          <p className="body-sm">Ask the Panel Chair for a later revision deadline. The request stays open until they approve a new date or deny it.</p>
+          <input type="hidden" name="instanceId" value={flow.extension.instanceId} />
+          <input type="hidden" name="protocolId" value={protocolId} />
+          <BusyButton type="submit">Request extension</BusyButton>
+        </form>
+      ) : null}
       {flow.mine.map((task) =>
-        task.step ? (
-          <TaskForm key={task.id} protocolId={protocolId} taskId={task.id} step={task.step} unclaimed={task.assigneeUserId == null} />
+        task.step && task.step.type !== "WAIT_PROPONENT" ? (
+          <TaskForm
+            key={task.id}
+            protocolId={protocolId}
+            taskId={task.id}
+            step={task.step}
+            side={task.side}
+            unclaimed={task.assigneeUserId == null}
+          />
         ) : null,
       )}
       {staff
@@ -80,15 +95,18 @@ async function TaskForm({
   protocolId,
   taskId,
   step,
+  side,
   unclaimed,
 }: {
   protocolId: string;
   taskId: string;
   step: NonNullable<Awaited<ReturnType<typeof protocolFlow>>>["mine"][number]["step"];
+  side: NonNullable<Awaited<ReturnType<typeof protocolFlow>>>["mine"][number]["side"];
   unclaimed: boolean;
 }) {
   if (!step) return null;
-  const reviewers = step.assignReviewers ? await reviewerOptions(protocolId, step.assignReviewers.roles) : [];
+  const outcomes = side?.outcomes ?? step.outcomes;
+  const reviewers = !side && step.assignReviewers ? await reviewerOptions(protocolId, step.assignReviewers.roles) : [];
   return (
     <form action={unclaimed ? claimTaskAction : completeTaskAction} className="rec-card rec-stack">
       <input type="hidden" name="taskId" value={taskId} />
@@ -99,10 +117,10 @@ async function TaskForm({
         </BusyButton>
       ) : (
         <>
-          {step.outcomes && step.outcomes.length > 0 ? (
+          {outcomes && outcomes.length > 0 ? (
             <fieldset className="rec-stack">
               <legend className="label">Outcome</legend>
-              {step.outcomes.map((outcome) => (
+              {outcomes.map((outcome) => (
                 <label key={outcome.key} className="rec-choice">
                   <input type="radio" name="outcome" value={outcome.key} required />
                   <span>{outcome.label}</span>
@@ -110,10 +128,26 @@ async function TaskForm({
               ))}
             </fieldset>
           ) : null}
-          {step.assignReviewers ? (
+          {side?.effect === "SET_DUE" ? (
+            <label className="rec-field">
+              <span className="label">New due date</span>
+              <input className="rec-input" type="date" name="newDueAt" />
+            </label>
+          ) : null}
+          {step.capture?.meetingDate ? (
+            <label className="rec-field">
+              <span className="label">Meeting date</span>
+              <input className="rec-input" type="date" name="meetingDate" required />
+            </label>
+          ) : null}
+          {step.assignReviewers && !side ? (
             <fieldset className="rec-stack">
               <legend className="label">
-                Reviewers ({step.assignReviewers.min} to {step.assignReviewers.max})
+                Reviewers (
+                {step.assignReviewers.max != null
+                  ? `${step.assignReviewers.min} to ${step.assignReviewers.max}`
+                  : `at least ${step.assignReviewers.min}`}
+                )
               </legend>
               {reviewers.length === 0 ? <p className="body-sm">No one holding those roles is free of a conflict.</p> : null}
               {reviewers.map((reviewer) => (

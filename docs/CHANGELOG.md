@@ -1,5 +1,27 @@
 # Changelog
 
+## M08 — USC REC seed (2026-11-06)
+
+Initial submission and resubmission now run from published form definitions and workflow versions. `pnpm db:seed` loads the twelve phase-1 forms at version 09-00 (effective 2025-08-01), both workflow graphs, the protocol code pattern `USC-REC-{YYYY}-{####}`, a 30-working-day revision period, REC contact details, and the panel-to-discipline map. `SEED_DEMO=true` also creates one account per role and two sample protocols. Running the seed again refreshes those form schemas and publishes a new workflow version when the graph changed. Protocols already in flight stay on the version they started.
+
+The seed follows the 6 Nov 2026 decisions. The REC Chair determines the review, records the recommended action and justification, and signs the decision. The Panel Chair fills F-41. A protocol that is not qualified for exemption goes back to the project leader and the secretariat is notified. Reviewers are any mix of at least two primary reviewers and independent consultants, and the chair may add more. F-37 copies only the points that have a comment or a suggestion, and those words stay closed. The 30 working days are written onto the notice when staff release it. Extension requests are not in this seed.
+
+The expedited path (minor modifications, resubmission, approval) is covered by `src/server/workflow/zz-usc-rec.cycle.test.ts`. Point counts, the page-and-paragraph steps, and the closed F-37 comments are covered by `src/server/workflow/usc-rec.seed.test.ts`.
+
+### Deviation from the spec and the M08 prompt
+
+- The full-review release step is `staff_release_full` (3 calendar days). Expedited release stays `staff_release` (5 calendar days). A step has one deadline, and both release the same notification.
+- While the leader is still preparing the first submission, the status is Draft. Screening then shows Under Screening, so Submitted is not a resting status. A return sets the status to Returned.
+- The snapshot runs after staff accept the submission, so an incomplete return can still be edited. Resubmission freezes on `freeze_version` after its own screening accept.
+- Resubmission reviewers are the people chosen on the parent instance (`ASSIGNED_IN_STEP` with `source: "parent"`). The same reviewers and no new meeting are the editable default.
+- Assessment and budget columns can be `computed`. Required checks apply only to the cells the current role can edit on the current step. A locked form can take a later step's remarks when the application sets `recdms.form_review`; its status stays LOCKED.
+- F-29 keeps researcher signatures on the application form. A repeating table cannot store a signature image.
+- F-31 records the reviewers on the workflow step, where the chair can add to the list. The form does not also ask for one scientist and one non-scientist.
+- The browser test checks the F-35 wording, the phone layout, and that F-37 hides points with no comment. The full expedited cycle is the Vitest above.
+- Form schemas are TypeScript modules under `prisma/seed/usc-rec/`. Each one is checked with the M04 schema validator before it is published.
+- Submit completes the project leader’s open task on the running initial submission or resubmission. Another workflow on the same version is left alone.
+- An automatic step that leads back to itself stops at once, instead of walking the loop until the safety cap.
+
 ## M07 — Configurable workflow engine (2026-11-05)
 
 A review runs from a versioned graph. Publishing a new version does not move protocols that already started. The engine opens steps, creates tasks, counts working days in Asia/Manila (skipping weekends and holidays), and writes the audit event in the same transaction. Completing a task that is already complete returns the earlier result. Notifications are rows in `jobs`; nothing is emailed yet.

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { installUscRec } from "./seed/usc-rec/install";
 
 const prisma = new PrismaClient();
 
@@ -65,6 +66,8 @@ async function main() {
       });
     }
   }
+
+  await installUscRec(prisma);
 
   if (!email) {
     console.log("BOOTSTRAP_ADMIN_EMAILS is empty. No admin was created.");

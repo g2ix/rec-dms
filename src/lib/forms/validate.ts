@@ -3,19 +3,31 @@ import type { ColumnType, FormColumn, FormField, FormSchema } from "@/lib/forms/
 
 export type FieldIssue = { path: string; message: string };
 
+/** When set, a required cell is required only for the role and step that can edit it. */
+export type ValidateContext = {
+  roles?: readonly string[];
+  stepKey?: string | null;
+  /** Row ids the current person may edit, keyed by `fieldId.columnId`. */
+  allowedRows?: Record<string, readonly string[]>;
+};
+
 type CheckMode = "draft" | "complete";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[0-9+().\-\s]{7,20}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function validateInstance(definition: { schema: FormSchema }, data: unknown): FieldIssue[] {
+export function validateInstance(
+  definition: { schema: FormSchema },
+  data: unknown,
+  context?: ValidateContext,
+): FieldIssue[] {
   const record = asRecord(data);
   const issues: FieldIssue[] = [];
   for (const section of definition.schema.sections) {
     if (!isSectionVisible(section, record)) continue;
     for (const field of section.fields) {
-      issues.push(...checkField(field, record[field.id], record, field.id, "complete"));
+      issues.push(...checkField(field, record[field.id], record, field.id, "complete", context));
     }
   }
   return issues;
@@ -30,31 +42,47 @@ function asRecord(data: unknown): Record<string, unknown> {
   return {};
 }
 
-function checkField(field: FormField, value: unknown, data: Record<string, unknown>, path: string, mode: CheckMode): FieldIssue[] {
+function checkField(
+  field: FormField,
+  value: unknown,
+  data: Record<string, unknown>,
+  path: string,
+  mode: CheckMode,
+  context?: ValidateContext,
+): FieldIssue[] {
   if (field.type === "staticText" || field.type === "computed" || field.type === "signature" || field.type === "fileRef" || field.bind) {
     return [];
   }
-  if (field.type === "repeatingTable") return checkRepeating(field, value, data, path, mode);
-  if (field.type === "assessmentTable") return checkAssessment(field, value, data, path, mode);
+  if (field.type === "repeatingTable") return checkRepeating(field, value, data, path, mode, context);
+  if (field.type === "assessmentTable") return checkAssessment(field, value, data, path, mode, context);
 
   const issues: FieldIssue[] = [];
   const shape = shapeError(field.type, value, field.options, field.validation?.pattern, field.validation?.min, field.validation?.max);
   if (shape) issues.push({ path, message: shape });
   if (field.type === "yesNoNa") issues.push(...naIssues(value, field, path, mode));
-  if (mode === "complete" && isRequired(field, data) && isEmpty(field.type, value)) {
+  if (mode === "complete" && isRequired(field, data) && cellOpen(field.fillers, field.editableInSteps, context) && isEmpty(field.type, value)) {
     issues.push({ path, message: `${field.label} is required.` });
   }
   return issues;
 }
 
-function checkRepeating(field: FormField, value: unknown, data: Record<string, unknown>, path: string, mode: CheckMode): FieldIssue[] {
+function checkRepeating(
+  field: FormField,
+  value: unknown,
+  data: Record<string, unknown>,
+  path: string,
+  mode: CheckMode,
+  context?: ValidateContext,
+): FieldIssue[] {
   const issues: FieldIssue[] = [];
   if (value == null) {
-    if (mode === "complete" && isRequired(field, data)) issues.push({ path, message: `${field.label} needs at least one row.` });
+    if (mode === "complete" && isRequired(field, data) && cellOpen(field.fillers, field.editableInSteps, context)) {
+      issues.push({ path, message: `${field.label} needs at least one row.` });
+    }
     return issues;
   }
   if (!Array.isArray(value)) return [{ path, message: `${field.label} must be a table.` }];
-  if (mode === "complete" && isRequired(field, data) && value.length === 0) {
+  if (mode === "complete" && isRequired(field, data) && cellOpen(field.fillers, field.editableInSteps, context) && value.length === 0) {
     issues.push({ path, message: `${field.label} needs at least one row.` });
   }
   value.forEach((row, index) => {
@@ -67,7 +95,13 @@ function checkRepeating(field: FormField, value: unknown, data: Record<string, u
       const cell = record[column.id];
       const shape = columnShape(column, cell, field);
       if (shape) issues.push({ path: `${path}.${index}.${column.id}`, message: shape });
-      if (mode === "complete" && isRequired(field, data) && isEmpty(column.type, cell)) {
+      if (
+        mode === "complete" &&
+        isRequired(field, data) &&
+        column.type !== "computed" &&
+        cellOpen(column.fillers, column.editableInSteps ?? field.editableInSteps, context) &&
+        isEmpty(column.type, cell)
+      ) {
         issues.push({ path: `${path}.${index}.${column.id}`, message: `${column.label} is required.` });
       }
     }
@@ -75,7 +109,14 @@ function checkRepeating(field: FormField, value: unknown, data: Record<string, u
   return issues;
 }
 
-function checkAssessment(field: FormField, value: unknown, data: Record<string, unknown>, path: string, mode: CheckMode): FieldIssue[] {
+function checkAssessment(
+  field: FormField,
+  value: unknown,
+  data: Record<string, unknown>,
+  path: string,
+  mode: CheckMode,
+  context?: ValidateContext,
+): FieldIssue[] {
   if (mode === "draft" && (value == null || value === undefined)) return [];
   if (value != null && (typeof value !== "object" || Array.isArray(value))) {
     return [{ path, message: `${field.label} must be a table.` }];
@@ -90,11 +131,18 @@ function checkAssessment(field: FormField, value: unknown, data: Record<string, 
       issues.push({ path: `${path}.${row.id}`, message: "A row is missing its values." });
       continue;
     }
+    if (!rowShown(field, record)) continue;
     for (const column of field.columns ?? []) {
       const cell = record[column.id];
       const shape = columnShape(column, cell, field);
       if (shape) issues.push({ path: `${path}.${row.id}.${column.id}`, message: shape });
-      if (required && isEmpty(column.type, cell)) {
+      if (
+        required &&
+        column.type !== "computed" &&
+        cellOpen(column.fillers, column.editableInSteps ?? field.editableInSteps, context) &&
+        rowAllowed(field, column, row.id, context) &&
+        isEmpty(column.type, cell)
+      ) {
         issues.push({ path: `${path}.${row.id}.${column.id}`, message: `${row.code} ${column.label} is required.` });
       }
     }
@@ -120,6 +168,24 @@ function columnShape(column: FormColumn, value: unknown, field: FormField): stri
     stringLike || numberLike ? field.validation?.min : undefined,
     stringLike || numberLike ? field.validation?.max : undefined,
   );
+}
+
+function rowShown(field: FormField, record: Record<string, unknown>): boolean {
+  const keys = field.showRowsWhenFilled;
+  if (!keys || keys.length === 0) return true;
+  return keys.some((key) => typeof record[key] === "string" && record[key].trim() !== "");
+}
+
+function rowAllowed(field: FormField, column: FormColumn, rowId: string, context?: ValidateContext): boolean {
+  if (!column.authoredFrom || !context?.allowedRows) return true;
+  return (context.allowedRows[`${field.id}.${column.id}`] ?? []).includes(rowId);
+}
+
+function cellOpen(fillers: readonly string[] | undefined, steps: readonly string[] | undefined, context?: ValidateContext): boolean {
+  if (!context?.roles) return true;
+  if (steps && steps.length > 0 && !(context.stepKey && steps.includes(context.stepKey))) return false;
+  if (fillers && fillers.length > 0 && !fillers.some((role) => context.roles?.includes(role))) return false;
+  return true;
 }
 
 function isRequired(field: FormField, data: Record<string, unknown>): boolean {

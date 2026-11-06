@@ -146,13 +146,23 @@ export async function protocolFlow(protocolId: string, userId: string) {
     current,
     open,
     history,
-    mine: actionable.map((task) => ({
-      id: task.id,
-      step: steps.find((step) => step.key === task.stepKey) ?? null,
-      dueAt: task.dueAt,
-      due: dueState(task.dueAt),
-      assigneeUserId: task.assigneeUserId,
-    })),
+    mine: actionable.map((task) => {
+      const step = steps.find((item) => item.key === task.stepKey) ?? null;
+      const side = task.kind === "SIDE" ? step?.sideTasks?.find((item) => item.key === task.sideKey) ?? null : null;
+      return {
+        id: task.id,
+        step,
+        side,
+        kind: task.kind,
+        dueAt: task.dueAt,
+        due: dueState(task.dueAt),
+        assigneeUserId: task.assigneeUserId,
+      };
+    }),
+    extension:
+      current.some((step) => (step.sideTasks?.length ?? 0) > 0) && protocol.leaderUserId === userId
+        ? { instanceId: instance.id, step: current.find((step) => (step.sideTasks?.length ?? 0) > 0) ?? null }
+        : null,
   };
 }
 

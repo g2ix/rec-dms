@@ -81,7 +81,7 @@ This is what the attached documents say today; it becomes the seed data for the 
 | Expedited | Minimal risk, no vulnerable groups, does not generate vulnerability | 28 calendar days from complete documents | Submit → Staff check (2 d) → Chair sets type, assigns 2 reviewers or IC (2 d) → Reviewers acknowledge (48 h), fill F-35, F-36, F-37, F-38 (14 d) → Chair finalizes decision (3 d) → Staff prepares decision documents, releases (5 d) → Proponent acknowledges or conforms → Staff files, adds to next meeting agenda |
 | Full | Greater than minimal risk, vulnerable groups, or generates vulnerability | 7 weeks; submit complete at least 14 days before the meeting | Submit → Staff check (2 d) → Chair sets type, assigns reviewers, sends package to members (2 d) → Members acknowledge (48 h), reviewers assess (14 d) → Regular meeting, 2nd Friday of the month → Reviewers finalize F-37, F-38 (2 d) → Member Secretary reviews (3 d) → Chair finalizes (3 d) → Staff releases (3 d) → Proponent → Staff files |
 
-**Decisions** (F-35, F-36, F-39): Approved · Minor Modifications Required · Major Modifications Required · Disapproved. Exemption (F-41): Qualified · Not Qualified. Revisions are due within 30 working days of the decision; the proponent can request an extension from the Panel Chair within that period.
+**Decisions** (F-35, F-36, F-39): Approved · Minor Modifications Required · Major Modifications Required · Disapproved. Exemption (F-41): Qualified · Not Qualified. The forms say revisions are due within 30 working days of the decision letter. The working rule is 30 working days from release; see "Decisions recorded 6 Nov 2026".
 
 **Review panels** (Guide to USC REC Forms): Panel 1 Management, Education, Political Science, Law, Economics, Accountancy · Panel 2 Engineering, Architecture, Fine Arts, Psychology, SoAn, other social sciences · Panel 3 Natural Sciences and Health Sciences. The proponent picks a discipline, the system suggests the panel, and REC Staff or the Chair can change it.
 
@@ -94,12 +94,12 @@ This is what the attached documents say today; it becomes the seed data for the 
 | F-28 | Data Privacy Consent Form | Proponents; all sign |
 | F-29 | Capsule Proposal | Proponents; adviser verifies and signs |
 | F-30 | Detailed Budget Sheet | Proponents |
-| F-31 | Form on Determining the Type of Review | Chair (Panel or REC, per workflow) |
+| F-31 | Form on Determining the Type of Review | REC Chair by default (workflow setting; not a fixed rule). Reviewer slots are not locked to one scientist and one non-scientist |
 | F-35 | Protocol Review Assessment Form | Proponents: page/paragraph; reviewers: assessment, comments, recommended action |
 | F-36 | Informed Consent Form Assessment Checklist | Same split as F-35 |
-| F-37 | Summary of Reviewers' Comments | Consolidated by Panel Chair (configurable) |
-| F-38 | Summary of Actions Taken | Proponents: actions + page/paragraph; adviser reviews; reviewers: remarks |
-| F-39 | Notification of REC Decision | Panel Chair signs; Staff releases |
+| F-37 | Summary of Reviewers' Comments | System builds the summary from F-35 and F-36, showing only points that have comments or suggestions. The chair adds the recommended action and the justification |
+| F-38 | Summary of Actions Taken | Proponents: actions + page/paragraph; adviser reviews when the protocol has an adviser; each reviewer remarks on the points they raised; the chair adds the justification and the recommended action |
+| F-39 | Notification of REC Decision | The chair who decided signs; Staff releases. The printed line still says "USC Panel Chair" until the Word file is changed |
 | F-41 | Checklist for Exemption from Ethical Review | Panel Chair |
 
 The research proposal/manuscript (with ICF, instruments, online-form screenshots, permissions and CVs as appendices) and the cover letter stay as uploaded PDFs. F-35 and F-36 page/paragraph references point into that PDF.
@@ -150,15 +150,15 @@ The review process is data: a versioned graph of steps and transitions stored in
 - Admins can reassign an open task (e.g. reviewer unavailable); the reassignment is audited.
 - A validator in the builder blocks publishing a version with unreachable steps, steps with no exit, or decisions with an unhandled outcome.
 
-**Seed workflow (Initial Submission)**, from the flowcharts: Proponent submits → Staff completeness check and fee verification (2 d; returns if incomplete) → AUTO assign protocol code → Chair fills F-31: exempt, expedited or full; assigns reviewers (2 d) → branch:
+**Seed workflow (Initial Submission)**, from the flowcharts, with the 6 Nov 2026 decisions where the documents disagree: Proponent submits → Staff completeness check and fee verification (the system suggests F-26 from the uploads; the secretariat completes it and decides whether to accept or return) → AUTO assign protocol code → REC Chair fills F-31 and assigns reviewers (2 d; default any mix of two primary reviewers and independent consultants, and the chair may add more) → branch:
 
-1. Exempt: Chair fills F-41 and signs exemption notice (2 d) → Staff releases (5 d) → End.
-2. Expedited: Reviewers acknowledge (48 h), then fill F-35 / F-36 (14 d, parallel) → Panel Chair consolidates F-37 and decides (3 d) → Staff releases F-39 (5 d) → branch on decision.
-3. Full: same reviewer step → Staff records meeting outcome (scheduled for the 2nd Friday) → Reviewers finalize F-37 (2 d) → Member Secretary reviews (3 d) → Chair finalizes (3 d) → Staff releases F-39 (3 d) → branch on decision.
+1. Exempt: Panel Chair fills F-41 (2 d). Qualified → Staff releases (5 d) → End. Not qualified → return the protocol to the proponent and notify the secretariat.
+2. Expedited: Reviewers acknowledge (48 h), then fill F-35 / F-36 (14 d, parallel). The system builds F-37 and shows only points with comments or suggestions. REC Chair sets the recommended action and justification (3 d; this overrides the reviewers) → Staff releases F-39 (5 d) → branch on decision.
+3. Full: same reviewer assessment → Staff records the meeting outcome → F-37 is already the system summary → Member Secretary endorses it and does not edit it (3 d) → REC Chair finalizes, using the meeting outcome or an override (3 d) → Staff releases F-39 (3 d) → branch on decision.
 
-Decision branch: Approved → certificate released, proponent conforms → End. Minor/Major → `WAIT_PROPONENT` 30 working days → Resubmission workflow (proponent revises protocol, fills F-38, adviser reviews, reviewers add remarks, Chair decides). Disapproved → End.
+Decision branch: Approved → proponent conforms with an action (a signature only when that step asks for one); the Certificate of Approval template comes later → End. Minor/Major → `WAIT_PROPONENT` 30 working days measured from release → Resubmission workflow (proponent revises, fills F-38, adviser signs only when there is an adviser, each reviewer remarks on the points they raised, chair decides). The same four outcomes are available. Who the resubmission returns to, and whether it goes back to a meeting, is not fixed by the current flowchart and stays a workflow setting. A lapsed revision can be reapplied under the same protocol code. Disapproved → End for now; appeal is not defined.
 
-*(Diagram: Proponent submits → Staff screening (returned if incomplete) → Chair fills F-31 → Exempt (F-41, notice) / Expedited (2 reviewers, F-37) / Full (reviewers, meeting, Member Secretary, F-39) → Decision: Approved (certificate) / Minor or Major (revise within 30 working days, resubmit with F-38, back to reviewers) / Disapproved (ends).)*
+*(Diagram: Proponent submits → Staff screening (returned if the secretariat says so) → REC Chair fills F-31 → Exempt (Panel Chair, F-41) / Expedited (reviewers, system F-37, chair decision) / Full (reviewers, meeting, Member Secretary endorsement, chair decision) → Decision: Approved (conform) / Minor or Major (revise within 30 working days of release, resubmit with F-38) / Disapproved (ends).)*
 
 Every box and arrow here is a row of seed data in the workflow version, so REC can change any of them in the builder.
 
@@ -274,7 +274,7 @@ The workflow graph is stored as one `jsonb` document per version (steps, transit
 The system holds research protocols and personal data, so it follows the Data Privacy Act of 2012 (RA 10173) and replaces the flowcharts' "encrypted protocol" emails with access control and encryption.
 
 - **Access**: a protocol is visible only to its members, assigned reviewers/IC, the panel's chair, REC Chair, REC Staff and admins. Every server action checks this through one `authorize(user, action, resource)` function; no client-side-only checks.
-- **Reviewer blinding**: proponents see reviewer comments after release, not reviewer names, unless REC sets otherwise (setting).
+- **Reviewer blinding**: after release, proponents see the comments so they can act on them. They do not see reviewer names.
 - **Encryption**: TLS everywhere, including Vercel → USC database and → Gotenberg (no plain-port exposure); storage bucket and database disks encrypted at rest; backups encrypted.
 - **Database exposure**: since Vercel is outside the USC network, the on-prem Postgres needs a path Vercel's serverless functions can use. A Cloudflare TCP tunnel does not work from Vercel, so the options are: PgBouncer with TLS on a USC IP allowlisted to Vercel's static egress IPs (paid Vercel add-on), an HTTP data proxy, or managed Postgres (Supabase) for the database while files and PDF conversion stay on-prem. Decide before M12. MinIO and Gotenberg are HTTP, so they work through Cloudflare Tunnel with Access service tokens. Use a connection pooler (PgBouncer) because serverless functions open many connections.
 - **Consent**: F-28 consent is captured as signed data; users can download their data and request deletion through REC Staff (subject to REC retention rules).
@@ -341,14 +341,34 @@ Thirteen milestones, each with its own Cursor prompt file (`prompts/M00…M12`).
 12. **M11 Dashboards and reports**: per-role dashboards, overdue view, protocol logbook, CSV exports.
 13. **M12 Hardening and deployment**: Vercel, Cloudflare Tunnel to DB and Gotenberg, backups, security review, end-to-end test of a full review cycle.
 
-**Open decisions** (none block M00–M07; settle them before M08)
+**Decisions recorded 6 Nov 2026**
 
-- [ ] For each step, REC Chair or Panel Chair? Set per step in the workflow builder once REC confirms.
-- [ ] Who consolidates F-37 in expedited review (assumed Panel Chair).
-- [ ] Should proponents see reviewer names after release?
-- [ ] Certificate of Approval template, and forms for continuing review, amendment, final report, SAE (needed for later phases).
-- [ ] Original .docx files of all 12 forms (needed for M10).
-- [ ] Email sender: Resend or USC SMTP relay; and whether to add Microsoft (USC Office 365) sign-in.
-- [ ] USC holiday calendar source for working-day deadlines.
-- [ ] Retention period for closed protocols (default 3 years).
-- [ ] Database connection path from Vercel to the USC server: allowlisted PgBouncer, HTTP proxy, or Supabase for the database (see Security).
+- F-37 is built by the system from F-35 and F-36. Only points with reviewer comments or suggestions are shown. The chair does not rewrite that summary; the chair adds the recommended action and the justification. Default actor for that decision is the REC Chair, and the workflow can assign the step to the Panel Chair instead.
+- F-31 is filled by the REC Chair by default. That assignment is not a permanent rule.
+- F-41 is filled by the Panel Chair. Not qualified returns the protocol to the proponent and notifies the secretariat.
+- Reviewers are assigned from the initial assessment. The default is two people: two primary reviewers, two independent consultants, or one of each. The chair may add more. Scientist and non-scientist are not required slots.
+- The chair's decision overrides the reviewers' recommended actions. On a full review the meeting outcome can be that decision. The Member Secretary endorses the summary and does not edit it or send it back.
+- On F-38, each reviewer remarks only on the points they raised. The chair writes the justification. A resubmission can still end Approved, Minor Modifications, Major Modifications, or Disapproved.
+- Proponents see comments only, not reviewer names.
+- The revision clock of 30 working days starts when the decision is released, not when the chair decides and not when the proponent opens the notice. A late reapplication keeps the same protocol code.
+- F-26 is completed by the system (suggestions from uploads) and the secretariat. The proponent does not fill the official checklist. A missing school approval sheet, a rejected fee receipt, and a returned package are secretariat decisions. When a returned package comes back, the secretariat decides how to receive it.
+- The adviser step runs only when the protocol has an adviser. That is a workflow condition, not a code rule.
+- Conforming to an approval is an action button. A signature is collected only if that step is set to require one.
+- The name printed for participants on the consent contact line is the REC Chair.
+- The database in use is Supabase. The app still uses Prisma and the S3 API only.
+
+**Still open** (do not invent these in the seed)
+
+- What happens when a reviewer or member does not acknowledge within 48 hours.
+- Resubmission routing: same reviewers, a new full-board meeting after a major modification, and any limit on revision rounds. Leave the seed route editable.
+- A full-review package that misses the 14-day cutoff before the second-Friday meeting. On hold.
+- Whether a disapproved protocol can be appealed, and whether F-39 is the only notice.
+- How long an extension is, whether it can be requested more than once, and whether the clock pauses while the chair has not answered.
+- Whether "no risk" and "below minimal risk" on F-31 always mean exemption.
+- Who may withdraw a protocol, and whether withdrawal is allowed after release.
+- Which step deadlines skip weekends and holidays. Store the flowchart numbers and tighten the calendar later.
+- Certificate of Approval, and the later-phase forms (continuing review, amendment, final report, SAE).
+- Original .docx files for M10, unmodified, in `docs/forms/source/`: F-26 Document Receipt Form, F-27 Research Protocol Application Form, F-28 Data Privacy Consent Form, F-29 Capsule Proposal, F-30 Detailed Budget Sheet, F-31 Form on Determining the Type of Review, F-35 Protocol Review Assessment Form, F-36 Informed Consent Form Assessment Checklist, F-37 Summary of Reviewers' Comments, F-38 Summary of Actions Taken, F-39 Notification of REC Decision, F-41 Checklist for Exemption from Ethical Review. The Certificate of Approval is a thirteenth file, added with the later template.
+- How notification email is sent (Resend or the USC SMTP relay), and whether Microsoft Office 365 sign-in is added.
+- Where the USC holiday list comes from, once working-day deadlines are enforced.
+- How long closed protocols are kept (default 3 years until REC says otherwise).

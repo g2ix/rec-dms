@@ -8,7 +8,7 @@ import { Radio } from "@/components/ui/radio";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBoundValue } from "@/lib/forms/bindings";
 import { canChangeRepeatingRows, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
-import { centavosFromPesos, pesosInput } from "@/lib/forms/money";
+import { centavosFromPesos, formatCentavos, pesosInput } from "@/lib/forms/money";
 import { isSectionVisible } from "@/lib/forms/logic";
 import { getPath, setPath } from "@/lib/forms/paths";
 import { computedText } from "@/lib/forms/recompute";
@@ -40,6 +40,7 @@ export function FormRenderer({
   onKeepMine,
   signatureSlots,
   signing = null,
+  allowedRows,
 }: {
   schema: FormSchema;
   data: Record<string, unknown>;
@@ -53,8 +54,16 @@ export function FormRenderer({
   onKeepMine?: (path: string) => void;
   signatureSlots?: Record<string, SignatureSlotView[]>;
   signing?: SigningPrompt | null;
+  allowedRows?: Record<string, readonly string[]>;
 }) {
-  const editable = getEditableFields({ schema }, { status: mode === "edit" ? "DRAFT" : "LOCKED", data }, { id: "renderer" }, roles, stepKey);
+  const editable = getEditableFields(
+    { schema },
+    { status: mode === "edit" ? "DRAFT" : "LOCKED", data },
+    { id: "renderer" },
+    roles,
+    stepKey,
+    allowedRows,
+  );
   const editing = mode === "edit";
   const sections = schema.sections.filter((section) => isSectionVisible(section, data));
 
@@ -594,14 +603,18 @@ function RepeatingTable({
                   return (
                     <td key={column.id} className={open ? undefined : "rec-cell--locked"} data-label={column.label}>
                       <span className="rec-assess__label label">{column.label}</span>
-                      <Control
-                        id={cellPath}
-                        type={column.type}
-                        value={row[column.id]}
-                        readOnly={!open}
-                        options={column.options}
-                        onChange={(value) => commitCell(row, column, value)}
-                      />
+                      {column.type === "computed" ? (
+                        <span>{typeof row[column.id] === "number" ? formatCentavos(Math.round(row[column.id] as number)) : "0.00"}</span>
+                      ) : (
+                        <Control
+                          id={cellPath}
+                          type={column.type}
+                          value={row[column.id]}
+                          readOnly={!open}
+                          options={column.options}
+                          onChange={(value) => commitCell(row, column, value)}
+                        />
+                      )}
                       {cellUi?.error ? <p className="rec-field__error">{cellUi.error}</p> : null}
                       {cellUi?.state === "conflict" ? <p className="rec-save rec-save--conflict">{cellUi.message}</p> : null}
                       <ResolveButtons path={cellPath} ui={cellUi} onUseTheirs={onUseTheirs} onKeepMine={onKeepMine} />
@@ -712,7 +725,7 @@ function AssessmentTable({
             </tr>
           </thead>
           <tbody>
-            {(field.rows ?? []).map((row) => {
+            {(field.rows ?? []).filter((row) => shownAssessmentRow(field, record[row.id])).map((row) => {
               const rowValue = record[row.id];
               const cells = rowValue && typeof rowValue === "object" && !Array.isArray(rowValue) ? (rowValue as Record<string, unknown>) : {};
               return (
@@ -751,9 +764,19 @@ function AssessmentTable({
             })}
           </tbody>
         </table>
+        {field.showRowsWhenFilled && field.showRowsWhenFilled.length > 0 && (field.rows ?? []).every((row) => !shownAssessmentRow(field, record[row.id])) ? (
+          <p className="body-sm rec-muted">No reviewer comments or suggestions were recorded for these points.</p>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function shownAssessmentRow(field: FormField, cells: unknown): boolean {
+  const keys = field.showRowsWhenFilled;
+  if (!keys || keys.length === 0) return true;
+  const row = cells && typeof cells === "object" && !Array.isArray(cells) ? (cells as Record<string, unknown>) : {};
+  return keys.some((key) => typeof row[key] === "string" && row[key].trim() !== "");
 }
 
 export function patchData(data: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {

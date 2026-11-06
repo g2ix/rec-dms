@@ -9,7 +9,7 @@ import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { freezeWorkingVersion, sharedSnapshot } from "@/server/protocols/snapshot";
-import { completeLeaderSubmissionTx, maybeStartInitial, maybeStartResubmissionTx } from "@/server/workflow/engine";
+import { completeLeaderSubmissionTx, completeOpenWaitTx, maybeStartInitial, maybeStartResubmissionTx } from "@/server/workflow/engine";
 import { requiredFormCodes, requiredUploadKinds } from "@/server/protocols/settings";
 import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
 
@@ -195,10 +195,12 @@ export async function startRevision(protocolId: string, userId: string) {
           ownerId: created.id,
           data: instance.data ?? {},
           status: "DRAFT",
+          filledByMemberId: instance.filledByMemberId,
         },
       });
     }
     await ensureWorkingForms(tx, created.id);
+    await completeOpenWaitTx(tx, protocolId, userId, "RESUBMITTED", meta);
     const resubmission = await maybeStartResubmissionTx(tx, protocolId, created.id, userId, meta);
     if (!resubmission) await tx.protocol.update({ where: { id: protocolId }, data: { status: "DRAFT" } });
     await audit.record(tx, {
@@ -212,7 +214,7 @@ export async function startRevision(protocolId: string, userId: string) {
       meta,
     });
     return created;
-  });
+  }, { timeout: 20_000, maxWait: 10_000 });
   if (startInitial) await maybeStartInitial(protocolId, startInitial, userId);
   return version;
 }
