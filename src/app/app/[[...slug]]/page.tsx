@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { pageForPath } from "@/components/shell/nav";
+import { RoleHome } from "@/app/app/home";
 
 export function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }) {
   return params.then(({ slug }) => {
@@ -14,6 +15,7 @@ export default async function AppPage({ params }: { params: Promise<{ slug?: str
   const pathname = slug?.length ? `/app/${slug.join("/")}` : "/app";
   const page = pageForPath(pathname);
   if (!page) notFound();
+  if (pathname === "/app") return <RoleHome />;
 
   return (
     <article>

@@ -96,6 +96,14 @@ export function AppShell({
               <li aria-current="page">{pageTitle ?? page?.title ?? "Page"}</li>
             </ol>
           </nav>
+          {roleView === "staff" || roleView === "chair" || roleView === "panel-chair" ? (
+            <form className="rec-search" action="/app/search" method="get" role="search">
+              <label className="rec-sr" htmlFor="protocol-search">
+                Search protocols
+              </label>
+              <input id="protocol-search" className="rec-input" name="q" placeholder="Code, title, or proponent" />
+            </form>
+          ) : null}
           <div className="rec-top__end">
             <NotificationBell />
             <div className="rec-top__theme">

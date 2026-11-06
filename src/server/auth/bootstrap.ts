@@ -1,6 +1,9 @@
 import "server-only";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
+
+type EmailDb = Prisma.TransactionClient | PrismaClient;
 
 export function bootstrapAdminEmails(source = process.env.BOOTSTRAP_ADMIN_EMAILS ?? ""): string[] {
   return source
@@ -9,10 +12,10 @@ export function bootstrapAdminEmails(source = process.env.BOOTSTRAP_ADMIN_EMAILS
     .filter(Boolean);
 }
 
-export async function isBootstrapAdmin(userId: string): Promise<boolean> {
+export async function isBootstrapAdmin(userId: string, db: EmailDb = prisma): Promise<boolean> {
   const allowed = new Set(bootstrapAdminEmails());
   if (allowed.size === 0) return false;
-  const emails = await prisma.userEmail.findMany({
+  const emails = await db.userEmail.findMany({
     where: { userId, verifiedAt: { not: null } },
   });
   return emails.some((email) => allowed.has(email.email));

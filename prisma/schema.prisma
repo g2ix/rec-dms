@@ -356,6 +356,7 @@ model Protocol {
   @@index([leaderUserId])
   @@index([disciplineId])
   @@index([panelId])
+  @@index([panelId, status, reviewType])
   @@map("protocols")
 }
 
@@ -389,6 +390,7 @@ model ProtocolMember {
 
   @@unique([protocolId, userId])
   @@index([userId])
+  @@index([userId, role, status])
   @@index([invitedEmail])
   @@index([protocolId, status])
   @@map("protocol_members")
@@ -415,6 +417,7 @@ model ProtocolVersion {
 
   @@unique([protocolId, number])
   @@index([protocolId, state])
+  @@index([submittedAt])
   @@map("protocol_versions")
 }
 
@@ -609,6 +612,7 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([emailStatus])
+  @@index([protocolId, createdAt])
   @@map("notifications")
 }
 
@@ -667,8 +671,10 @@ model Task {
   notifications Notification[]
 
   @@index([assigneeUserId])
+  @@index([assigneeUserId, status])
   @@index([instanceId, stepKey])
   @@index([status, dueAt])
+  @@index([stepKey, status, createdAt])
   @@map("tasks")
 }
 
@@ -746,6 +752,8 @@ model WorkflowInstance {
   @@index([protocolId, status])
   @@index([protocolVersionId])
   @@index([versionId])
+  @@index([status])
+  @@index([currentStepKeys], type: Gin)
   @@map("workflow_instances")
 }
 
@@ -796,6 +804,7 @@ model AuditEvent {
   @@index([action])
   @@index([entityType, entityId])
   @@index([protocolId])
+  @@index([protocolId, occurredAt])
   @@index([actorUserId])
   @@index([occurredAt])
   @@map("audit_events")

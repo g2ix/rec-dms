@@ -11,6 +11,7 @@ const TABS = [
   { href: "/uploads", label: "Uploads" },
   { href: "/versions", label: "Versions" },
   { href: "/activity", label: "Activity" },
+  { href: "/logbook", label: "Logbook" },
 ];
 
 export function ProtocolNav({ protocolId }: { protocolId: string }) {

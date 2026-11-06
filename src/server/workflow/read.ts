@@ -2,37 +2,12 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import type { RoleView } from "@/lib/role-view";
 import { dueState, type DueState } from "@/lib/workflow/due";
-import { parseGraph, type AssigneeRule, type Step } from "@/lib/workflow/graph";
-import { prisma } from "@/server/db";
+import { parseGraph, type Step } from "@/lib/workflow/graph";
+import { prisma, useAppSchema } from "@/server/db";
+import { openTasks } from "@/server/workflow/inbox";
 import { readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
 
-const VIEW_KIND: Record<RoleView, AssigneeRule["kind"][] | null> = {
-  proponent: ["PROTOCOL_LEADER", "PROTOCOL_PROPONENTS"],
-  adviser: ["PROTOCOL_ADVISER"],
-  reviewer: ["ASSIGNED_IN_STEP"],
-  "panel-chair": ["PANEL_ROLE_OF_PROTOCOL"],
-  staff: ["ROLE"],
-  chair: ["ROLE"],
-};
-
-const VIEW_ROLES: Record<RoleView, string[]> = {
-  proponent: ["PROPONENT", "PROJECT_LEADER"],
-  adviser: ["ADVISER"],
-  reviewer: ["REVIEWER", "PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT", "REC_MEMBER"],
-  "panel-chair": ["PANEL_CHAIR"],
-  staff: ["REC_STAFF", "MEMBER_SECRETARY"],
-  chair: ["REC_CHAIR", "SYSTEM_ADMIN"],
-};
-
-export function taskMatchesView(rule: AssigneeRule | null, view: RoleView | "all"): boolean {
-  if (view === "all") return true;
-  if (!rule) return false;
-  if (rule.kind === "USER") return true;
-  if (rule.kind === "ROLE" || rule.kind === "PANEL_ROLE_OF_PROTOCOL") {
-    return VIEW_ROLES[view].includes(rule.role);
-  }
-  return VIEW_KIND[view]?.includes(rule.kind) ?? false;
-}
+export { taskMatchesView } from "@/lib/workflow/views";
 
 export type InboxRow = {
   id: string;
@@ -47,30 +22,17 @@ export type InboxRow = {
   href: string;
 };
 
-export async function inboxFor(userId: string, view: RoleView | "all"): Promise<InboxRow[]> {
-  const db = prisma as unknown as Prisma.TransactionClient;
-  const tasks = await prisma.task.findMany({
-    where: {
-      status: { in: ["OPEN", "CLAIMED"] },
-      instanceId: { not: null },
-      OR: [{ assigneeUserId: userId }, { assigneeUserId: null }],
-    },
-    include: {
-      instance: { include: { protocol: true, version: true } },
-    },
-    orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
+export async function inboxRows(tx: Prisma.TransactionClient, ids: string[]): Promise<InboxRow[]> {
+  if (ids.length === 0) return [];
+  const tasks = await tx.task.findMany({
+    where: { id: { in: ids } },
+    include: { instance: { include: { protocol: true, version: true } } },
   });
+  const byId = new Map(tasks.map((task) => [task.id, task]));
   const rows: InboxRow[] = [];
-  for (const task of tasks) {
-    if (!task.instance || !task.stepKey) continue;
-    const rule = readRule(task.candidateRule);
-    if (!task.assigneeUserId) {
-      const protocol = task.instance.protocol;
-      if (!rule || !(await userMatchesRule(db, rule, userId, protocol, {}))) continue;
-    } else if (task.assigneeUserId !== userId) {
-      continue;
-    }
-    if (!taskMatchesView(rule, view)) continue;
+  for (const id of ids) {
+    const task = byId.get(id);
+    if (!task?.instance || !task.stepKey) continue;
     const graph = parseGraph(task.instance.version.graph);
     const step = graph.ok ? graph.graph.steps.find((item) => item.key === task.stepKey) : undefined;
     const forms = Boolean(step?.forms?.length);
@@ -83,11 +45,20 @@ export async function inboxFor(userId: string, view: RoleView | "all"): Promise<
       stepKey: task.stepKey,
       dueAt: task.dueAt,
       due: dueState(task.dueAt),
-      claimed: task.status === "CLAIMED" || task.assigneeUserId === userId,
+      claimed: task.status === "CLAIMED" || Boolean(task.assigneeUserId),
       href: forms ? `/app/protocols/${task.instance.protocolId}/forms` : `/app/protocols/${task.instance.protocolId}`,
     });
   }
   return rows;
+}
+
+export async function inboxFor(userId: string, view: RoleView | "all"): Promise<InboxRow[]> {
+  return prisma.$transaction(async (tx) => {
+    const db = tx as unknown as Prisma.TransactionClient;
+    await useAppSchema(db);
+    const { ids } = await openTasks(db, userId, view);
+    return inboxRows(db, ids);
+  });
 }
 
 export type OpenTaskView = {

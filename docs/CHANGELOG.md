@@ -1,6 +1,22 @@
 # Changelog
 
-## M10 — Document generation (2026-11-06)
+## M11 — Dashboards and reports (2026-11-06)
+
+Each role view opens on a dashboard of the work that needs attention. The count in each heading is the same number as the task inbox for that view, and it links to the list it counts. REC Staff see the screening queue in arrival order, fee receipts, releases, accounts waiting for approval, and overdue tasks. Chairs see the pipeline by step and review type, overdue work, and turnaround from the completion of staff screening. Panel Chairs see their panel, reviewer load, and overdue work in that panel.
+
+The protocol logbook lists workflow events, releases, notices, and generated documents. Proponents do not see reviewer names there. Reports at `/app/reports` filter by date, panel, review type, status, and submission type, and download as CSV. A Panel Chair’s CSV contains only that chair’s panel. Meetings group protocols that are waiting for a meeting outcome by the next second Friday, and flag a full review that missed the 14-day cutoff. Staff and Chairs can search by protocol code, title words, or proponent name.
+
+Turnaround uses calendar days in Asia/Manila. Expedited is 28 days, full review is 49 days (7 weeks), and exempt is 9 days (2 + 2 + 5). A result on the limit counts as within it. The median of an even sample is the mean of the two middle values. The 90th percentile uses the nearest rank. `pnpm db:seed:load` inserts 5,000 protocols for a timing check (`LOAD_SEED=delete` removes them).
+
+### Deviation from the spec and the M11 prompt
+
+- Screening, release, meeting, and revision steps are recognized from the published workflow (fee check, generated documents, meeting date, and the wait step), so a renamed step still shows up.
+- The exempt limit is the 9-day track in the spec. The prompt names the expedited and full-review limits only.
+- Approving a pending account is still limited to a bootstrap administrator. REC Staff see the waiting accounts and the link to that screen.
+- Activity stays as the short timeline. The logbook is the communications record beside it.
+- `pnpm test` checks the 5,000-protocol dashboards inside a transaction that rolls back, so the development database is left as it was.
+
+
 
 Filled forms download as the official Word file or as a PDF, and a protocol page can download the submission as one PDF or a ZIP. Printing opens the PDF. A locked form is stored and reused. A form that is still being edited is generated again when its revision changes. Releasing a decision generates F-39. An approved release looks for a Certificate of Approval template and, when it is missing, leaves a warning on the release task.
 
