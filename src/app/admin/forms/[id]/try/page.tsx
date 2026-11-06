@@ -50,6 +50,22 @@ export default async function TryFormPage({ params }: { params: Promise<{ id: st
       <p>
         <FormStatusBadge status={instance.status} />
       </p>
+      <div className="rec-actions">
+        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${instance.id}/document?format=docx`}>
+          <span>Download Word</span>
+        </a>
+        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${instance.id}/document?format=pdf`}>
+          <span>Download PDF</span>
+        </a>
+        <a
+          className="rec-btn rec-btn--secondary"
+          href={`/api/forms/${instance.id}/document?format=pdf&disposition=inline`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span>Print</span>
+        </a>
+      </div>
       <SandboxForm
         definitionId={definition.id}
         instanceId={instance.id}

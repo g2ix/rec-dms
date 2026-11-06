@@ -1,0 +1,329 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "protocol.emails": {
+    "helper": "join",
+    "path": "protocol.emails"
+  },
+  "protocol.contactNumbers": {
+    "helper": "join",
+    "path": "protocol.contactNumbers"
+  },
+  "protocol.institution": {
+    "helper": "text",
+    "path": "protocol.institution"
+  },
+  "protocol.institutionAddress": {
+    "helper": "text",
+    "path": "protocol.institutionAddress"
+  },
+  "protocol.submissionDate": {
+    "helper": "date",
+    "path": "protocol.submissionDate"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "rec_chair": {
+    "helper": "text",
+    "path": "rec.chairName"
+  },
+  "cb_initial": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "INITIAL",
+    "covers": [
+      "submission_type"
+    ]
+  },
+  "cb_completion": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "COMPLETION"
+  },
+  "cb_resubmission": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "RESUBMISSION"
+  },
+  "cb_continuing": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "CONTINUING"
+  },
+  "cb_amendment": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "AMENDMENT"
+  },
+  "cb_termination": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "TERMINATION"
+  },
+  "cb_other": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "OTHER"
+  },
+  "submission_other": {
+    "helper": "text",
+    "path": "submission_other"
+  },
+  "remarks": {
+    "helper": "text",
+    "path": "remarks"
+  },
+  "sig_received": {
+    "helper": "signature",
+    "path": "received_by",
+    "width": 160,
+    "height": 48
+  },
+  "received_date": {
+    "helper": "date",
+    "path": "received_date"
+  },
+  "cb_p1_yes": {
+    "helper": "checkbox",
+    "path": "documents.p1.present",
+    "equals": "YES",
+    "covers": [
+      "documents"
+    ]
+  },
+  "cb_p1_no": {
+    "helper": "checkbox",
+    "path": "documents.p1.present",
+    "equals": "NO"
+  },
+  "cb_p1_na": {
+    "helper": "checkbox",
+    "path": "documents.p1.present",
+    "equals": "NA"
+  },
+  "cb_p2_yes": {
+    "helper": "checkbox",
+    "path": "documents.p2.present",
+    "equals": "YES"
+  },
+  "cb_p2_no": {
+    "helper": "checkbox",
+    "path": "documents.p2.present",
+    "equals": "NO"
+  },
+  "cb_p2_na": {
+    "helper": "checkbox",
+    "path": "documents.p2.present",
+    "equals": "NA"
+  },
+  "cb_p3_yes": {
+    "helper": "checkbox",
+    "path": "documents.p3.present",
+    "equals": "YES"
+  },
+  "cb_p3_no": {
+    "helper": "checkbox",
+    "path": "documents.p3.present",
+    "equals": "NO"
+  },
+  "cb_p3_na": {
+    "helper": "checkbox",
+    "path": "documents.p3.present",
+    "equals": "NA"
+  },
+  "cb_p4_yes": {
+    "helper": "checkbox",
+    "path": "documents.p4.present",
+    "equals": "YES"
+  },
+  "cb_p4_no": {
+    "helper": "checkbox",
+    "path": "documents.p4.present",
+    "equals": "NO"
+  },
+  "cb_p4_na": {
+    "helper": "checkbox",
+    "path": "documents.p4.present",
+    "equals": "NA"
+  },
+  "cb_p5_yes": {
+    "helper": "checkbox",
+    "path": "documents.p5.present",
+    "equals": "YES"
+  },
+  "cb_p5_no": {
+    "helper": "checkbox",
+    "path": "documents.p5.present",
+    "equals": "NO"
+  },
+  "cb_p5_na": {
+    "helper": "checkbox",
+    "path": "documents.p5.present",
+    "equals": "NA"
+  },
+  "cb_p6_yes": {
+    "helper": "checkbox",
+    "path": "documents.p6.present",
+    "equals": "YES"
+  },
+  "cb_p6_no": {
+    "helper": "checkbox",
+    "path": "documents.p6.present",
+    "equals": "NO"
+  },
+  "cb_p6_na": {
+    "helper": "checkbox",
+    "path": "documents.p6.present",
+    "equals": "NA"
+  },
+  "cb_p7_yes": {
+    "helper": "checkbox",
+    "path": "documents.p7.present",
+    "equals": "YES"
+  },
+  "cb_p7_no": {
+    "helper": "checkbox",
+    "path": "documents.p7.present",
+    "equals": "NO"
+  },
+  "cb_p7_na": {
+    "helper": "checkbox",
+    "path": "documents.p7.present",
+    "equals": "NA"
+  },
+  "cb_p8_yes": {
+    "helper": "checkbox",
+    "path": "documents.p8.present",
+    "equals": "YES"
+  },
+  "cb_p8_no": {
+    "helper": "checkbox",
+    "path": "documents.p8.present",
+    "equals": "NO"
+  },
+  "cb_p8_na": {
+    "helper": "checkbox",
+    "path": "documents.p8.present",
+    "equals": "NA"
+  },
+  "cb_p9_yes": {
+    "helper": "checkbox",
+    "path": "documents.p9.present",
+    "equals": "YES"
+  },
+  "cb_p9_no": {
+    "helper": "checkbox",
+    "path": "documents.p9.present",
+    "equals": "NO"
+  },
+  "cb_p9_na": {
+    "helper": "checkbox",
+    "path": "documents.p9.present",
+    "equals": "NA"
+  },
+  "cb_p10_yes": {
+    "helper": "checkbox",
+    "path": "documents.p10.present",
+    "equals": "YES"
+  },
+  "cb_p10_no": {
+    "helper": "checkbox",
+    "path": "documents.p10.present",
+    "equals": "NO"
+  },
+  "cb_p10_na": {
+    "helper": "checkbox",
+    "path": "documents.p10.present",
+    "equals": "NA"
+  },
+  "cb_p11_yes": {
+    "helper": "checkbox",
+    "path": "documents.p11.present",
+    "equals": "YES"
+  },
+  "cb_p11_no": {
+    "helper": "checkbox",
+    "path": "documents.p11.present",
+    "equals": "NO"
+  },
+  "cb_p11_na": {
+    "helper": "checkbox",
+    "path": "documents.p11.present",
+    "equals": "NA"
+  },
+  "cb_p12_yes": {
+    "helper": "checkbox",
+    "path": "documents.p12.present",
+    "equals": "YES"
+  },
+  "cb_p12_no": {
+    "helper": "checkbox",
+    "path": "documents.p12.present",
+    "equals": "NO"
+  },
+  "cb_p12_na": {
+    "helper": "checkbox",
+    "path": "documents.p12.present",
+    "equals": "NA"
+  },
+  "cb_p13_yes": {
+    "helper": "checkbox",
+    "path": "documents.p13.present",
+    "equals": "YES"
+  },
+  "cb_p13_no": {
+    "helper": "checkbox",
+    "path": "documents.p13.present",
+    "equals": "NO"
+  },
+  "cb_p13_na": {
+    "helper": "checkbox",
+    "path": "documents.p13.present",
+    "equals": "NA"
+  },
+  "cb_p14_yes": {
+    "helper": "checkbox",
+    "path": "documents.p14.present",
+    "equals": "YES"
+  },
+  "cb_p14_no": {
+    "helper": "checkbox",
+    "path": "documents.p14.present",
+    "equals": "NO"
+  },
+  "cb_p14_na": {
+    "helper": "checkbox",
+    "path": "documents.p14.present",
+    "equals": "NA"
+  },
+  "cb_p15_yes": {
+    "helper": "checkbox",
+    "path": "documents.p15.present",
+    "equals": "YES"
+  },
+  "cb_p15_no": {
+    "helper": "checkbox",
+    "path": "documents.p15.present",
+    "equals": "NO"
+  },
+  "cb_p15_na": {
+    "helper": "checkbox",
+    "path": "documents.p15.present",
+    "equals": "NA"
+  }
+}

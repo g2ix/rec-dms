@@ -1,0 +1,139 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "submission_other": {
+    "helper": "text",
+    "path": "submission_other"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "accomplished_by",
+    "width": 160,
+    "height": 48
+  },
+  "reviewers_note": {
+    "helper": "text",
+    "path": "reviewers_note",
+    "covers": [
+      "reviewers_note"
+    ]
+  },
+  "cb_submission_INITIAL": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "INITIAL",
+    "covers": [
+      "submission_type"
+    ]
+  },
+  "cb_submission_CONTINUING": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "CONTINUING"
+  },
+  "cb_submission_AMENDMENT": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "AMENDMENT"
+  },
+  "cb_submission_DEVIATION": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "DEVIATION"
+  },
+  "cb_submission_COMPLETION": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "COMPLETION"
+  },
+  "cb_submission_TERMINATION": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "TERMINATION"
+  },
+  "cb_submission_APPEAL": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "APPEAL"
+  },
+  "cb_submission_SAE": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "SAE"
+  },
+  "cb_submission_OTHER": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "OTHER"
+  },
+  "cb_risk_NONE": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "NONE",
+    "covers": [
+      "risk"
+    ]
+  },
+  "cb_risk_BELOW_MINIMAL": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "BELOW_MINIMAL"
+  },
+  "cb_risk_MINIMAL": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "MINIMAL"
+  },
+  "cb_risk_GREATER": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "GREATER"
+  },
+  "cb_exempt_YES": {
+    "helper": "checkbox",
+    "path": "exempt",
+    "equals": "YES",
+    "covers": [
+      "exempt"
+    ]
+  },
+  "cb_exempt_NO": {
+    "helper": "checkbox",
+    "path": "exempt",
+    "equals": "NO"
+  },
+  "cb_review_EXPEDITED": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "EXPEDITED",
+    "covers": [
+      "review_type"
+    ]
+  },
+  "cb_review_FULL": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "FULL"
+  }
+}

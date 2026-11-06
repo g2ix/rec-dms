@@ -1,5 +1,8 @@
 import { hash } from "@node-rs/argon2";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { PrismaClient } from "@prisma/client";
+import { defaultFileNameSetting } from "../../../src/lib/docs/names";
 import { validateSchema } from "../../../src/lib/forms/schema";
 import { validateGraph } from "../../../src/lib/workflow/validate";
 import { uscForms } from "./forms";
@@ -17,7 +20,7 @@ export async function installUscRec(prisma: PrismaClient): Promise<void> {
     if (!check.ok) {
       throw new Error(`${form.code}: ${check.issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`);
     }
-    await publishForm(prisma, ownerId, form);
+    await publishForm(prisma, ownerId, form, formMap(form.code));
     codes.add(form.code);
   }
   await publishWorkflow(prisma, ownerId, {
@@ -91,6 +94,7 @@ async function settings(prisma: PrismaClient): Promise<void> {
         P3: ["Natural Sciences", "Health Sciences"],
       },
     },
+    { key: "docs.fileNamePattern", value: defaultFileNameSetting() },
   ];
   for (const row of rows) {
     await prisma.setting.upsert({
@@ -117,21 +121,26 @@ function sortJson(value: unknown): unknown {
   return value;
 }
 
+function formMap(code: string): unknown {
+  const path = join(process.cwd(), "templates", "maps", `${code}.json`);
+  if (!existsSync(path)) return {};
+  return JSON.parse(readFileSync(path, "utf8")) as unknown;
+}
+
 async function publishForm(
   prisma: PrismaClient,
   userId: string,
   form: (typeof uscForms)[number],
+  map: unknown,
 ): Promise<void> {
   const existing = await prisma.formDefinition.findUnique({
     where: { code_version: { code: form.code, version: form.version } },
   });
   if (existing?.status === "PUBLISHED") {
-    if (canonical(existing.schema) !== canonical(form.schema) || existing.title !== form.title) {
-      await prisma.formDefinition.update({
-        where: { id: existing.id },
-        data: { title: form.title, schema: form.schema as never },
-      });
-    }
+    await prisma.formDefinition.update({
+      where: { id: existing.id },
+      data: { title: form.title, schema: form.schema as never, placeholderMap: map as never },
+    });
     return;
   }
   const row =
@@ -143,13 +152,14 @@ async function publishForm(
         version: form.version,
         effectiveDate: new Date(`${form.effectiveDate}T00:00:00.000Z`),
         schema: form.schema as never,
+        placeholderMap: map as never,
         createdById: userId,
       },
     }));
   if (row.status !== "PUBLISHED") {
     await prisma.formDefinition.update({
       where: { id: row.id },
-      data: { status: "PUBLISHED", publishedAt: new Date(), schema: form.schema as never },
+      data: { status: "PUBLISHED", publishedAt: new Date(), schema: form.schema as never, placeholderMap: map as never },
     });
   }
 }

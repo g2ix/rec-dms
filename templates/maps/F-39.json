@@ -1,0 +1,83 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "review_date": {
+    "helper": "date",
+    "path": "review_date"
+  },
+  "review_type": {
+    "helper": "text",
+    "path": "review_type"
+  },
+  "submission_type": {
+    "helper": "text",
+    "path": "submission_type"
+  },
+  "documents": {
+    "helper": "text",
+    "path": "documents"
+  },
+  "cb_decision_APPROVED": {
+    "helper": "checkbox",
+    "path": "decision",
+    "equals": "APPROVED",
+    "covers": [
+      "decision"
+    ]
+  },
+  "cb_decision_MINOR": {
+    "helper": "checkbox",
+    "path": "decision",
+    "equals": "MINOR"
+  },
+  "cb_decision_MAJOR": {
+    "helper": "checkbox",
+    "path": "decision",
+    "equals": "MAJOR"
+  },
+  "cb_decision_DISAPPROVED": {
+    "helper": "checkbox",
+    "path": "decision",
+    "equals": "DISAPPROVED"
+  },
+  "cb_decision_EXEMPTED": {
+    "helper": "checkbox",
+    "path": "decision",
+    "equals": "EXEMPTED"
+  },
+  "instructions": {
+    "helper": "text",
+    "path": "instructions"
+  },
+  "deadline": {
+    "helper": "date",
+    "path": "deadline"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_signature",
+    "width": 160,
+    "height": 48
+  }
+}

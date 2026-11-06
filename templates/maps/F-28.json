@@ -1,0 +1,97 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "covers": [
+      "names"
+    ]
+  },
+  "protocol.emails": {
+    "helper": "join",
+    "path": "protocol.emails"
+  },
+  "protocol.contactNumbers": {
+    "helper": "join",
+    "path": "protocol.contactNumbers"
+  },
+  "protocol.institution": {
+    "helper": "text",
+    "path": "protocol.institution"
+  },
+  "protocol.institutionAddress": {
+    "helper": "text",
+    "path": "protocol.institutionAddress"
+  },
+  "protocol.submissionDate": {
+    "helper": "date",
+    "path": "protocol.submissionDate"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "rec_chair": {
+    "helper": "text",
+    "path": "rec.chairName"
+  },
+  "cb_consent_collect": {
+    "helper": "checkbox",
+    "path": "consent_collect",
+    "equals": "true",
+    "covers": [
+      "consent_collect",
+      "policy"
+    ]
+  },
+  "cb_consent_share": {
+    "helper": "checkbox",
+    "path": "consent_share",
+    "equals": "true"
+  },
+  "signer1_name": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "slot": 0
+  },
+  "signer2_name": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "slot": 1
+  },
+  "sig_1": {
+    "helper": "signature",
+    "path": "signatures",
+    "slot": 0,
+    "width": 140,
+    "height": 42
+  },
+  "sig_2": {
+    "helper": "signature",
+    "path": "signatures",
+    "slot": 1,
+    "width": 140,
+    "height": 42
+  },
+  "signer1_date": {
+    "helper": "date",
+    "path": "signed_on",
+    "covers": [
+      "signed_on"
+    ]
+  },
+  "signer2_date": {
+    "helper": "date",
+    "path": "signed_on"
+  }
+}

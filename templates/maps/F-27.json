@@ -1,0 +1,226 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code",
+    "covers": [
+      "protocol_code"
+    ]
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title",
+    "covers": [
+      "protocol_title"
+    ]
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel",
+    "covers": [
+      "version"
+    ]
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "covers": [
+      "researchers"
+    ]
+  },
+  "protocol.emails": {
+    "helper": "join",
+    "path": "protocol.emails",
+    "covers": [
+      "emails"
+    ]
+  },
+  "protocol.contactNumbers": {
+    "helper": "join",
+    "path": "protocol.contactNumbers",
+    "covers": [
+      "contacts"
+    ]
+  },
+  "protocol.institution": {
+    "helper": "text",
+    "path": "protocol.institution",
+    "covers": [
+      "institution"
+    ]
+  },
+  "protocol.institutionAddress": {
+    "helper": "text",
+    "path": "protocol.institutionAddress",
+    "covers": [
+      "address"
+    ]
+  },
+  "protocol.submissionDate": {
+    "helper": "date",
+    "path": "protocol.submissionDate",
+    "covers": [
+      "submitted_on"
+    ]
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "rec_chair": {
+    "helper": "text",
+    "path": "rec.chairName"
+  },
+  "cb_declare_truth": {
+    "helper": "checkbox",
+    "path": "declare_truth"
+  },
+  "cb_declare_consent": {
+    "helper": "checkbox",
+    "path": "declare_consent"
+  },
+  "cb_declare_report": {
+    "helper": "checkbox",
+    "path": "declare_report"
+  },
+  "cb_declare_conduct": {
+    "helper": "checkbox",
+    "path": "declare_conduct"
+  },
+  "cb_declare_records": {
+    "helper": "checkbox",
+    "path": "declare_records"
+  },
+  "cb_declare_privacy": {
+    "helper": "checkbox",
+    "path": "declare_privacy"
+  },
+  "cb_clinical": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "CLINICAL",
+    "covers": [
+      "research_type"
+    ]
+  },
+  "cb_social": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "SOCIAL"
+  },
+  "cb_stem": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "STEM"
+  },
+  "cb_clinical_initiated": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "CLINICAL_INITIATED"
+  },
+  "cb_public_health": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "PUBLIC_HEALTH"
+  },
+  "cb_genetic": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "GENETIC"
+  },
+  "cb_health_ops": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "HEALTH_OPS"
+  },
+  "cb_biomedical": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "BIOMEDICAL"
+  },
+  "cb_research_other": {
+    "helper": "checkbox",
+    "path": "research_type",
+    "includes": "OTHER"
+  },
+  "research_type_other": {
+    "helper": "text",
+    "path": "research_type_other"
+  },
+  "duration": {
+    "helper": "text",
+    "path": "duration"
+  },
+  "participants": {
+    "helper": "text",
+    "path": "participants"
+  },
+  "study_site": {
+    "helper": "text",
+    "path": "study_site"
+  },
+  "cb_fund_personal": {
+    "helper": "checkbox",
+    "path": "funds",
+    "includes": "PERSONAL",
+    "covers": [
+      "funds"
+    ]
+  },
+  "cb_fund_external": {
+    "helper": "checkbox",
+    "path": "funds",
+    "includes": "EXTERNAL"
+  },
+  "cb_fund_internal": {
+    "helper": "checkbox",
+    "path": "funds",
+    "includes": "INTERNAL"
+  },
+  "cb_fund_other": {
+    "helper": "checkbox",
+    "path": "funds",
+    "includes": "FUND_OTHER"
+  },
+  "fund_agency": {
+    "helper": "text",
+    "path": "fund_amounts",
+    "covers": [
+      "fund_amounts"
+    ]
+  },
+  "fund_internal_name": {
+    "helper": "text",
+    "path": "fund_amounts"
+  },
+  "fund_other_name": {
+    "helper": "text",
+    "path": "fund_amounts"
+  },
+  "cb_conflict_none": {
+    "helper": "checkbox",
+    "path": "conflict",
+    "equals": "NONE",
+    "covers": [
+      "conflict"
+    ]
+  },
+  "cb_conflict_declared": {
+    "helper": "checkbox",
+    "path": "conflict",
+    "equals": "DECLARED"
+  },
+  "conflict_details": {
+    "helper": "text",
+    "path": "conflict_details"
+  },
+  "sig_leader": {
+    "helper": "signature",
+    "path": "proponent_signatures",
+    "slot": 0,
+    "width": 160,
+    "height": 48
+  },
+  "signed_on": {
+    "helper": "date",
+    "path": "proponent_signatures"
+  }
+}

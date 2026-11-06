@@ -25,6 +25,16 @@ export default async function ProtocolLayout({
           status={header.protocol.status}
         />
         <ProtocolNav protocolId={id} />
+        {header.shown ? (
+          <div className="rec-actions">
+            <a className="rec-btn rec-btn--secondary" href={`/api/protocols/${id}/package?format=pdf&version=${header.shown.id}`}>
+              <span>Download submission package</span>
+            </a>
+            <a className="rec-btn rec-btn--secondary" href={`/api/protocols/${id}/package?format=zip&version=${header.shown.id}`}>
+              <span>Download ZIP</span>
+            </a>
+          </div>
+        ) : null}
         {children}
       </article>
     );

@@ -166,6 +166,12 @@ const deadlinePrefill = {
   },
 };
 
+const generateDocuments = {
+  kind: "GENERATE_DOCUMENTS" as const,
+  hook: "onExit" as const,
+  params: { forms: ["F-39"], certificate: "COA" },
+};
+
 function decisionRoutes(from: string, decisionStep: string) {
   return [
     { from, to: "proponent_conform", when: decided(decisionStep, "APPROVED"), label: "Approved" },
@@ -254,6 +260,7 @@ const initialSubmissionGraph: WorkflowGraph = {
       statusLabel: "Decision Released",
       deadline: tracked(5),
       notify: { onCompleted: "protocol.decision_released", cc: [leader] },
+      actions: [generateDocuments],
     },
     { key: "end_exempted", name: "Exempted", type: "END", statusLabel: "Exempted" },
     {
@@ -355,7 +362,7 @@ const initialSubmissionGraph: WorkflowGraph = {
       statusLabel: "Decision Released",
       deadline: tracked(5),
       forms: [view("F-39")],
-      actions: [deadlinePrefill],
+      actions: [deadlinePrefill, generateDocuments],
       notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {
@@ -366,7 +373,7 @@ const initialSubmissionGraph: WorkflowGraph = {
       statusLabel: "Decision Released",
       deadline: tracked(3),
       forms: [view("F-39")],
-      actions: [deadlinePrefill],
+      actions: [deadlinePrefill, generateDocuments],
       notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {
@@ -509,7 +516,7 @@ const resubmissionGraph: WorkflowGraph = {
       statusLabel: "Decision Released",
       deadline: tracked(5),
       forms: [view("F-39")],
-      actions: [deadlinePrefill],
+      actions: [deadlinePrefill, generateDocuments],
       notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {

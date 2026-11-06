@@ -1,0 +1,92 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "review_type": {
+    "helper": "text",
+    "path": "review_type"
+  },
+  "reviewed_by": {
+    "helper": "text",
+    "path": "reviewed_by"
+  },
+  "review_date": {
+    "helper": "date",
+    "path": "review_date"
+  },
+  "praf": {
+    "helper": "assessmentRows",
+    "path": "praf",
+    "columns": [
+      "code",
+      "label",
+      "comments",
+      "recommendations"
+    ],
+    "onlyFilled": [
+      "comments",
+      "recommendations"
+    ],
+    "covers": [
+      "praf",
+      "copied_note"
+    ]
+  },
+  "icf": {
+    "helper": "assessmentRows",
+    "path": "icf",
+    "columns": [
+      "code",
+      "label",
+      "comments",
+      "recommendations"
+    ],
+    "onlyFilled": [
+      "comments",
+      "recommendations"
+    ]
+  },
+  "cb_action_APPROVED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "APPROVED",
+    "covers": [
+      "recommended_action"
+    ]
+  },
+  "cb_action_MINOR": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "MINOR"
+  },
+  "cb_action_MAJOR": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "MAJOR"
+  },
+  "cb_action_DISAPPROVED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "DISAPPROVED"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  }
+}

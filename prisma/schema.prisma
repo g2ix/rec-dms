@@ -434,11 +434,17 @@ model StoredFile {
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
+  /// Set when this file was generated from a form instance, so a reprint of the same revision can be reused.
+  formInstanceId    String?    @map("form_instance_id")
+  sourceRevision    Int?       @map("source_revision")
+
   protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
+  formInstance    FormInstance?    @relation(fields: [formInstanceId], references: [id], onDelete: SetNull)
   uploadedBy      User             @relation(fields: [uploadedById], references: [id])
   signatures      Signature[]
 
   @@index([protocolVersionId, kind])
+  @@index([formInstanceId, kind, sourceRevision])
   @@map("files")
 }
 
@@ -856,6 +862,7 @@ model FormInstance {
   filledByMember  ProtocolMember?     @relation(fields: [filledByMemberId], references: [id])
   revisions       FormFieldRevision[]
   signatureEvents SignatureEvent[]
+  generatedFiles  StoredFile[]
 
   @@index([formDefinitionId])
   @@index([ownerType, ownerId])

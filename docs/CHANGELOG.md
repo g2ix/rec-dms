@@ -1,5 +1,19 @@
 # Changelog
 
+## M10 — Document generation (2026-11-06)
+
+Filled forms download as the official Word file or as a PDF, and a protocol page can download the submission as one PDF or a ZIP. Printing opens the PDF. A locked form is stored and reused. A form that is still being edited is generated again when its revision changes. Releasing a decision generates F-39. An approved release looks for a Certificate of Approval template and, when it is missing, leaves a warning on the release task.
+
+`PDF_CONVERTER` chooses local LibreOffice or Gotenberg. The server image in `docker/gotenberg` installs Times New Roman. Placeholder maps are seeded, and an administrator can replace a template and its map on a published form. `pnpm templates:check` reports tags and fields that are not mapped.
+
+### Deviation from the spec and the M10 prompt
+
+- Only F-26, F-27, F-28, F-29, F-30, F-35, and F-36 were supplied as Word files. F-31, F-37, F-38, F-39, and F-41 were rebuilt from `docs/forms/source/Updated USC REC Forms.pdf` using the F-26 header. Their page breaks will not match the PDF.
+- The Certificate of Approval is not in the source set, so an approval records the warning and still releases the letter.
+- F-27's research-type boxes and declaration lines are paired with the shorter lists on the form. The signature line shows the project leader. The footer lists every signer.
+- F-29 folds the extra method fields into the last narrative box. F-36 prints the REC Chair where the file says Panel Chair.
+- This workstation has no LibreOffice and no `pdftoppm`, so `pnpm templates:visual` skips and no page baselines were saved.
+
 ## M09 — Notifications, reminders and escalation (2026-11-06)
 
 People are told about tasks, deadlines, and decisions in the app and by email. The bell in the top bar shows the unread count and the latest ten notices, and polls every 30 seconds. The full list is at `/app/notifications`. Email preferences are at Profile → Notification preferences. Reminders can wait for a digest at 07:00 Asia/Manila. Task assignments and decisions are always sent immediately.

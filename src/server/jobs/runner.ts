@@ -6,6 +6,7 @@ import { prisma, useAppSchema } from "@/server/db";
 import { transactionalMail, type TransactionalMail } from "@/server/mail";
 import { deliverEmailJob, deliverNotifyJob, recordNotice } from "@/server/notifications/deliver";
 import { claimReminder } from "@/server/notifications/reminders";
+import { generateDecisionDocuments } from "@/server/docs/generate";
 import { nextAuditAt, nextDigestAt } from "@/server/jobs/schedule";
 import { paragraphsOf } from "@/lib/notifications/render";
 import { renderNoticeHtml } from "@/server/mail";
@@ -56,13 +57,21 @@ export async function processDueJobs(options?: {
         FROM jobs
         WHERE done_at IS NULL
           AND run_at <= ${now}
-          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY')
+          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY', 'GENERATE_DOCUMENTS')
         ORDER BY run_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       `;
       const job = rows[0];
       if (!job) return "empty" as const;
+      if (job.kind === "GENERATE_DOCUMENTS") {
+        const attempts = job.attempts + 1;
+        await tx.job.update({
+          where: { id: job.id },
+          data: { attempts, runAt: new Date(now.getTime() + 2 * 60_000) },
+        });
+        return { kind: "generate" as const, id: job.id, payload: job.payload, attempts };
+      }
       try {
         await dispatch(tx, job, now, mail);
         await tx.job.update({
@@ -88,6 +97,29 @@ export async function processDueJobs(options?: {
       }
     });
     if (outcome === "empty") break;
+    if (typeof outcome === "object") {
+      try {
+        await generateDecisionDocuments(outcome.payload);
+        await prisma.job.update({
+          where: { id: outcome.id },
+          data: { doneAt: new Date(), lastError: null },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Document generation failed.";
+        const terminal = outcome.attempts >= 5;
+        await prisma.job.update({
+          where: { id: outcome.id },
+          data: {
+            lastError: message.slice(0, 2000),
+            doneAt: terminal ? new Date() : null,
+            runAt: new Date(Date.now() + backoffMs(outcome.attempts)),
+          },
+        });
+        failed += 1;
+      }
+      processed += 1;
+      continue;
+    }
     processed += 1;
     if (outcome === "failed") failed += 1;
   }

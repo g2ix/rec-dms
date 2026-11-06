@@ -1,0 +1,182 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "protocol.emails": {
+    "helper": "join",
+    "path": "protocol.emails"
+  },
+  "protocol.contactNumbers": {
+    "helper": "join",
+    "path": "protocol.contactNumbers"
+  },
+  "protocol.institution": {
+    "helper": "text",
+    "path": "protocol.institution"
+  },
+  "protocol.institutionAddress": {
+    "helper": "text",
+    "path": "protocol.institutionAddress"
+  },
+  "protocol.submissionDate": {
+    "helper": "date",
+    "path": "protocol.submissionDate"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "rec_chair": {
+    "helper": "text",
+    "path": "rec.chairName"
+  },
+  "entry_1": {
+    "helper": "text",
+    "path": "intro_1"
+  },
+  "entry_2": {
+    "helper": "text",
+    "path": "intro_4"
+  },
+  "entry_3": {
+    "helper": "text",
+    "path": "intro_2"
+  },
+  "entry_4": {
+    "helper": "text",
+    "path": "intro_3"
+  },
+  "entry_5": {
+    "helper": "text",
+    "path": "intro_5"
+  },
+  "entry_6": {
+    "helper": "text",
+    "path": "definitions"
+  },
+  "entry_7": {
+    "helper": "text",
+    "path": "method_1"
+  },
+  "entry_8": {
+    "helper": "text",
+    "path": "method_2"
+  },
+  "entry_9": {
+    "helper": "text",
+    "path": "method_3"
+  },
+  "entry_10": {
+    "helper": "text",
+    "path": "method_5"
+  },
+  "entry_11": {
+    "helper": "text",
+    "path": "method_5"
+  },
+  "entry_12": {
+    "helper": "text",
+    "path": "method_4"
+  },
+  "entry_13": {
+    "helper": "text",
+    "path": "method_7"
+  },
+  "entry_14": {
+    "helper": "text",
+    "path": "method_4"
+  },
+  "entry_15": {
+    "helper": "text",
+    "path": "method_3"
+  },
+  "entry_16": {
+    "helper": "text",
+    "path": "method_6"
+  },
+  "entry_17": {
+    "helper": "text",
+    "path": "method_6"
+  },
+  "entry_18": {
+    "helper": "text",
+    "path": "method_6"
+  },
+  "entry_19": {
+    "helper": "text",
+    "path": "method_7"
+  },
+  "entry_20": {
+    "helper": "text",
+    "path": "analysis"
+  },
+  "entry_21": {
+    "helper": "text",
+    "path": "ethics",
+    "covers": [
+      "ethics",
+      "method_8",
+      "method_9",
+      "method_10",
+      "method_11",
+      "method_12",
+      "method_13"
+    ]
+  },
+  "researchers": {
+    "helper": "rows",
+    "path": "researcher_table",
+    "columns": [
+      "name",
+      "designation",
+      "email",
+      "sig",
+      "cv"
+    ],
+    "covers": [
+      "researcher_table"
+    ]
+  },
+  "adviser_name": {
+    "helper": "text",
+    "path": "adviser_name"
+  },
+  "adviser_designation": {
+    "helper": "text",
+    "path": "adviser_designation"
+  },
+  "adviser_unit": {
+    "helper": "text",
+    "path": "adviser_unit"
+  },
+  "adviser_institution": {
+    "helper": "text",
+    "path": "adviser_institution"
+  },
+  "adviser_email": {
+    "helper": "text",
+    "path": "adviser_email"
+  },
+  "adviser_appendix": {
+    "helper": "text",
+    "path": "adviser_appendix"
+  },
+  "sig_adviser": {
+    "helper": "signature",
+    "path": "adviser_signature",
+    "width": 160,
+    "height": 48
+  }
+}

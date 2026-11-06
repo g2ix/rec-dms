@@ -1,0 +1,256 @@
+import "server-only";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { AuditAction } from "@/lib/audit-log";
+import { generatedFileWhere } from "@/lib/docs/cache";
+import { fillDocx } from "@/lib/docs/fill-docx";
+import { defaultFileNameSetting, officialFormFileName, type FileNameSetting } from "@/lib/docs/names";
+import { placeholderMapSchema, type PlaceholderMap } from "@/lib/docs/tags";
+import { buildRenderModel, type SignatureRender } from "@/lib/docs/view";
+import { PREVIEW_BOUND_VALUES } from "@/lib/forms/bindings";
+import { validateSchema, type FormSchema } from "@/lib/forms/schema";
+import { env } from "@/lib/env";
+import { audit, auditRequestMeta, diffOf } from "@/server/audit";
+import { prisma } from "@/server/db";
+import { AppError } from "@/server/errors";
+import { convertDocxToPdf } from "@/server/docs/pdf";
+import { sharedSnapshot } from "@/server/protocols/snapshot";
+import { getObjectBytes, putObject } from "@/server/storage";
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PDF_MIME = "application/pdf";
+
+export type RenderedDocument = {
+  fileId: string;
+  bytes: Buffer;
+  fileName: string;
+  mime: string;
+  protocolId: string | null;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+async function fileNameSetting(): Promise<FileNameSetting> {
+  const row = await prisma.setting.findUnique({ where: { key: "docs.fileNamePattern" } });
+  if (!isRecord(row?.value)) return defaultFileNameSetting();
+  const setting = defaultFileNameSetting();
+  for (const [key, value] of Object.entries(row.value)) {
+    if (typeof value === "string" && value.trim()) setting[key] = value;
+  }
+  return setting;
+}
+
+async function chairName(): Promise<string> {
+  const grant = await prisma.userRole.findFirst({
+    where: { revokedAt: null, role: { key: "REC_CHAIR" } },
+    include: { user: true },
+    orderBy: { grantedAt: "asc" },
+  });
+  return grant?.user.displayName || grant?.user.name || "";
+}
+
+async function boundValuesFor(versionId: string | null): Promise<Record<string, unknown>> {
+  const chair = await chairName();
+  if (!versionId) return { ...PREVIEW_BOUND_VALUES, "rec.chairName": chair };
+  const version = await prisma.protocolVersion.findUnique({
+    where: { id: versionId },
+    include: { protocol: { include: { members: { include: { user: true, contactEmail: true } } } } },
+  });
+  if (!version) return { ...PREVIEW_BOUND_VALUES, "rec.chairName": chair };
+  const live = sharedSnapshot(version.protocol, version.label, version.submittedAt);
+  const frozen = version.state === "SUBMITTED" && isRecord(version.snapshot) ? version.snapshot : live;
+  return { ...frozen, "rec.chairName": chair };
+}
+
+async function loadMap(code: string, stored: unknown): Promise<PlaceholderMap> {
+  const parsed = placeholderMapSchema.safeParse(stored);
+  if (parsed.success && Object.keys(parsed.data).length > 0) return parsed.data;
+  const raw = await readFile(join(process.cwd(), "templates", "maps", `${code}.json`), "utf8");
+  return placeholderMapSchema.parse(JSON.parse(raw));
+}
+
+async function templateBytes(code: string, templateFileId: string | null): Promise<Buffer> {
+  if (templateFileId) {
+    const file = await prisma.storedFile.findUnique({ where: { id: templateFileId } });
+    if (file) {
+      const object = await getObjectBytes(file.storageKey);
+      return Buffer.from(object.body);
+    }
+  }
+  try {
+    return await readFile(join(process.cwd(), "templates", `${code}.docx`));
+  } catch {
+    throw new AppError("NOT_FOUND", "This form has no template yet.", 404);
+  }
+}
+
+async function signatureRenders(instanceId: string): Promise<SignatureRender[]> {
+  const events = await prisma.signatureEvent.findMany({
+    where: { formInstanceId: instanceId, voidedAt: null },
+    include: { user: true, signature: true },
+    orderBy: { signedAt: "asc" },
+  });
+  const rendered: SignatureRender[] = [];
+  for (const event of events) {
+    let image: Buffer | null = null;
+    try {
+      const object = await getObjectBytes(event.signature.imageKey);
+      image = Buffer.from(object.body);
+    } catch {
+      image = null;
+    }
+    rendered.push({
+      fieldPath: event.fieldPath,
+      signerName: event.user.displayName || event.user.name || "Signer",
+      signedAt: event.signedAt,
+      verifyRef: event.verifyRef,
+      image,
+    });
+  }
+  return rendered;
+}
+
+async function storeGenerated(input: {
+  instanceId: string;
+  protocolVersionId: string | null;
+  protocolId: string | null;
+  revision: number;
+  kind: "GENERATED_DOCX" | "GENERATED_PDF";
+  fileName: string;
+  mime: string;
+  bytes: Buffer;
+  userId: string;
+}): Promise<string> {
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const storageKey = `generated/${input.instanceId}/${input.kind}/${input.revision}/${sha256}`;
+  await putObject(storageKey, input.bytes, input.mime);
+  const meta = await auditRequestMeta({ storageKey, formInstanceId: input.instanceId });
+  const file = await prisma.$transaction(async (tx) => {
+    const created = await tx.storedFile.create({
+      data: {
+        protocolVersionId: input.protocolVersionId,
+        formInstanceId: input.instanceId,
+        sourceRevision: input.revision,
+        kind: input.kind,
+        originalName: input.fileName,
+        suggestedName: input.fileName,
+        storageKey,
+        mime: input.mime,
+        size: input.bytes.length,
+        sha256,
+        uploadedById: input.userId,
+        scanStatus: "CLEAN",
+      },
+    });
+    await audit.record(tx, {
+      actorUserId: input.userId,
+      action: AuditAction.fileUploaded,
+      entityType: "file",
+      entityId: created.id,
+      protocolId: input.protocolId,
+      diff: diffOf({}, { kind: input.kind, originalName: input.fileName, sha256, size: input.bytes.length }),
+      meta,
+    });
+    return created;
+  });
+  return file.id;
+}
+
+export async function renderFormDocument(input: {
+  instanceId: string;
+  format: "docx" | "pdf";
+  userId: string;
+}): Promise<RenderedDocument> {
+  const instance = await prisma.formInstance.findUnique({
+    where: { id: input.instanceId },
+    include: { formDefinition: true },
+  });
+  if (!instance) throw new AppError("NOT_FOUND", "That form was not found.", 404);
+  const kind = input.format === "pdf" ? "GENERATED_PDF" : "GENERATED_DOCX";
+  const cached = await prisma.storedFile.findFirst({
+    where: {
+      formInstanceId: instance.id,
+      ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind }),
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const setting = await fileNameSetting();
+  const fileName = officialFormFileName(setting, instance.formDefinition.code, input.format);
+  const protocol = await protocolOf(instance.ownerType, instance.ownerId);
+  if (cached) {
+    const object = await getObjectBytes(cached.storageKey);
+    return {
+      fileId: cached.id,
+      bytes: Buffer.from(object.body),
+      fileName: cached.suggestedName || cached.originalName,
+      mime: cached.mime,
+      protocolId: protocol?.protocolId ?? null,
+    };
+  }
+  const check = validateSchema(instance.formDefinition.schema);
+  const schema: FormSchema | undefined = check.ok ? check.schema : undefined;
+  const map = await loadMap(instance.formDefinition.code, instance.formDefinition.placeholderMap);
+  const data = isRecord(instance.data) ? instance.data : {};
+  const bound = await boundValuesFor(protocol?.versionId ?? null);
+  const signatures = await signatureRenders(instance.id);
+  const model = buildRenderModel({
+    map,
+    data,
+    bound,
+    signatures,
+    schema,
+    timeZone: env.APP_TIMEZONE,
+  });
+  const template = await templateBytes(instance.formDefinition.code, instance.formDefinition.templateFileId);
+  const docx = fillDocx(template, model.data, model.images);
+  const bytes = input.format === "pdf" ? Buffer.from(await convertDocxToPdf(docx)) : docx;
+  const mime = input.format === "pdf" ? PDF_MIME : DOCX_MIME;
+  const fileId = await storeGenerated({
+    instanceId: instance.id,
+    protocolVersionId: protocol?.versionId ?? null,
+    protocolId: protocol?.protocolId ?? null,
+    revision: instance.revision,
+    kind,
+    fileName,
+    mime,
+    bytes,
+    userId: input.userId,
+  });
+  return { fileId, bytes, fileName, mime, protocolId: protocol?.protocolId ?? null };
+}
+
+async function protocolOf(
+  ownerType: string,
+  ownerId: string,
+): Promise<{ protocolId: string; versionId: string } | null> {
+  if (ownerType !== "PROTOCOL_VERSION") return null;
+  const version = await prisma.protocolVersion.findUnique({
+    where: { id: ownerId },
+    select: { id: true, protocolId: true },
+  });
+  if (!version) return null;
+  return { protocolId: version.protocolId, versionId: version.id };
+}
+
+export async function recordDocumentDownload(input: {
+  fileId: string;
+  userId: string;
+  protocolId: string | null;
+  fileName: string;
+}): Promise<void> {
+  const meta = await auditRequestMeta({ fileId: input.fileId });
+  await prisma.$transaction(async (tx) => {
+    await audit.record(tx, {
+      actorUserId: input.userId,
+      action: AuditAction.fileDownloaded,
+      entityType: "file",
+      entityId: input.fileId,
+      protocolId: input.protocolId,
+      diff: diffOf({}, { originalName: input.fileName }),
+      meta,
+    });
+  });
+}

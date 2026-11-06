@@ -13,6 +13,7 @@ import {
   createVersion,
   publishDefinition,
   retireDefinition,
+  saveTemplate,
   updateDefinition,
 } from "@/server/forms/definitions";
 import { markComplete, reopenSandbox, saveField, setSandboxPreview, type SaveFieldResult } from "@/server/forms/fill";
@@ -214,6 +215,28 @@ export async function retireFormAction(formData: FormData): Promise<void> {
     redirect(`/admin/forms/${id}`);
   } catch (error) {
     bounce(id, error, "The form could not be retired.");
+  }
+}
+
+export async function saveTemplateAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  try {
+    const user = await adminUser();
+    const uploaded = formData.get("template");
+    const file =
+      uploaded instanceof File && uploaded.size > 0
+        ? { name: uploaded.name, bytes: Buffer.from(await uploaded.arrayBuffer()) }
+        : null;
+    await saveTemplate({
+      id,
+      userId: user.id,
+      placeholderMap: String(formData.get("placeholderMap") ?? ""),
+      file,
+    });
+    revalidatePath(`/admin/forms/${id}`);
+    redirect(`/admin/forms/${id}`);
+  } catch (error) {
+    bounce(id, error, "The template could not be saved.");
   }
 }
 

@@ -1,0 +1,401 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "protocol.emails": {
+    "helper": "join",
+    "path": "protocol.emails"
+  },
+  "protocol.contactNumbers": {
+    "helper": "join",
+    "path": "protocol.contactNumbers"
+  },
+  "protocol.institution": {
+    "helper": "text",
+    "path": "protocol.institution"
+  },
+  "protocol.institutionAddress": {
+    "helper": "text",
+    "path": "protocol.institutionAddress"
+  },
+  "protocol.submissionDate": {
+    "helper": "date",
+    "path": "protocol.submissionDate"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "rec_chair": {
+    "helper": "text",
+    "path": "rec.chairName"
+  },
+  "ps_salaries_personal": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "salaries",
+    "column": "personal"
+  },
+  "ps_salaries_external": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "salaries",
+    "column": "external"
+  },
+  "ps_salaries_internal": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "salaries",
+    "column": "internal"
+  },
+  "ps_salaries_total": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "salaries",
+    "column": "total"
+  },
+  "ps_honoraria_personal": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "honoraria",
+    "column": "personal"
+  },
+  "ps_honoraria_external": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "honoraria",
+    "column": "external"
+  },
+  "ps_honoraria_internal": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "honoraria",
+    "column": "internal"
+  },
+  "ps_honoraria_total": {
+    "helper": "budgetCell",
+    "path": "ps",
+    "match": "honoraria",
+    "column": "total"
+  },
+  "mooe_travel_personal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "travel",
+    "column": "personal"
+  },
+  "mooe_travel_external": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "travel",
+    "column": "external"
+  },
+  "mooe_travel_internal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "travel",
+    "column": "internal"
+  },
+  "mooe_travel_total": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "travel",
+    "column": "total"
+  },
+  "mooe_supplies_personal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "supplies",
+    "column": "personal"
+  },
+  "mooe_supplies_external": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "supplies",
+    "column": "external"
+  },
+  "mooe_supplies_internal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "supplies",
+    "column": "internal"
+  },
+  "mooe_supplies_total": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "supplies",
+    "column": "total"
+  },
+  "mooe_incentive_personal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "incentive",
+    "column": "personal"
+  },
+  "mooe_incentive_external": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "incentive",
+    "column": "external"
+  },
+  "mooe_incentive_internal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "incentive",
+    "column": "internal"
+  },
+  "mooe_incentive_total": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "incentive",
+    "column": "total"
+  },
+  "ps_details": {
+    "helper": "budgetRest",
+    "path": "ps",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "ps"
+    ]
+  },
+  "mooe_details": {
+    "helper": "budgetRest",
+    "path": "mooe",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "mooe"
+    ]
+  },
+  "ps_sub_personal": {
+    "helper": "budgetSum",
+    "path": "ps_total",
+    "sections": [
+      "ps"
+    ],
+    "column": "personal"
+  },
+  "ps_sub_external": {
+    "helper": "budgetSum",
+    "path": "ps_total",
+    "sections": [
+      "ps"
+    ],
+    "column": "external"
+  },
+  "ps_sub_internal": {
+    "helper": "budgetSum",
+    "path": "ps_total",
+    "sections": [
+      "ps"
+    ],
+    "column": "internal"
+  },
+  "ps_sub_total": {
+    "helper": "budgetSum",
+    "path": "ps_total",
+    "sections": [
+      "ps"
+    ],
+    "column": "total"
+  },
+  "mooe_sub_personal": {
+    "helper": "budgetSum",
+    "path": "mooe_total",
+    "sections": [
+      "mooe"
+    ],
+    "column": "personal",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "mooe_sub_external": {
+    "helper": "budgetSum",
+    "path": "mooe_total",
+    "sections": [
+      "mooe"
+    ],
+    "column": "external",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "mooe_sub_internal": {
+    "helper": "budgetSum",
+    "path": "mooe_total",
+    "sections": [
+      "mooe"
+    ],
+    "column": "internal",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "mooe_sub_total": {
+    "helper": "budgetSum",
+    "path": "mooe_total",
+    "sections": [
+      "mooe"
+    ],
+    "column": "total",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "capital_sub_personal": {
+    "helper": "budgetSum",
+    "path": "capital_total",
+    "sections": [
+      "capital"
+    ],
+    "column": "personal"
+  },
+  "capital_sub_external": {
+    "helper": "budgetSum",
+    "path": "capital_total",
+    "sections": [
+      "capital"
+    ],
+    "column": "external"
+  },
+  "capital_sub_internal": {
+    "helper": "budgetSum",
+    "path": "capital_total",
+    "sections": [
+      "capital"
+    ],
+    "column": "internal"
+  },
+  "capital_sub_total": {
+    "helper": "budgetSum",
+    "path": "capital_total",
+    "sections": [
+      "capital"
+    ],
+    "column": "total"
+  },
+  "grand_personal": {
+    "helper": "budgetSum",
+    "path": "grand_total",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ],
+    "column": "personal",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "grand_external": {
+    "helper": "budgetSum",
+    "path": "grand_total",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ],
+    "column": "external",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "grand_internal": {
+    "helper": "budgetSum",
+    "path": "grand_total",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ],
+    "column": "internal",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "grand_total": {
+    "helper": "budgetSum",
+    "path": "grand_total",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ],
+    "column": "total",
+    "extraPaths": [
+      "ethics_review_fee"
+    ]
+  },
+  "capital": {
+    "helper": "rows",
+    "path": "capital",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "capital"
+    ]
+  },
+  "admin": {
+    "helper": "rows",
+    "path": "admin",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "admin"
+    ]
+  },
+  "external_source": {
+    "helper": "text",
+    "path": "external_source"
+  },
+  "ethics_fee": {
+    "helper": "money",
+    "path": "ethics_review_fee"
+  },
+  "admin_total_sum": {
+    "helper": "budgetSum",
+    "path": "admin_total",
+    "sections": [
+      "admin"
+    ],
+    "column": "total"
+  }
+}

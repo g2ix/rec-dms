@@ -28,6 +28,14 @@ Check the chain from the server with `pnpm audit:verify`. It prints `Chain verif
 
 The nightly audit check is a `AUDIT_VERIFY` job. It runs from `GET /api/cron/jobs` with `Authorization: Bearer $CRON_SECRET` and calls the same chain verification. `GET /api/internal/audit/verify` is still available for a manual check. Optional `fromSeq` and `toSeq` query parameters limit that check. Both routes stay unauthorized until `CRON_SECRET` is set.
 
+## PDF conversion
+
+Set `PDF_CONVERTER=gotenberg` on the server. The compose file builds `docker/gotenberg` instead of the plain Gotenberg image so Times New Roman is installed (the official forms use it). The container listens on port 3000 inside the network. Point `GOTENBERG_URL` at it, for example `http://gotenberg:3000`. If `GOTENBERG_SECRET` contains a colon it is sent as Basic auth (`user:password`). Otherwise it is a Bearer token.
+
+`PDF_CONVERTER=soffice` is the workstation default. It needs LibreOffice on `PATH`, or `SOFFICE_PATH` pointing at `soffice`.
+
+Generated letters are produced by the `GENERATE_DOCUMENTS` job, which `/api/cron/jobs` already drains. The conversion itself runs outside the database transaction.
+
 ## Notifications cron
 
 `GET /api/cron/jobs` drains due jobs (email, the 07:00 Asia/Manila digest, and the 02:00 audit check). Call it every minute. `GET /api/cron/sla` sends due-soon, overdue, and escalation notices, and lapses revision deadlines. Call it every hour.

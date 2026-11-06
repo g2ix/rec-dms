@@ -1,6 +1,12 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Prisma } from "@prisma/client";
+import PizZip from "pizzip";
 import { z } from "zod";
+import { checkPlaceholderMap, placeholderMapSchema, tagsFromDocumentXml, type PlaceholderMap } from "@/lib/docs/tags";
+import { getObjectBytes, putObject } from "@/server/storage";
 import { AuditAction } from "@/lib/audit-log";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
 import { formatManila } from "@/lib/time";
@@ -251,4 +257,96 @@ export async function createVersion(id: string, version: string, userId: string)
     }
     throw error;
   }
+}
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function tagsOf(bytes: Buffer) {
+  const zip = new PizZip(bytes);
+  const parts = Object.values(zip.files)
+    .filter((file) => !file.dir)
+    .map((file) => ({ name: file.name, xml: file.asText() }));
+  return tagsFromDocumentXml(parts);
+}
+
+export async function saveTemplate(input: {
+  id: string;
+  userId: string;
+  placeholderMap: unknown;
+  file: { name: string; bytes: Buffer } | null;
+}) {
+  const current = await getDefinition(input.id);
+  if (current.status === "RETIRED") {
+    throw new AppError("LOCKED", "Retired forms cannot take a new template.", 409);
+  }
+  let map: PlaceholderMap;
+  try {
+    const raw = typeof input.placeholderMap === "string" ? JSON.parse(input.placeholderMap) : input.placeholderMap;
+    map = placeholderMapSchema.parse(raw);
+  } catch {
+    throw new AppError("INVALID", "The placeholder map is not valid JSON.", 400);
+  }
+  if (input.file && input.file.bytes.length > 20 * 1024 * 1024) {
+    throw new AppError("INVALID", "The template must be 20 MB or smaller.", 400);
+  }
+  let bytes = input.file?.bytes ?? null;
+  if (!bytes && current.templateFileId) {
+    const stored = await prisma.storedFile.findUnique({ where: { id: current.templateFileId } });
+    if (stored) {
+      const object = await getObjectBytes(stored.storageKey);
+      bytes = Buffer.from(object.body);
+    }
+  }
+  if (!bytes) {
+    try {
+      bytes = await readFile(join(process.cwd(), "templates", `${current.code}.docx`));
+    } catch {
+      bytes = null;
+    }
+  }
+  if (!bytes) throw new AppError("INVALID", "Upload the Word template before saving the map.", 400);
+  const schema = requireValidSchema(current.schema);
+  const mapped = checkPlaceholderMap({ tags: tagsOf(bytes), map, schema });
+  if (mapped.unmappedTags.length > 0) {
+    throw new AppError("INVALID", `These template tags have no mapping: ${mapped.unmappedTags.slice(0, 8).join(", ")}.`, 400);
+  }
+  if (mapped.unmappedFields.length > 0) {
+    throw new AppError("INVALID", `These fields are not on the template: ${mapped.unmappedFields.slice(0, 8).join(", ")}.`, 400);
+  }
+  let templateFileId = current.templateFileId;
+  if (input.file) {
+    const sha256 = createHash("sha256").update(input.file.bytes).digest("hex");
+    const storageKey = `templates/${current.code}/${current.version}/${sha256}.docx`;
+    await putObject(storageKey, input.file.bytes, DOCX_MIME);
+    const stored = await prisma.storedFile.create({
+      data: {
+        kind: "TEMPLATE",
+        originalName: input.file.name || `${current.code}.docx`,
+        suggestedName: `${current.code}.docx`,
+        storageKey,
+        mime: DOCX_MIME,
+        size: input.file.bytes.length,
+        sha256,
+        uploadedById: input.userId,
+        scanStatus: "CLEAN",
+      },
+    });
+    templateFileId = stored.id;
+  }
+  const meta = await auditRequestMeta({ code: current.code, version: current.version });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.formDefinition.update({
+      where: { id: current.id },
+      data: { placeholderMap: toJson(map), templateFileId },
+    });
+    await audit.record(tx, {
+      actorUserId: input.userId,
+      action: AuditAction.definitionUpdated,
+      entityType: "form_definition",
+      entityId: updated.id,
+      diff: diffOf({}, { templateFileId, placeholderMap: true }),
+      meta,
+    });
+    return updated;
+  });
 }

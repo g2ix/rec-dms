@@ -1,0 +1,58 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "criteria": {
+    "helper": "assessmentRows",
+    "path": "criteria",
+    "columns": [
+      "code",
+      "label",
+      "answer",
+      "comments"
+    ]
+  },
+  "cb_action_QUALIFIED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "QUALIFIED",
+    "covers": [
+      "recommended_action"
+    ]
+  },
+  "cb_action_NOT_QUALIFIED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "NOT_QUALIFIED"
+  },
+  "summary": {
+    "helper": "text",
+    "path": "summary"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_signature",
+    "width": 160,
+    "height": 48
+  }
+}

@@ -11,7 +11,8 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   S3_REGION: z.string().min(1),
-  // PDF conversion is selected in M10. Empty until Gotenberg or LibreOffice is configured.
+  // soffice uses local LibreOffice. gotenberg posts to GOTENBERG_URL.
+  PDF_CONVERTER: z.enum(["soffice", "gotenberg"]).default("soffice"),
   GOTENBERG_URL: z.string().default(""),
   GOTENBERG_SECRET: z.string().default(""),
   SMTP_URL: z.string().min(1),
