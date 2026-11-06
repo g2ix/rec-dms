@@ -119,6 +119,7 @@ model User {
   signatureEvents        SignatureEvent[]
   signingStepUps        SigningStepUp[]
   notifications          Notification[]
+  notificationPreference NotificationPreference?
   tasks                  Task[]               @relation("TaskAssignee")
   tasksCompleted         Task[]               @relation("TaskCompleter")
   workflowsPublished     WorkflowVersion[]    @relation("WorkflowPublisher")
@@ -349,6 +350,7 @@ model Protocol {
   members            ProtocolMember[]
   versions           ProtocolVersion[]
   workflowInstances  WorkflowInstance[]
+  notifications      Notification[]
 
   @@index([status])
   @@index([leaderUserId])
@@ -566,20 +568,69 @@ model SignatureEvent {
   @@map("signature_events")
 }
 
+enum NotificationEmailStatus {
+  NONE
+  QUEUED
+  SENT
+  FAILED
+  DIGEST
+}
+
+enum DigestMode {
+  IMMEDIATE
+  DAILY
+}
+
 model Notification {
-  id        String    @id @default(uuid())
-  userId    String    @map("user_id")
-  type      String
-  payload   Json
-  readAt    DateTime? @map("read_at")
-  emailedAt DateTime? @map("emailed_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id          String                  @id @default(uuid())
+  userId      String                  @map("user_id")
+  type        String
+  title       String                  @default("")
+  body        String                  @default("")
+  link        String?
+  protocolId  String?                 @map("protocol_id")
+  taskId      String?                 @map("task_id")
+  payload     Json                    @default("{}")
+  readAt      DateTime?               @map("read_at")
+  emailedAt   DateTime?               @map("emailed_at")
+  emailStatus NotificationEmailStatus @default(NONE) @map("email_status")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  protocol Protocol? @relation(fields: [protocolId], references: [id], onDelete: SetNull)
+  task     Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+  @@index([emailStatus])
+  @@map("notifications")
+}
+
+/// Editable copy for in-app notices and email. `variables` is the documented placeholder list.
+model NotificationTemplate {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  subject      String
+  bodyMarkdown String   @map("body_markdown") @db.Text
+  channels     String[] @default(["IN_APP", "EMAIL"])
+  description  String   @default("")
+  variables    Json     @default("[]")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_templates")
+}
+
+/// Daily digest covers reminders. Assignments and decisions stay immediate.
+model NotificationPreference {
+  userId    String     @id @map("user_id")
+  digest    DigestMode @default(IMMEDIATE)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@map("notifications")
+  @@map("notification_preferences")
 }
 
 /// One unit of work on a workflow instance. assignee is empty until a role task is claimed.
@@ -604,9 +655,10 @@ model Task {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  instance    WorkflowInstance? @relation(fields: [instanceId], references: [id])
-  assignee    User?             @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: Cascade)
-  completedBy User?             @relation("TaskCompleter", fields: [completedById], references: [id])
+  instance      WorkflowInstance? @relation(fields: [instanceId], references: [id])
+  assignee      User?             @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: Cascade)
+  completedBy   User?             @relation("TaskCompleter", fields: [completedById], references: [id])
+  notifications Notification[]
 
   @@index([assigneeUserId])
   @@index([instanceId, stepKey])

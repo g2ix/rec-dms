@@ -183,7 +183,7 @@ describe("signing a form", () => {
     expect(leaderEvent?.voidedAt).toBeTruthy();
     expect(await describeVerification(signed.verifyRef)).toMatchObject({ matches: false });
     expect(
-      await prisma.notification.count({ where: { userId: leader.id, type: "form.signature_voided" } }),
+      await prisma.notification.count({ where: { userId: leader.id, type: "signature.voided" } }),
     ).toBe(1);
     expect(
       await prisma.auditEvent.count({ where: { action: AuditAction.signatureVoided, protocolId: protocol.id } }),

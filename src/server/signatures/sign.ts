@@ -13,6 +13,7 @@ import {
   type SignatureMark,
 } from "@/lib/signatures/target";
 import { audit, diffOf } from "@/server/audit";
+import { recordNotice } from "@/server/notifications/deliver";
 import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { assertFreshSigningStepUp } from "@/server/stepup";
@@ -190,10 +191,6 @@ export async function voidSignaturesForDataChange(
   });
   if (events.length === 0) return 0;
   const now = new Date();
-  const definition = await tx.formDefinition.findUnique({
-    where: { id: input.instance.formDefinitionId },
-    select: { code: true },
-  });
   const notified = new Set<string>();
   for (const event of events) {
     await tx.signatureEvent.update({
@@ -211,17 +208,11 @@ export async function voidSignaturesForDataChange(
     });
     if (notified.has(event.userId)) continue;
     notified.add(event.userId);
-    await tx.notification.create({
-      data: {
-        userId: event.userId,
-        type: "form.signature_voided",
-        payload: {
-          formInstanceId: input.instance.id,
-          formCode: definition?.code ?? "",
-          protocolId: input.protocolId,
-          message: "A form you signed was edited. Your signature is void and needs to be signed again.",
-        },
-      },
+    await recordNotice(tx, {
+      userIds: [event.userId],
+      templateKey: "signature.voided",
+      protocolId: input.protocolId,
+      link: input.protocolId ? `/app/protocols/${input.protocolId}` : "/app",
     });
   }
   return events.length;

@@ -1,4 +1,5 @@
 import {
+  Bell,
   CalendarDays,
   ChartColumn,
   ClipboardCheck,
@@ -58,6 +59,7 @@ const chairItems: NavItem[] = [
   ...staffItems,
   { href: "/admin/workflows", label: "Workflows", icon: Workflow },
   { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/forms", label: "Forms", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
@@ -126,6 +128,8 @@ const LEDES: Record<string, string> = {
   "/admin/forms": "Form definitions, versions, and the sandbox.",
   "/app/settings": "Committee settings will be edited here.",
   "/admin/audit": "Recorded actions and the hash chain.",
+  "/admin/notifications": "Templates for in-app notices and email.",
+  "/app/notifications": "Notices for your account.",
 };
 
 const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [
@@ -133,6 +137,16 @@ const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [
     href: "/app/account/sign-in-methods",
     title: "Sign-in methods",
     lede: "Google accounts, emails, and your password.",
+  },
+  {
+    href: "/app/account/notifications",
+    title: "Notification preferences",
+    lede: "Immediate email or a daily digest for reminders.",
+  },
+  {
+    href: "/app/notifications",
+    title: "Notifications",
+    lede: "Tasks, deadlines, and decisions.",
   },
   {
     href: "/app/account/merge",

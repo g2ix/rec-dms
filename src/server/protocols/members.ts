@@ -2,7 +2,10 @@ import "server-only";
 import type { Prisma, ProtocolMemberRole } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { normalizeEmail } from "@/lib/email";
+import { fallbackTemplate } from "@/lib/notifications/catalog";
+import { applyVariables, markdownToText } from "@/lib/notifications/render";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
+import { recordNotice } from "@/server/notifications/deliver";
 import type { Mailer } from "@/server/auth/mailer";
 import { smtpMailer } from "@/server/auth/mailer";
 import { env } from "@/lib/env";
@@ -65,12 +68,16 @@ export async function inviteMember(
       ? await tx.protocolMember.update({ where: { id: removed.id }, data })
       : await tx.protocolMember.create({ data: { protocolId: input.protocolId, ...data } });
     if (account) {
-      await tx.notification.create({
-        data: {
-          userId: account.userId,
-          type: "protocol.invite",
-          payload: { protocolId: input.protocolId, title: protocol.title, role: input.role, memberId: member.id },
+      await recordNotice(tx, {
+        userIds: [account.userId],
+        templateKey: "invite.member",
+        protocolId: input.protocolId,
+        link: `/app/protocols/${input.protocolId}/members`,
+        variables: {
+          roleLabel: input.role === "ADVISER" ? "an adviser" : "a proponent",
+          protocolTitle: protocol.title,
         },
+        email: false,
       });
     }
     await audit.record(tx, {
@@ -86,14 +93,20 @@ export async function inviteMember(
     return { member, protocol, knownUser: Boolean(account) };
   });
 
-  const link = `${env.AUTH_URL}/sign-up?email=${encodeURIComponent(email)}`;
-  const accept = `${env.AUTH_URL}/app/protocols/${input.protocolId}/members`;
+  const link = result.knownUser
+    ? `${env.AUTH_URL}/app/protocols/${input.protocolId}/members`
+    : `${env.AUTH_URL}/sign-up?email=${encodeURIComponent(email)}`;
+  const template = fallbackTemplate("invite.member");
+  const variables = {
+    protocolTitle: result.protocol.title,
+    roleLabel: input.role === "ADVISER" ? "an adviser" : "a proponent",
+    link,
+    recipientName: "",
+  };
   await mailer.send({
     to: email,
-    subject: `Invitation to ${result.protocol.title}`,
-    text: result.knownUser
-      ? `You are invited to “${result.protocol.title}” as ${input.role === "ADVISER" ? "an adviser" : "a proponent"}. Sign in and accept the invitation: ${accept}`
-      : `You are invited to “${result.protocol.title}” as ${input.role === "ADVISER" ? "an adviser" : "a proponent"}. Create an account with this email address: ${link}`,
+    subject: applyVariables(template.subject, variables),
+    text: markdownToText(applyVariables(template.bodyMarkdown, variables)),
   });
   return result.member;
 }

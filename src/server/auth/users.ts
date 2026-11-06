@@ -5,6 +5,7 @@ import { formatDisplayName } from "@/lib/display-name";
 import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
+import { recordNotice } from "@/server/notifications/deliver";
 import { AppError } from "@/server/errors";
 import { bindInvitesForEmail } from "@/server/protocols/invites";
 
@@ -118,6 +119,13 @@ export async function decidePendingUser(input: {
       diff: diffOf({ status: before.status }, { status }),
       meta,
     });
+    if (input.decision === "approve") {
+      await recordNotice(tx, {
+        userIds: [input.userId],
+        templateKey: "account.approved",
+        link: "/app",
+      });
+    }
     return updated;
   });
 }

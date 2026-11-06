@@ -97,6 +97,7 @@ export function SidebarPanel({
               <ThemeSwitch />
             </div>
             <DropdownMenuItem render={<Link href="/app/account/signature" />}>My signature</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href="/app/account/notifications" />}>Notification preferences</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
             <form action={signOutAction}>
               <DropdownMenuItem nativeButton render={<button type="submit" />}>

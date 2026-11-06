@@ -4,6 +4,7 @@ import { AuditAction } from "@/lib/audit-log";
 import { normalizeEmail } from "@/lib/email";
 import { audit, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
+import { recordNotice } from "@/server/notifications/deliver";
 
 type Writer = Prisma.TransactionClient | typeof prisma;
 
@@ -28,12 +29,13 @@ export async function bindInvitesForEmail(userId: string, email: string, db: Wri
       });
       if (taken) continue;
       await tx.protocolMember.update({ where: { id: invite.id }, data: { userId } });
-      await tx.notification.create({
-        data: {
-          userId,
-          type: "protocol.invite",
-          payload: { protocolId: invite.protocolId, memberId: invite.id, role: invite.role },
-        },
+      await recordNotice(tx, {
+        userIds: [userId],
+        templateKey: "invite.member",
+        protocolId: invite.protocolId,
+        link: `/app/protocols/${invite.protocolId}/members`,
+        variables: { roleLabel: invite.role === "ADVISER" ? "an adviser" : "a proponent" },
+        email: false,
       });
       await audit.record(tx, {
         actorUserId: userId,

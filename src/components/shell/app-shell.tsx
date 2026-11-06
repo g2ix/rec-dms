@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Icon } from "@/components/icons";
 import { SidebarPanel } from "@/components/shell/sidebar";
 import { pageForPath, type RoleView } from "@/components/shell/nav";
+import { NotificationBell } from "@/components/shell/notification-bell";
 import { ThemeSwitch } from "@/components/theme/theme-switch";
 import Link from "next/link";
 
@@ -96,11 +97,7 @@ export function AppShell({
             </ol>
           </nav>
           <div className="rec-top__end">
-            <button type="button" className="rec-btn rec-btn--ghost rec-btn--icon" aria-label="Notifications">
-              <span>
-                <Icon icon={Bell} />
-              </span>
-            </button>
+            <NotificationBell />
             <div className="rec-top__theme">
               <ThemeSwitch />
             </div>

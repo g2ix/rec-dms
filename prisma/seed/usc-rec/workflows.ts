@@ -46,6 +46,18 @@ function days(amount: number, unit: "HOURS" | "CALENDAR_DAYS" | "WORKING_DAYS" =
   return { amount, unit };
 }
 
+function tracked(amount: number, unit: "HOURS" | "CALENDAR_DAYS" | "WORKING_DAYS" = "CALENDAR_DAYS") {
+  return {
+    amount,
+    unit,
+    remindBefore:
+      unit === "HOURS"
+        ? [{ amount: Math.min(12, amount), unit: "HOURS" as const }]
+        : [{ amount: 1, unit: "CALENDAR_DAYS" as const }],
+    escalateTo: staff,
+  };
+}
+
 const receiptPrefill = {
   kind: "PREFILL" as const,
   hook: "onEnter" as const,
@@ -167,7 +179,7 @@ const screeningOutcomes = [
   { key: "RETURN_INCOMPLETE", label: "Return incomplete" },
 ];
 
-export const initialSubmission: WorkflowGraph = {
+const initialSubmissionGraph: WorkflowGraph = {
   startStep: "proponent_submit",
   steps: [
     {
@@ -189,7 +201,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Under Screening",
-      deadline: days(2),
+      deadline: tracked(2),
       forms: [fill("F-26")],
       outcomes: screeningOutcomes,
       feeVerifiedOutcomes: ["ACCEPT"],
@@ -211,7 +223,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "DECISION",
       assignee: recChair,
       statusLabel: "Under Review",
-      deadline: days(2),
+      deadline: tracked(2),
       forms: [fill("F-31")],
       outcomes: [
         { key: "EXEMPT", label: "Exempt" },
@@ -227,7 +239,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "DECISION",
       assignee: panelChair,
       statusLabel: "Under Review",
-      deadline: days(2),
+      deadline: tracked(2),
       forms: [fill("F-41")],
       outcomes: [
         { key: "QUALIFIED", label: "Qualified for exemption" },
@@ -240,7 +252,8 @@ export const initialSubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Decision Released",
-      deadline: days(5),
+      deadline: tracked(5),
+      notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     { key: "end_exempted", name: "Exempted", type: "END", statusLabel: "Exempted" },
     {
@@ -259,7 +272,7 @@ export const initialSubmission: WorkflowGraph = {
       assignee: { kind: "ASSIGNED_IN_STEP", stepKey: "determine_review" },
       parallel: { completeWhen: "ALL" },
       statusLabel: "Under Review",
-      deadline: days(48, "HOURS"),
+      deadline: tracked(48, "HOURS"),
     },
     {
       key: "reviewer_assess",
@@ -268,7 +281,7 @@ export const initialSubmission: WorkflowGraph = {
       assignee: { kind: "ASSIGNED_IN_STEP", stepKey: "determine_review" },
       parallel: { completeWhen: "ALL" },
       statusLabel: "Under Review",
-      deadline: days(14),
+      deadline: tracked(14),
       forms: [fill("F-35", true), fill("F-36", true)],
       notify: { onCompleted: "review.submitted", cc: [staff] },
       actions: [
@@ -290,7 +303,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "DECISION",
       assignee: recChair,
       statusLabel: "Under Review",
-      deadline: days(3),
+      deadline: tracked(3),
       forms: [fill("F-37")],
       outcomes: decisions,
       actions: summaryPrefill,
@@ -310,7 +323,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "TASK",
       assignee: secretary,
       statusLabel: "Under Review",
-      deadline: days(3),
+      deadline: tracked(3),
       forms: [view("F-37")],
       actions: summaryPrefill,
     },
@@ -320,7 +333,7 @@ export const initialSubmission: WorkflowGraph = {
       type: "DECISION",
       assignee: recChair,
       statusLabel: "Under Review",
-      deadline: days(3),
+      deadline: tracked(3),
       forms: [fill("F-37")],
       outcomes: decisions,
       actions: summaryPrefill,
@@ -340,9 +353,10 @@ export const initialSubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Decision Released",
-      deadline: days(5),
+      deadline: tracked(5),
       forms: [view("F-39")],
       actions: [deadlinePrefill],
+      notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {
       key: "staff_release_full",
@@ -350,9 +364,10 @@ export const initialSubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Decision Released",
-      deadline: days(3),
+      deadline: tracked(3),
       forms: [view("F-39")],
       actions: [deadlinePrefill],
+      notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {
       key: "proponent_conform",
@@ -417,7 +432,7 @@ const actionPrefill = ["praf", "icf"].map((field) => ({
   },
 }));
 
-export const resubmission: WorkflowGraph = {
+const resubmissionGraph: WorkflowGraph = {
   startStep: "proponent_revise",
   steps: [
     {
@@ -444,7 +459,7 @@ export const resubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Under Screening",
-      deadline: days(2),
+      deadline: tracked(2),
       forms: [fill("F-26")],
       outcomes: screeningOutcomes,
       actions: [receiptPrefill],
@@ -463,7 +478,7 @@ export const resubmission: WorkflowGraph = {
       assignee: { kind: "ASSIGNED_IN_STEP", stepKey: "determine_review", source: "parent" },
       parallel: { completeWhen: "ALL" },
       statusLabel: "Under Review",
-      deadline: days(14),
+      deadline: tracked(14),
       forms: [fill("F-38")],
       notify: { onCompleted: "review.submitted", cc: [staff] },
     },
@@ -473,7 +488,7 @@ export const resubmission: WorkflowGraph = {
       type: "DECISION",
       assignee: recChair,
       statusLabel: "Under Review",
-      deadline: days(3),
+      deadline: tracked(3),
       forms: [fill("F-38")],
       outcomes: decisions,
     },
@@ -492,9 +507,10 @@ export const resubmission: WorkflowGraph = {
       type: "TASK",
       assignee: staff,
       statusLabel: "Decision Released",
-      deadline: days(5),
+      deadline: tracked(5),
       forms: [view("F-39")],
       actions: [deadlinePrefill],
+      notify: { onCompleted: "protocol.decision_released", cc: [leader] },
     },
     {
       key: "proponent_conform",
@@ -531,3 +547,26 @@ export const resubmission: WorkflowGraph = {
     { from: "await_revision", to: "end_lapsed", when: eq("OVERDUE") },
   ],
 };
+
+function withTaskNotices(graph: WorkflowGraph): WorkflowGraph {
+  return {
+    ...graph,
+    steps: graph.steps.map((step) => {
+      if (step.type === "AUTO" || step.type === "END" || step.type === "WAIT_PROPONENT") return step;
+      const notify = { ...step.notify };
+      if (step.key !== graph.startStep && !notify.onAssigned) notify.onAssigned = "task.assigned";
+      if (step.deadline && !notify.onDueSoon) notify.onDueSoon = "task.due_soon";
+      if (step.deadline && !notify.onOverdue) notify.onOverdue = "task.overdue";
+      if (Object.keys(notify).length === 0) return step;
+      return { ...step, notify };
+    }),
+    transitions: graph.transitions.map((transition) =>
+      transition.statusLabel === "Returned" && !transition.notify
+        ? { ...transition, notify: "protocol.returned_incomplete" }
+        : transition,
+    ),
+  };
+}
+
+export const initialSubmission = withTaskNotices(initialSubmissionGraph);
+export const resubmission = withTaskNotices(resubmissionGraph);

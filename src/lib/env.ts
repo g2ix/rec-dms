@@ -16,6 +16,9 @@ const envSchema = z.object({
   GOTENBERG_SECRET: z.string().default(""),
   SMTP_URL: z.string().min(1),
   EMAIL_FROM: z.string().min(1),
+  // smtp uses SMTP_URL (Mailpit or the USC relay). resend uses RESEND_API_KEY.
+  MAIL_DRIVER: z.enum(["smtp", "resend"]).default("smtp"),
+  RESEND_API_KEY: z.string().default(""),
   APP_TIMEZONE: z.string().min(1).default("Asia/Manila"),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),

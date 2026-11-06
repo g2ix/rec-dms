@@ -7,11 +7,11 @@ import { findField, validateSchema } from "@/lib/forms/schema";
 import { validateInstance } from "@/lib/forms/validate";
 import { missingRequiredSignatures } from "@/lib/signatures/target";
 import { manilaDayEnd } from "@/lib/time";
-import { addDuration, manilaDay, subtractDuration } from "@/lib/workflow/calendar";
+import { addDuration, manilaDay } from "@/lib/workflow/calendar";
 import { parseGraph, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
 import { pickTransition, stepIsComplete, type LogicData } from "@/lib/workflow/transitions";
 import { audit } from "@/server/audit";
-import { prisma, useAppSchema } from "@/server/db";
+import { prisma, useAppSchema as pinAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
 import { freezeWorkingVersion } from "@/server/protocols/snapshot";
@@ -64,7 +64,7 @@ export async function startInstance(
 ) {
   const meta = {};
   return prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     return startInstanceTx(tx, { definitionKey, protocolId, protocolVersionId, actorUserId, meta });
   }, TX);
 }
@@ -125,7 +125,7 @@ export async function startInstanceTx(
 export async function maybeStartInitial(protocolId: string, protocolVersionId: string, actorUserId: string) {
   const meta = {};
   return prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     return maybeStartInitialTx(tx, protocolId, protocolVersionId, actorUserId, meta);
   }, TX);
 }
@@ -238,12 +238,13 @@ export async function completeLeaderSubmissionTx(
 
 export async function completeTask(taskId: string, userId: string, input: CompleteInput = {}): Promise<TaskResult> {
   return prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     return completeTaskTx(tx, taskId, userId, input, {});
   }, TX);
 }
 
 export async function completeTaskTx(tx: Tx, taskId: string, userId: string, input: CompleteInput, meta: Meta): Promise<TaskResult> {
+  await pinAppSchema(tx);
   await tx.$queryRaw`SELECT id FROM tasks WHERE id = ${taskId} FOR UPDATE`;
   const task = await tx.task.findUnique({ where: { id: taskId } });
   if (!task || !task.instanceId) throw new AppError("NOT_FOUND", "That task was not found.", 404);
@@ -339,6 +340,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
   const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
   const next = pickTransition(graph, step.key, logic);
   if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
+  await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
   const fresh = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
   await enterStep(tx, fresh, graph, next.to, userId, meta, outcome, [], next.statusLabel);
   const after = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
@@ -347,7 +349,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
 
 export async function claimTask(taskId: string, userId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     await claimTaskTx(tx, taskId, userId, {});
   }, TX);
 }
@@ -381,7 +383,7 @@ export async function reassignTask(taskId: string, actorUserId: string, userId: 
     throw new AppError("FORBIDDEN", "Only REC Staff can reassign a task.", 403);
   }
   return prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     return reassignTaskTx(tx, taskId, actorUserId, userId, reason, {});
   }, TX);
 }
@@ -424,12 +426,25 @@ export async function reassignTaskTx(
     diff: { fromTaskId: task.id, fromUserId: task.assigneeUserId, toUserId: userId, reason },
     meta,
   });
+  await tx.job.create({
+    data: {
+      kind: "NOTIFY",
+      payload: toJson({
+        templateKey: "task.reassigned",
+        userIds: [userId],
+        protocolId: instance.protocolId,
+        taskId: created.id,
+        stepKey: task.stepKey,
+      }),
+      runAt: new Date(),
+    },
+  });
   return created.id;
 }
 
 export async function cancelInstance(instanceId: string, actorUserId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     const instance = await tx.workflowInstance.findUnique({ where: { id: instanceId } });
     if (!instance) throw new AppError("NOT_FOUND", "That workflow was not found.", 404);
     if (instance.status !== "RUNNING") return;
@@ -520,7 +535,7 @@ async function completeSideTask(
 
 export async function requestExtension(instanceId: string, userId: string) {
   return prisma.$transaction(async (tx) => {
-    await useAppSchema(tx);
+    await pinAppSchema(tx);
     const instance = await tx.workflowInstance.findUnique({ where: { id: instanceId }, include: { version: true } });
     if (!instance || instance.status !== "RUNNING") throw new AppError("NOT_FOUND", "That workflow was not found.", 404);
     const graph = graphOf(instance.version.graph);
@@ -601,7 +616,7 @@ export async function lapseOverdueWaits(now = new Date()): Promise<number> {
     where: {
       kind: "MAIN",
       status: { in: ["OPEN", "CLAIMED"] },
-      dueAt: { lt: now },
+      dueAt: { lte: now },
       assigneeUserId: { not: null },
       instance: { status: "RUNNING" },
     },
@@ -670,6 +685,7 @@ async function enterStep(
     const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
     const next = pickTransition(graph, step.key, logic);
     if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
+    await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
     await enterStep(tx, instance, graph, next.to, actorUserId, meta, outcome, [...trail, step.key]);
     return;
   }
@@ -729,7 +745,7 @@ async function enterStep(
       },
     });
     tasks.push(created);
-    await queueAssigned(tx, step, slot, protocol, assignments, created.id, dueAt, holidays);
+    await queueAssigned(tx, step, slot, protocol, assignments, created.id);
   }
   if (tasks.length === 0) throw new AppError("NO_ASSIGNEE", `“${step.name}” has nobody to assign.`, 409);
   await openForms(tx, step, instance.protocolVersionId, slots);
@@ -1068,46 +1084,28 @@ async function queueAssigned(
   protocol: { id: string; panelId: string | null; leaderUserId: string },
   assignments: Record<string, string[]>,
   taskId: string,
-  dueAt: Date | null,
-  holidays: Set<string>,
 ) {
+  if (!step.notify?.onAssigned) return;
   const userIds = await notifyUserIds(tx, step, slot, protocol, assignments);
-  if (step.notify?.onAssigned) {
-    await tx.job.create({
-      data: {
-        kind: "NOTIFY",
-        payload: toJson({ templateKey: step.notify.onAssigned, userIds, protocolId: protocol.id, taskId, stepKey: step.key }),
-        runAt: new Date(),
-      },
-    });
-  }
-  if (!dueAt) return;
-  for (const offset of step.deadline?.remindBefore ?? []) {
-    if (!step.notify?.onDueSoon) continue;
-    await tx.job.create({
-      data: {
-        kind: "NOTIFY",
-        payload: toJson({ templateKey: step.notify.onDueSoon, userIds, protocolId: protocol.id, taskId, stepKey: step.key }),
-        runAt: subtractDuration(dueAt, offset.amount, offset.unit, holidays),
-      },
-    });
-  }
-  if (step.notify?.onOverdue) {
-    await tx.job.create({
-      data: {
-        kind: "NOTIFY",
-        payload: toJson({
-          templateKey: step.notify.onOverdue,
-          userIds,
-          protocolId: protocol.id,
-          taskId,
-          stepKey: step.key,
-          escalateTo: step.deadline?.escalateTo ?? null,
-        }),
-        runAt: dueAt,
-      },
-    });
-  }
+  if (userIds.length === 0) return;
+  await tx.job.create({
+    data: {
+      kind: "NOTIFY",
+      payload: toJson({ templateKey: step.notify.onAssigned, userIds, protocolId: protocol.id, taskId, stepKey: step.key }),
+      runAt: new Date(),
+    },
+  });
+}
+
+async function queueTransitionNotice(tx: Tx, templateKey: string | undefined, protocolId: string, leaderUserId: string) {
+  if (!templateKey) return;
+  await tx.job.create({
+    data: {
+      kind: "NOTIFY",
+      payload: toJson({ templateKey, userIds: [leaderUserId], protocolId }),
+      runAt: new Date(),
+    },
+  });
 }
 
 async function queueCompleted(

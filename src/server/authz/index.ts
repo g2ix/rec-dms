@@ -13,6 +13,7 @@ const FORM_ACTIONS = new Set([
   "workflow.view",
   "workflow.edit",
   "holiday.edit",
+  "notification.edit",
 ]);
 
 let reader: ProtocolMembershipReader = prismaMembershipReader();

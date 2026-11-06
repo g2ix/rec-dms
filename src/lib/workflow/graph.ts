@@ -153,6 +153,8 @@ export const transitionSchema = z.object({
   priority: z.number().int().optional(),
   /** Replaces the destination step's status when this transition is the one taken. */
   statusLabel: z.string().min(1).optional(),
+  /** Template sent to the project leader when this transition is taken, such as a return. */
+  notify: z.string().min(1).optional(),
 });
 
 export type Transition = z.infer<typeof transitionSchema>;

@@ -147,6 +147,7 @@ export function WorkflowEditor({
                 <th scope="col">Priority</th>
                 <th scope="col">Condition</th>
                 <th scope="col">Label</th>
+                <th scope="col">Notice</th>
               </tr>
             </thead>
             <tbody>
@@ -166,6 +167,9 @@ export function WorkflowEditor({
                   </td>
                   <td>
                     <input className="rec-input" disabled={!draft} value={transition.label ?? ""} onChange={(event) => editTransition(index, { ...transition, label: event.target.value })} />
+                  </td>
+                  <td>
+                    <input className="rec-input" disabled={!draft} aria-label="Notice template" value={transition.notify ?? ""} onChange={(event) => editTransition(index, { ...transition, notify: event.target.value || undefined })} />
                   </td>
                 </tr>
               ))}
@@ -345,11 +349,11 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
       <div className="rec-actions">
         <label className="rec-field">
           <span className="label">Deadline</span>
-          <input className="rec-input" inputMode="numeric" value={step.deadline?.amount ?? ""} onChange={(event) => onChange({ ...step, deadline: event.target.value ? { amount: Number(event.target.value), unit: step.deadline?.unit ?? "WORKING_DAYS" } : undefined })} />
+          <input className="rec-input" inputMode="numeric" value={step.deadline?.amount ?? ""} onChange={(event) => onChange({ ...step, deadline: event.target.value ? { ...step.deadline, amount: Number(event.target.value), unit: step.deadline?.unit ?? "WORKING_DAYS" } : undefined })} />
         </label>
         <label className="rec-field">
           <span className="label">Unit</span>
-          <select className="rec-select" value={step.deadline?.unit ?? "WORKING_DAYS"} onChange={(event) => onChange({ ...step, deadline: { amount: step.deadline?.amount ?? 1, unit: event.target.value as "HOURS" | "CALENDAR_DAYS" | "WORKING_DAYS" } })}>
+          <select className="rec-select" value={step.deadline?.unit ?? "WORKING_DAYS"} onChange={(event) => onChange({ ...step, deadline: { ...step.deadline, amount: step.deadline?.amount ?? 1, unit: event.target.value as "HOURS" | "CALENDAR_DAYS" | "WORKING_DAYS" } })}>
             {DURATION_UNITS.map((unit) => (
               <option key={unit} value={unit}>
                 {unit}
@@ -394,6 +398,18 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
       <label className="rec-field">
         <span className="label">Notify when assigned</span>
         <input className="rec-input" value={step.notify?.onAssigned ?? ""} onChange={(event) => onChange({ ...step, notify: { ...step.notify, onAssigned: event.target.value || undefined } })} />
+      </label>
+      <label className="rec-field">
+        <span className="label">Notify when due soon</span>
+        <input className="rec-input" value={step.notify?.onDueSoon ?? ""} onChange={(event) => onChange({ ...step, notify: { ...step.notify, onDueSoon: event.target.value || undefined } })} />
+      </label>
+      <label className="rec-field">
+        <span className="label">Notify when overdue</span>
+        <input className="rec-input" value={step.notify?.onOverdue ?? ""} onChange={(event) => onChange({ ...step, notify: { ...step.notify, onOverdue: event.target.value || undefined } })} />
+      </label>
+      <label className="rec-field">
+        <span className="label">Notify when completed</span>
+        <input className="rec-input" value={step.notify?.onCompleted ?? ""} onChange={(event) => onChange({ ...step, notify: { ...step.notify, onCompleted: event.target.value || undefined } })} />
       </label>
     </div>
   );

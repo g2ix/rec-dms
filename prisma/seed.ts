@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { TEMPLATES } from "../src/lib/notifications/catalog";
 import { installUscRec } from "./seed/usc-rec/install";
 
 const prisma = new PrismaClient();
@@ -68,6 +69,20 @@ async function main() {
   }
 
   await installUscRec(prisma);
+  for (const template of TEMPLATES) {
+    await prisma.notificationTemplate.upsert({
+      where: { key: template.key },
+      create: {
+        key: template.key,
+        subject: template.subject,
+        bodyMarkdown: template.bodyMarkdown,
+        channels: template.channels,
+        description: template.description,
+        variables: template.variables,
+      },
+      update: {},
+    });
+  }
 
   if (!email) {
     console.log("BOOTSTRAP_ADMIN_EMAILS is empty. No admin was created.");

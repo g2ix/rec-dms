@@ -26,4 +26,17 @@ Point the app at `recdms_app`. Keep a separate owner role for Prisma migrations.
 
 Check the chain from the server with `pnpm audit:verify`. It prints `Chain verified up to #N` or exits 1 with `Chain broken at #N`.
 
-The hourly job in M09 calls `GET /api/internal/audit/verify` with `Authorization: Bearer $CRON_SECRET`. Optional `fromSeq` and `toSeq` query parameters limit the check. The route stays unauthorized until `CRON_SECRET` is set.
+The nightly audit check is a `AUDIT_VERIFY` job. It runs from `GET /api/cron/jobs` with `Authorization: Bearer $CRON_SECRET` and calls the same chain verification. `GET /api/internal/audit/verify` is still available for a manual check. Optional `fromSeq` and `toSeq` query parameters limit that check. Both routes stay unauthorized until `CRON_SECRET` is set.
+
+## Notifications cron
+
+`GET /api/cron/jobs` drains due jobs (email, the 07:00 Asia/Manila digest, and the 02:00 audit check). Call it every minute. `GET /api/cron/sla` sends due-soon, overdue, and escalation notices, and lapses revision deadlines. Call it every hour.
+
+`vercel.json` schedules both once a day (23:00 UTC, which is 07:00 in Asia/Manila). Vercel Hobby only allows a daily cron, so that file cannot express a minutely or hourly schedule. Hourly and minutely runs need Vercel Pro, or a cron on the USC server:
+
+```cron
+* * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://rec-dms.example/api/cron/jobs
+0 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://rec-dms.example/api/cron/sla
+```
+
+In local development, set `CRON_SECRET` and run `pnpm cron` beside `pnpm dev`. Mail goes to Mailpit when `MAIL_DRIVER` is `smtp` (the default). Set `MAIL_DRIVER=resend` and `RESEND_API_KEY` to send through Resend. The From name is USC Research Ethics Committee.

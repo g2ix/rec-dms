@@ -1,5 +1,20 @@
 # Changelog
 
+## M09 — Notifications, reminders and escalation (2026-11-06)
+
+People are told about tasks, deadlines, and decisions in the app and by email. The bell in the top bar shows the unread count and the latest ten notices, and polls every 30 seconds. The full list is at `/app/notifications`. Email preferences are at Profile → Notification preferences. Reminders can wait for a digest at 07:00 Asia/Manila. Task assignments and decisions are always sent immediately.
+
+`/api/cron/jobs` (protected by `CRON_SECRET`) runs due jobs with `FOR UPDATE SKIP LOCKED`, retries with backoff, and marks the email failed after five attempts. `/api/cron/sla` sends each due-soon offset, the overdue notice, and the escalation once. A revision wait is reminded 5 and 1 working days before it is due, then lapses. A nightly job checks the audit chain and tells system administrators if it breaks. Templates are seeded and edited at `/admin/notifications`, with a sample preview. `pnpm cron` calls both routes every minute in development. Vercel Hobby can only schedule a daily cron; `docs/DEPLOY.md` says to use Vercel Pro or a cron on the USC server for minute and hour schedules.
+
+### Deviation from the spec and the M09 prompt
+
+- The M05 `notifications` row kept `payload` and `emailed_at`. Title, body, link, protocol, task, and `email_status` were added beside them so earlier notices still load.
+- Due-soon and overdue notices are sent by the SLA scan, which records each one on the task. The engine still enqueues assignment, completion, reassignment, and transition notices. It no longer pre-schedules a second copy of the reminder.
+- A transition can name a template in `notify`. A return uses that to send `protocol.returned_incomplete` to the project leader.
+- The seeded workflows tell the assignee when a task opens, remind one day before a calendar deadline (twelve hours before an hour deadline), and escalate overdue tasks to REC Staff. Revision waits still lapse instead of escalating.
+- `audit.chain_broken`, `review.submitted`, and `exemption.not_qualified` are editable templates in addition to the thirteen named in the prompt.
+- Invite email still goes out through the existing mailer so the sign-up link is sent even when the person has no account yet. The copy comes from `invite.member`.
+
 ## M08 — USC REC seed (2026-11-06)
 
 Initial submission and resubmission now run from published form definitions and workflow versions. `pnpm db:seed` loads the twelve phase-1 forms at version 09-00 (effective 2025-08-01), both workflow graphs, the protocol code pattern `USC-REC-{YYYY}-{####}`, a 30-working-day revision period, REC contact details, and the panel-to-discipline map. `SEED_DEMO=true` also creates one account per role and two sample protocols. Running the seed again refreshes those form schemas and publishes a new workflow version when the graph changed. Protocols already in flight stay on the version they started.

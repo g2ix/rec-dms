@@ -1,6 +1,7 @@
 import "server-only";
 import { AuditAction } from "@/lib/audit-log";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
+import { recordNotice } from "@/server/notifications/deliver";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 
@@ -55,6 +56,21 @@ export async function decideFee(input: {
       diff: diffOf({ status: fee.status, reason: fee.reason }, { status: input.decision, reason }),
       meta,
     });
+    if (input.decision === "REJECTED") {
+      const protocol = await tx.protocol.findUnique({
+        where: { id: fee.protocolVersion.protocolId },
+        select: { leaderUserId: true },
+      });
+      if (protocol) {
+        await recordNotice(tx, {
+          userIds: [protocol.leaderUserId],
+          templateKey: "fee.rejected",
+          protocolId: fee.protocolVersion.protocolId,
+          link: `/app/protocols/${fee.protocolVersion.protocolId}`,
+          variables: { reason: reason ?? "" },
+        });
+      }
+    }
     return updated;
   });
 }

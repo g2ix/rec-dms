@@ -662,6 +662,8 @@ html.theme-fade * {
 .rec-crumbs a { color: var(--ink-muted); text-decoration: none; }
 .rec-crumbs a:hover { color: var(--primary); }
 .rec-top__end { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.rec-bell { position: relative; display: inline-flex; }
+.rec-bell .rec-badge { position: absolute; top: 0; right: 0; }
 .rec-content {
   width: min(100%, var(--content-max));
   padding: var(--space-8);
