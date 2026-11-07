@@ -1,12 +1,11 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/jobs",
-      "schedule": "0 23 * * *"
+  "regions": ["sin1"],
+  "functions": {
+    "src/app/api/forms/[instanceId]/document/route.ts": {
+      "maxDuration": 60
     },
-    {
-      "path": "/api/cron/sla",
-      "schedule": "0 23 * * *"
+    "src/app/api/protocols/[id]/package/route.ts": {
+      "maxDuration": 60
     }
-  ]
+  }
 }

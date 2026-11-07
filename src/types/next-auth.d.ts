@@ -15,5 +15,6 @@ declare module "@auth/core/jwt" {
     userId?: string;
     status?: string;
     identityDefaultView?: string | null;
+    needsTotp?: boolean;
   }
 }

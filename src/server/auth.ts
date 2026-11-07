@@ -17,6 +17,7 @@ import { findOrStartSelfMerge } from "@/server/auth/linking";
 import { clientIp, rateLimiter, SIGN_IN_LIMIT } from "@/server/auth/rate-limit";
 import { authenticatePassword } from "@/server/auth/register";
 import { ensureVerifiedEmail } from "@/server/auth/users";
+import { isCommitteeStaff } from "@/server/authz/staff";
 
 async function profileEmail(profile: unknown, fallback?: string | null): Promise<string | null> {
   if (profile && typeof profile === "object" && "email" in profile && typeof profile.email === "string") {
@@ -124,9 +125,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (userId) {
         const row = await prisma.user.findUnique({
           where: { id: String(userId) },
-          select: { status: true, mergedIntoId: true },
+          select: { status: true, mergedIntoId: true, totpEnabledAt: true },
         });
         token.status = !row || row.mergedIntoId ? "MERGED" : row.status;
+        token.needsTotp = Boolean(row?.totpEnabledAt) || (await isCommitteeStaff(String(userId)));
       }
       return token;
     },

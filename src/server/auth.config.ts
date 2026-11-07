@@ -3,6 +3,7 @@ import { safeInternalPath } from "@/lib/auth-redirect";
 
 export const authConfig = {
   trustHost: true,
+  useSecureCookies: process.env.NODE_ENV === "production",
   session: { strategy: "jwt" },
   pages: {
     signIn: "/sign-in",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PdfDownload } from "@/components/docs/pdf-download";
 import { ProtocolForm } from "@/components/protocols/protocol-form";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { loadAuthoredRows } from "@/server/forms/authored";
@@ -44,17 +45,12 @@ export default async function ProtocolFormPage({
         <a className="rec-btn rec-btn--secondary" href={`/api/forms/${form.instance.id}/document?format=docx`}>
           <span>Download Word</span>
         </a>
-        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${form.instance.id}/document?format=pdf`}>
-          <span>Download PDF</span>
-        </a>
-        <a
-          className="rec-btn rec-btn--secondary"
+        <PdfDownload href={`/api/forms/${form.instance.id}/document?format=pdf`} label="Download PDF" />
+        <PdfDownload
           href={`/api/forms/${form.instance.id}/document?format=pdf&disposition=inline`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span>Print</span>
-        </a>
+          label="Print"
+          inline
+        />
       </div>
       <ProtocolForm
         instanceId={form.instance.id}

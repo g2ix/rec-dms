@@ -1,5 +1,30 @@
 # Changelog
 
+## M12 — Hardening and deployment (2026-11-07)
+
+The deployment is Vercel in Singapore, a separate Supabase project in Singapore, and Google Cloud Run in Singapore for PDF conversion, virus scanning, and the nightly backup. Cloud Scheduler calls the cron routes. There is no on-prem server. The old compose file is in `deploy/archive/usc-server/` with a note that it is not used.
+
+Production requires the cron secret, the public origin, and the scanner settings. Local development still starts without Gotenberg or ClamAV. `recdms_app` is created `NOLOGIN` with no password in the migration. `CREATE ROLE` cannot run inside a transaction, so that migration is marked `-- prisma-migrate-disable-transaction`. The operator sets the password in the Supabase SQL editor. The role cannot update or delete `audit_events`. Row level security is on for every `recdms` table, with policies only for `recdms_app`, because that role does not own the tables. `anon` has no policy and no grants.
+
+Gotenberg is pinned to 8.40.0, the last 8.x release, which has basic auth. The image installs Times New Roman. PDF conversion on Vercel is a background job. ClamAV is an HTTP wrapper in front of `clamd`. An infected file is blocked, removed from storage, and reported. The EICAR test string is the only mismatched upload that is kept long enough to scan.
+
+Authenticator codes are required for REC Staff, Chairs, and System Admins. A person can download their own profile, emails, memberships, and signature list. Closed protocols older than three years are flagged for staff. Nothing is deleted automatically.
+
+`/api/health` checks the database, storage, Gotenberg, ClamAV, and the age of the last backup stamp, and logs one database round trip.
+
+### Not run from this workstation
+
+The restore drill, the staging Playwright file, `pnpm fonts:check`, and the Cloud Run deploys need the operator’s Supabase, Vercel, and Google Cloud accounts. The commands are in `docs/DEPLOY.md` and `docs/RESTORE.md`. Record the drill result here after `scripts/restore-drill.sh` prints a verified chain.
+
+### Deviation from the spec and the M12 prompt
+
+- The spec still describes an on-prem server behind a tunnel. The decided deployment is Vercel, Supabase, and Cloud Run, all in Singapore. The prompt file in `prompts/` still describes the tunnel. This changelog follows the decided architecture.
+- `recdms_app` has row level security policies. The prompt asked for no policies. Postgres would then return no rows to a role that does not own the tables and does not bypass row level security. `anon` and `authenticated` still have none.
+- `public` on the development project was not altered. It holds another application’s tables.
+- Gotenberg’s `/health` does not require basic auth. That is how Gotenberg 8.40 works. Conversion without the username and password returns 401.
+- `pnpm audit` on 2026-11-07 reported 2 critical, 21 high, 25 moderate, and 5 low. The critical finding is `xmldom` (multiple root nodes), a transitive document-library dependency. Nothing in the application stack was upgraded for it in this milestone. Re-run `pnpm audit` before a release.
+- The live `dbMs` measurement from `sin1` is for the operator to record after the first production deploy. `/api/health` logs the round trip.
+
 ## M11 — Dashboards and reports (2026-11-06)
 
 Each role view opens on a dashboard of the work that needs attention. The count in each heading is the same number as the task inbox for that view, and it links to the list it counts. REC Staff see the screening queue in arrival order, fee receipts, releases, accounts waiting for approval, and overdue tasks. Chairs see the pipeline by step and review type, overdue work, and turnaround from the completion of staff screening. Panel Chairs see their panel, reviewer load, and overdue work in that panel.

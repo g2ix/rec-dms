@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PdfDownload } from "@/components/docs/pdf-download";
 import { ProtocolHeader } from "@/components/protocols/protocol-header";
 import { ProtocolNav } from "@/components/protocols/protocol-nav";
 import { AppError } from "@/server/errors";
@@ -27,12 +28,15 @@ export default async function ProtocolLayout({
         <ProtocolNav protocolId={id} />
         {header.shown ? (
           <div className="rec-actions">
-            <a className="rec-btn rec-btn--secondary" href={`/api/protocols/${id}/package?format=pdf&version=${header.shown.id}`}>
-              <span>Download submission package</span>
-            </a>
-            <a className="rec-btn rec-btn--secondary" href={`/api/protocols/${id}/package?format=zip&version=${header.shown.id}`}>
-              <span>Download ZIP</span>
-            </a>
+            <PdfDownload
+              href={`/api/protocols/${id}/package?format=pdf&version=${header.shown.id}`}
+              label="Download submission package"
+            />
+            <PdfDownload
+              href={`/api/protocols/${id}/package?format=zip&version=${header.shown.id}`}
+              label="Download ZIP"
+              ready="Package ready"
+            />
           </div>
         ) : null}
         {children}

@@ -12,6 +12,7 @@ import {
   Library,
   ListChecks,
   Receipt,
+  Archive,
   ScrollText,
   Search,
   Send,
@@ -56,6 +57,7 @@ const staffItems: NavItem[] = [
   { href: "/app/reports", label: "Reports", icon: ChartColumn },
   { href: "/app/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/app/search", label: "Search", icon: Search },
+  { href: "/admin/retention", label: "Retention", icon: Archive },
 ];
 
 const chairItems: NavItem[] = [

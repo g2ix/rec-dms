@@ -7,6 +7,8 @@ import { transactionalMail, type TransactionalMail } from "@/server/mail";
 import { deliverEmailJob, deliverNotifyJob, recordNotice } from "@/server/notifications/deliver";
 import { claimReminder } from "@/server/notifications/reminders";
 import { generateDecisionDocuments } from "@/server/docs/generate";
+import { renderFormDocument } from "@/server/docs/render";
+import { processFileScan } from "@/server/scan/job";
 import { nextAuditAt, nextDigestAt } from "@/server/jobs/schedule";
 import { paragraphsOf } from "@/lib/notifications/render";
 import { renderNoticeHtml } from "@/server/mail";
@@ -57,20 +59,20 @@ export async function processDueJobs(options?: {
         FROM jobs
         WHERE done_at IS NULL
           AND run_at <= ${now}
-          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY', 'GENERATE_DOCUMENTS')
+          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY', 'GENERATE_DOCUMENTS', 'SCAN_FILE', 'CONVERT_PDF')
         ORDER BY run_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       `;
       const job = rows[0];
       if (!job) return "empty" as const;
-      if (job.kind === "GENERATE_DOCUMENTS") {
+      if (job.kind === "GENERATE_DOCUMENTS" || job.kind === "SCAN_FILE" || job.kind === "CONVERT_PDF") {
         const attempts = job.attempts + 1;
         await tx.job.update({
           where: { id: job.id },
           data: { attempts, runAt: new Date(now.getTime() + 2 * 60_000) },
         });
-        return { kind: "generate" as const, id: job.id, payload: job.payload, attempts };
+        return { kind: job.kind, id: job.id, payload: job.payload, attempts };
       }
       try {
         await dispatch(tx, job, now, mail);
@@ -99,14 +101,16 @@ export async function processDueJobs(options?: {
     if (outcome === "empty") break;
     if (typeof outcome === "object") {
       try {
-        await generateDecisionDocuments(outcome.payload);
-        await prisma.job.update({
-          where: { id: outcome.id },
-          data: { doneAt: new Date(), lastError: null },
-        });
+        const finished = await runExternal(outcome.kind, outcome.payload);
+        if (finished) {
+          await prisma.job.update({
+            where: { id: outcome.id },
+            data: { doneAt: new Date(), lastError: null },
+          });
+        }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Document generation failed.";
-        const terminal = outcome.attempts >= 5;
+        const message = error instanceof Error ? error.message : "The job failed.";
+        const terminal = outcome.attempts >= 5 && outcome.kind !== "SCAN_FILE";
         await prisma.job.update({
           where: { id: outcome.id },
           data: {
@@ -124,6 +128,25 @@ export async function processDueJobs(options?: {
     if (outcome === "failed") failed += 1;
   }
   return { processed, failed };
+}
+
+async function runExternal(kind: string, payload: unknown): Promise<boolean> {
+  if (kind === "GENERATE_DOCUMENTS") {
+    await generateDecisionDocuments(payload);
+    return true;
+  }
+  const record = asRecord(payload);
+  if (kind === "CONVERT_PDF") {
+    const instanceId = stringOf(record.instanceId);
+    const userId = stringOf(record.userId);
+    if (!instanceId || !userId) return true;
+    await renderFormDocument({ instanceId, format: "pdf", userId });
+    return true;
+  }
+  const fileId = stringOf(record.fileId);
+  if (!fileId) return true;
+  const result = await processFileScan(fileId, stringOf(record.startedAt) ?? new Date(0).toISOString());
+  return result !== "retry";
 }
 
 async function dispatch(tx: Tx, job: LockedJob, now: Date, mail: TransactionalMail): Promise<void> {
@@ -164,7 +187,34 @@ async function dispatch(tx: Tx, job: LockedJob, now: Date, mail: TransactionalMa
   await tx.job.create({ data: { kind: "AUDIT_VERIFY", payload: {}, runAt: nextAuditAt(new Date(now.getTime() + 60_000)) } });
 }
 
-async function sendDigests(tx: Tx, mail: TransactionalMail): Promise<void> {
+export async function runDigestBatch(): Promise<{ recipients: number }> {
+  return prisma.$transaction(async (tx) => {
+    await useAppSchema(tx);
+    const recipients = await sendDigests(tx, transactionalMail());
+    return { recipients };
+  });
+}
+
+export async function runAuditBatch(): Promise<{ ok: boolean; seq: string }> {
+  const result = await audit.verifyChain();
+  if (!result.ok) {
+    await prisma.$transaction(async (tx) => {
+      await useAppSchema(tx);
+      const userIds = await systemAdminIds(tx);
+      await recordNotice(tx, {
+        userIds,
+        templateKey: "audit.chain_broken",
+        link: "/admin/audit",
+        variables: { reason: `#${result.seq.toString()}` },
+        sendNow: true,
+      });
+    });
+  }
+  const seq = result.ok ? (result.seq === null ? "0" : result.seq.toString()) : result.seq.toString();
+  return { ok: result.ok, seq };
+}
+
+async function sendDigests(tx: Tx, mail: TransactionalMail): Promise<number> {
   const notices = await tx.notification.findMany({
     where: { emailStatus: "DIGEST" },
     orderBy: { createdAt: "asc" },
@@ -201,6 +251,7 @@ async function sendDigests(tx: Tx, mail: TransactionalMail): Promise<void> {
       data: { emailStatus: "SENT", emailedAt: new Date() },
     });
   }
+  return byUser.size;
 }
 
 async function markFailed(tx: Tx, job: LockedJob): Promise<void> {

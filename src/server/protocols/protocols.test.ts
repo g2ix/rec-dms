@@ -195,8 +195,10 @@ describe("protocols, collaboration, and versions", () => {
     const manuscript = await prisma.storedFile.findFirstOrThrow({
       where: { protocolVersionId: created.version.id, kind: "MANUSCRIPT" },
     });
-    const download = await downloadFile({ fileId: manuscript.id, userId: co.id });
+    await expect(downloadFile({ fileId: manuscript.id, userId: co.id })).rejects.toMatchObject({ code: "PENDING_SCAN" });
+    const download = await downloadFile({ fileId: manuscript.id, userId: staff.id });
     expect(download.url).toContain("http");
+    expect(download.warning).toMatch(/not been scanned/i);
     await changePanel(created.protocol.id, staff.id, otherPanel.id);
     const submitted = await submitVersion(created.protocol.id, leader.id);
     expect(submitted.label).toBe(created.version.label);

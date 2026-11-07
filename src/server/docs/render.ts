@@ -159,6 +159,22 @@ async function storeGenerated(input: {
   return file.id;
 }
 
+export async function cachedGeneratedPdf(instanceId: string): Promise<boolean> {
+  const instance = await prisma.formInstance.findUnique({
+    where: { id: instanceId },
+    select: { id: true, status: true, revision: true },
+  });
+  if (!instance) return false;
+  const cached = await prisma.storedFile.findFirst({
+    where: {
+      formInstanceId: instance.id,
+      ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind: "GENERATED_PDF" }),
+    },
+    select: { id: true },
+  });
+  return Boolean(cached);
+}
+
 export async function renderFormDocument(input: {
   instanceId: string;
   format: "docx" | "pdf";

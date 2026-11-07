@@ -101,6 +101,8 @@ model User {
   approvedById   String?    @map("approved_by_id")
   approvedAt     DateTime?  @map("approved_at")
   mergedIntoId   String?    @map("merged_into_id")
+  totpSecret     String?    @map("totp_secret")
+  totpEnabledAt  DateTime?  @map("totp_enabled_at")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
@@ -339,6 +341,7 @@ model Protocol {
   expectedParticipants Int?        @map("expected_participants")
   studySite            String      @default("") @map("study_site")
   fundingSources       Json        @default("[]") @map("funding_sources")
+  retentionFlaggedAt   DateTime?   @map("retention_flagged_at")
   createdById          String      @map("created_by_id")
   createdAt            DateTime    @default(now()) @map("created_at")
   updatedAt            DateTime    @updatedAt @map("updated_at")

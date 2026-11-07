@@ -1,9 +1,18 @@
-FROM gotenberg/gotenberg:8
+# Gotenberg 8.40.0 is the final 8.x release. Basic auth is enabled with
+# GOTENBERG_API_BASIC_AUTH_USERNAME and GOTENBERG_API_BASIC_AUTH_PASSWORD.
+# https://gotenberg.dev/docs/8.x/configuration
+FROM gotenberg/gotenberg:8.40.0
 
 USER root
-RUN echo "deb http://deb.debian.org/debian bookworm contrib" >> /etc/apt/sources.list \
+RUN set -eux \
+  && . /etc/os-release \
+  && echo "deb http://deb.debian.org/debian ${VERSION_CODENAME} contrib" > /etc/apt/sources.list.d/contrib.list \
   && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections \
   && apt-get update \
-  && apt-get install -y --no-install-recommends ttf-mscorefonts-installer \
+  && apt-get install -y --no-install-recommends ttf-mscorefonts-installer fontconfig \
+  && fc-cache -f \
   && rm -rf /var/lib/apt/lists/*
+
 USER gotenberg
+ENTRYPOINT ["gotenberg"]
+CMD ["--api-port-from-env=PORT", "--api-enable-basic-auth", "--api-timeout=60s", "--libreoffice-restart-after=10"]

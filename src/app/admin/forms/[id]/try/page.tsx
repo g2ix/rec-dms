@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { PdfDownload } from "@/components/docs/pdf-download";
 import { FormStatusBadge } from "@/components/forms/form-status";
 import { SandboxForm } from "@/components/forms/sandbox-form";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
@@ -54,17 +55,8 @@ export default async function TryFormPage({ params }: { params: Promise<{ id: st
         <a className="rec-btn rec-btn--secondary" href={`/api/forms/${instance.id}/document?format=docx`}>
           <span>Download Word</span>
         </a>
-        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${instance.id}/document?format=pdf`}>
-          <span>Download PDF</span>
-        </a>
-        <a
-          className="rec-btn rec-btn--secondary"
-          href={`/api/forms/${instance.id}/document?format=pdf&disposition=inline`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span>Print</span>
-        </a>
+        <PdfDownload href={`/api/forms/${instance.id}/document?format=pdf`} label="Download PDF" />
+        <PdfDownload href={`/api/forms/${instance.id}/document?format=pdf&disposition=inline`} label="Print" inline />
       </div>
       <SandboxForm
         definitionId={definition.id}

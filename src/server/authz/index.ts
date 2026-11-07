@@ -61,6 +61,10 @@ export async function authorize(
     throw new AppError("FORBIDDEN", forbiddenMessage(action), 403);
   }
 
+  if (action === "retention.review") {
+    if (await isCommitteeStaff(user.id)) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff can review retention.", 403);
+  }
   if (action === "task.reassign") {
     if (await isCommitteeStaff(user.id)) return;
     throw new AppError("FORBIDDEN", "Only REC Staff can reassign a task.", 403);

@@ -107,6 +107,7 @@ export async function requestExtensionAction(formData: FormData): Promise<void> 
   const user = await requireUser();
   const instanceId = z.string().uuid().parse(formData.get("instanceId"));
   const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+  await authorize(user, "protocol.submit", { type: "protocol", id: protocolId });
   try {
     await requestExtension(instanceId, user.id);
   } catch (error) {

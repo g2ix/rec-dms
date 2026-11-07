@@ -88,6 +88,18 @@ export async function submitVersion(protocolId: string, userId: string) {
     const version = await tx.protocolVersion.findFirst({ where: { protocolId, state: "WORKING" } });
     if (!version) throw new AppError("NOT_FOUND", "There is no working version to submit.", 404);
 
+    const blocked = await tx.storedFile.findFirst({
+      where: { protocolVersionId: version.id, scanStatus: "INFECTED" },
+      select: { originalName: true },
+    });
+    if (blocked) {
+      throw new AppError(
+        "INFECTED",
+        `Remove the blocked file “${blocked.originalName}” before submitting. The virus scan rejected it.`,
+        400,
+      );
+    }
+
     const routed = await tx.workflowInstance.findFirst({
       where: { protocolId, protocolVersionId: version.id, status: "RUNNING" },
       select: { id: true },

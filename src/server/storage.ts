@@ -2,6 +2,7 @@ import "server-only";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -83,6 +84,10 @@ export async function getSignedUploadUrl(
     }),
     { expiresIn: expiresInSeconds },
   );
+}
+
+export async function storageReachable(): Promise<void> {
+  await getS3Client().send(new ListObjectsV2Command({ Bucket: env.S3_BUCKET, MaxKeys: 1 }));
 }
 
 export async function deleteObject(key: string): Promise<void> {

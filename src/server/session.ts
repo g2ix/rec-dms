@@ -3,7 +3,7 @@ import { auth } from "@/server/auth";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 
-export async function requireUser() {
+export async function requireUser(options?: { totp?: boolean }) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) throw new AppError("UNAUTHENTICATED", "Sign in to continue.", 401);
@@ -14,6 +14,7 @@ export async function requireUser() {
   if (user.status === "SUSPENDED") {
     throw new AppError("SUSPENDED", "This account is suspended.", 403);
   }
+  if (options?.totp === false) return user;
   return user;
 }
 

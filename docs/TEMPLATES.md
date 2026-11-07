@@ -32,7 +32,7 @@ The Certificate of Approval is not in the set. When a release is Approved and `t
 
 ## PDF conversion
 
-`PDF_CONVERTER=soffice` uses local LibreOffice (`soffice --headless`). `PDF_CONVERTER=gotenberg` posts the docx to `$GOTENBERG_URL/forms/libreoffice/convert`. A secret with a colon is sent as Basic auth. Any other secret is a Bearer token. The request times out after 30 seconds and is tried once more.
+`PDF_CONVERTER=libreoffice-local` (the older name `soffice` still works) uses local LibreOffice (`soffice --headless`). `PDF_CONVERTER=gotenberg` posts the docx to `$GOTENBERG_URL/forms/libreoffice/convert` with basic auth from `GOTENBERG_USERNAME` and `GOTENBERG_PASSWORD`. The request times out after 90 seconds and is tried twice more on a 5xx or a timeout. On Vercel that work is a background job so a cold start does not hold the page.
 
 On the USC server, build the Gotenberg image in `docker/gotenberg`. It installs Times New Roman. See `docs/DEPLOY.md`.
 

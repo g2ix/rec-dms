@@ -86,6 +86,7 @@ export function UploadsPanel({
       setMessage(result.message);
       return;
     }
+    if (result.warning) setMessage(result.warning);
     window.open(result.url, "_blank", "noopener");
   }
 
@@ -112,14 +113,24 @@ export function UploadsPanel({
           <li key={file.id} className="rec-card rec-stack">
             <div className="rec-inline">
               <p className="label">{labelFor(file.kind)}</p>
-              <StatusBadge tone="info" label={file.scanStatus === "PENDING" ? "Scan pending" : file.scanStatus === "CLEAN" ? "Scan clear" : "Scan failed"} />
+              <StatusBadge
+                tone={file.scanStatus === "INFECTED" ? "danger" : file.scanStatus === "CLEAN" ? "success" : "info"}
+                label={file.scanStatus === "PENDING" ? "Scan pending" : file.scanStatus === "CLEAN" ? "Scan clear" : "Blocked"}
+              />
             </div>
             <p className="body">{file.originalName}</p>
             {file.suggestedName ? <p className="caption rec-muted">Suggested name {file.suggestedName}</p> : null}
             <p className="caption rec-muted">{Math.ceil(file.size / 1024)} KB</p>
-            <Button type="button" onClick={() => void openFile(file.id)}>
-              Download
-            </Button>
+            {file.scanStatus === "PENDING" ? (
+              <p className="caption">Waiting for the virus scan. REC Staff can download it, with a warning, until the scan finishes.</p>
+            ) : null}
+            {file.scanStatus === "INFECTED" ? (
+              <p className="caption">This file is blocked. It cannot be downloaded or included in a submission.</p>
+            ) : (
+              <Button type="button" onClick={() => void openFile(file.id)}>
+                Download
+              </Button>
+            )}
           </li>
         ))}
       </ul>

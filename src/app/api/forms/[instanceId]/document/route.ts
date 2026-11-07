@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { env } from "@/lib/env";
 import { authorize } from "@/server/authz";
 import { prisma } from "@/server/db";
-import { recordDocumentDownload, renderFormDocument } from "@/server/docs/render";
+import { cachedGeneratedPdf, recordDocumentDownload, renderFormDocument } from "@/server/docs/render";
 import { errorResponse, fileResponse } from "@/server/docs/response";
 import { AppError } from "@/server/errors";
+import { enqueuePdfConversion } from "@/server/scan/job";
 import { requireUser } from "@/server/session";
 
 export async function GET(request: Request, context: { params: Promise<{ instanceId: string }> }) {
@@ -28,6 +30,15 @@ export async function GET(request: Request, context: { params: Promise<{ instanc
     const url = new URL(request.url);
     const format = url.searchParams.get("format") === "pdf" ? "pdf" : "docx";
     const inline = url.searchParams.get("disposition") === "inline";
+    const probe = url.searchParams.get("probe") === "1";
+    if (format === "pdf" && env.pdfConverter === "gotenberg" && !(await cachedGeneratedPdf(instanceId))) {
+      await enqueuePdfConversion(instanceId, user.id);
+      return NextResponse.json({ state: "pending" }, { status: 202 });
+    }
+    if (probe) {
+      await renderFormDocument({ instanceId, format, userId: user.id });
+      return NextResponse.json({ state: "ready" });
+    }
     const rendered = await renderFormDocument({ instanceId, format, userId: user.id });
     await recordDocumentDownload({
       fileId: rendered.fileId,

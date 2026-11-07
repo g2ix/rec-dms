@@ -99,6 +99,8 @@ export function SidebarPanel({
             <DropdownMenuItem render={<Link href="/app/account/signature" />}>My signature</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/notifications" />}>Notification preferences</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href="/app/account/security" />}>Authenticator</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href="/app/account/data" />}>Your data</DropdownMenuItem>
             <form action={signOutAction}>
               <DropdownMenuItem nativeButton render={<button type="submit" />}>
                 Sign out
@@ -123,7 +125,8 @@ function RoleSwitch({ roleView, roleViews }: { roleView: RoleView; roleViews: Ro
   }
 
   function select(view: RoleView) {
-    document.cookie = `activeView=${view}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `activeView=${view}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
     router.refresh();
   }
 
