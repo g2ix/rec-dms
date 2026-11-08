@@ -11,6 +11,7 @@ const SELF_FUNCTIONS = new Set([
   "markAllReadAction",
   "saveNotificationPreference",
   "saveSignatureAction",
+  "saveProfileAction",
   "sendSigningCodeAction",
   "acceptInviteAction",
 ]);

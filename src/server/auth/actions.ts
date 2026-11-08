@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AuditAction } from "@/lib/audit-log";
 import { postSignInPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
-import { affiliationSchema } from "@/lib/auth-schemas";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
 import { codeSchema, emailOnlySchema, signInSchema, signUpSchema } from "@/lib/auth-schemas";
@@ -24,6 +23,7 @@ import { decidePendingUser, ensureVerifiedEmail } from "@/server/auth/users";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
+import { affiliationFromForm, savePersonProfile } from "@/server/profiles/profile";
 
 function optionalCount(value: FormDataEntryValue | null, label: string): number | null {
   const text = String(value ?? "").trim();
@@ -113,10 +113,15 @@ export async function sendMagicLink(_prev: ActionState, formData: FormData): Pro
 
 export async function signUpAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
+    const titleChoice = String(formData.get("title") ?? "");
+    const suffixChoice = String(formData.get("suffix") ?? "");
     const parsed = signUpSchema.parse({
       firstName: formData.get("firstName"),
-      middleInitial: formData.get("middleInitial") ?? "",
+      middleName: formData.get("middleName") ?? "",
       familyName: formData.get("familyName"),
+      title: titleChoice === "other" ? formData.get("titleOther") : titleChoice,
+      suffix: suffixChoice === "other" ? formData.get("suffixOther") : suffixChoice,
+      credentials: formData.get("credentials") ?? "",
       email: formData.get("email"),
       password: formData.get("password"),
     });
@@ -314,22 +319,16 @@ export async function adminMergeAction(_prev: ActionState, formData: FormData): 
 export async function createProtocolAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const user = await requireUser();
-    const kind = formData.get("kind") === "FACULTY" ? "FACULTY" : "STUDENT";
-    const affiliation = affiliationSchema.parse({
-      kind,
-      course: formData.get("course"),
-      yearLabel: formData.get("yearLabel"),
-      position: formData.get("position"),
-      unit: formData.get("unit"),
-      institution: formData.get("institution"),
-      contactEmailId: formData.get("contactEmailId"),
-    });
+    const resolved = await affiliationFromForm(formData);
+    if (resolved.draft && formData.get("saveToProfile") === "yes") {
+      await savePersonProfile(user.id, resolved.draft);
+    }
     const title = z.string().trim().min(1, "Enter the protocol title.").max(300).parse(formData.get("title"));
     const disciplineId = z.string().uuid("Choose a discipline.").parse(formData.get("disciplineId"));
     const researchType = z.string().trim().min(1, "Enter the research type.").max(160).parse(formData.get("researchType"));
     const created = await createProtocolForUser(user.id, {
       title,
-      affiliation,
+      affiliation: resolved.affiliation,
       disciplineId,
       institutionAddress: String(formData.get("institutionAddress") ?? ""),
       researchType,

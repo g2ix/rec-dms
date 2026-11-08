@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
+import { ProfileForm } from "@/components/account/profile-form";
+import { ProfileFields } from "@/components/account/profile-fields";
 import {
   acceptInviteAction,
   inviteMemberAction,
@@ -9,11 +11,12 @@ import {
   transferLeadershipAction,
 } from "@/server/protocols/actions";
 import type { ActionState } from "@/server/action-state";
+import type { OrgCatalog, PersonProfileView, ProfileKind } from "@/lib/profile";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Radio, RadioGroup } from "@/components/ui/radio";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 type EmailOption = { id: string; email: string; isContact: boolean };
@@ -28,18 +31,35 @@ type Row = {
   rosterOrder: number;
 };
 
+type NameInitial = {
+  title?: string;
+  firstName?: string;
+  middleName?: string;
+  familyName?: string;
+  suffix?: string;
+  credentials?: string;
+};
+
 export function MembersPanel({
   protocolId,
   members,
   canManage,
   invite,
   emails,
+  profile,
+  catalog,
+  suggestedKind,
+  name,
 }: {
   protocolId: string;
   members: Row[];
   canManage: boolean;
   invite: Row | null;
   emails: EmailOption[];
+  profile: PersonProfileView | null;
+  catalog: OrgCatalog;
+  suggestedKind: ProfileKind | null;
+  name: NameInitial;
 }) {
   return (
     <div className="rec-stack">
@@ -92,7 +112,19 @@ export function MembersPanel({
           </li>
         ))}
       </ol>
-      {invite ? <AcceptForm protocolId={protocolId} emails={emails} /> : null}
+      {invite && !profile ? (
+        <ProfileForm
+          name={name}
+          catalog={catalog}
+          profile={null}
+          suggestedKind={suggestedKind}
+          protocolId={protocolId}
+          intro="Save your details, then accept the invitation. The designation that prints comes from these details."
+        />
+      ) : null}
+      {invite && profile ? (
+        <AcceptForm protocolId={protocolId} emails={emails} profile={profile} catalog={catalog} />
+      ) : null}
       {canManage ? <InviteForm protocolId={protocolId} /> : null}
     </div>
   );
@@ -125,13 +157,22 @@ function InviteForm({ protocolId }: { protocolId: string }) {
   );
 }
 
-function AcceptForm({ protocolId, emails }: { protocolId: string; emails: EmailOption[] }) {
+function AcceptForm({
+  protocolId,
+  emails,
+  profile,
+  catalog,
+}: {
+  protocolId: string;
+  emails: EmailOption[];
+  profile: PersonProfileView;
+  catalog: OrgCatalog;
+}) {
   const [state, action, pending] = useActionState(acceptInviteAction, null);
-  const [kind, setKind] = useState<"STUDENT" | "FACULTY">("STUDENT");
   return (
     <form action={action} className="rec-form">
       <h2 className="heading">Accept invitation</h2>
-      <p className="body-sm rec-muted">Add the designation that should print on the forms.</p>
+      <p className="body-sm rec-muted">Confirm the designation that should print on the forms. A correction here stays on this protocol.</p>
       {(state as ActionState)?.error ? (
         <p className="rec-alert" role="alert">
           {(state as ActionState)?.error}
@@ -150,32 +191,8 @@ function AcceptForm({ protocolId, emails }: { protocolId: string; emails: EmailO
       <Field label="Contact number" htmlFor="accept-phone" optional>
         <Input id="accept-phone" name="contactNumber" inputMode="tel" />
       </Field>
-      <RadioGroup label="Designation">
-        <Radio name="kind" value="STUDENT" label="Student" checked={kind === "STUDENT"} onChange={() => setKind("STUDENT")} />
-        <Radio name="kind" value="FACULTY" label="Faculty or staff" checked={kind === "FACULTY"} onChange={() => setKind("FACULTY")} />
-      </RadioGroup>
-      {kind === "STUDENT" ? (
-        <>
-          <Field label="Course" htmlFor="accept-course">
-            <Input id="accept-course" name="course" required />
-          </Field>
-          <Field label="Year" htmlFor="accept-year">
-            <Input id="accept-year" name="yearLabel" required />
-          </Field>
-        </>
-      ) : (
-        <>
-          <Field label="Position" htmlFor="accept-position">
-            <Input id="accept-position" name="position" required />
-          </Field>
-          <Field label="Unit" htmlFor="accept-unit">
-            <Input id="accept-unit" name="unit" required />
-          </Field>
-        </>
-      )}
-      <Field label="Institution" htmlFor="accept-institution">
-        <Input id="accept-institution" name="institution" required />
-      </Field>
+      <ProfileFields catalog={catalog} initial={profile} idPrefix="accept" includeInstitution />
+      <Checkbox name="saveToProfile" value="yes" label="Save these affiliation details to my profile" />
       <BusyButton type="submit" variant="primary" busy={pending} busyLabel="Accepting…">
         Accept invitation
       </BusyButton>

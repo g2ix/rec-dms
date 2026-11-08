@@ -9,13 +9,16 @@ const namePart = z
 
 export const signUpSchema = z.object({
   firstName: namePart,
-  middleInitial: z
+  middleName: z
     .string()
     .trim()
-    .max(2)
-    .regex(/^[A-Za-z]{0,2}$/, "Use one or two letters.")
+    .max(80)
+    .regex(/^[\p{L}][\p{L}\s.'-]*$/u, "Use letters, spaces, apostrophes, or hyphens.")
     .optional()
     .or(z.literal("")),
+  title: z.string().trim().max(40).optional().or(z.literal("")),
+  suffix: z.string().trim().max(20).optional().or(z.literal("")),
+  credentials: z.string().trim().max(120).optional().or(z.literal("")),
   familyName: namePart,
   email: z.string().trim().email("Enter a valid email address.").max(200),
   password: z.string().min(12, "Use at least 12 characters.").max(200),

@@ -42,6 +42,14 @@ One person = one account, reachable through several linked sign-in identities, h
 - Anyone can self-register. Accounts with a verified `@usc.edu.ph` email are active immediately.
 - Other emails (external researchers, outside advisers) are `PENDING_APPROVAL` until REC Staff approves them. Pending users can sign in and draft, but cannot submit.
 
+**Name and affiliation**
+
+- A name is stored in parts: title (Mr, Ms, Engr., Dr, Prof., and similar), first name, middle name, family name, suffix (Jr, II, III), and credentials (PhD, MSIT, MEng, CPA, and similar). Credentials are a list. The person enters the middle name once. Screens show the short name (`Juan D. Cruz`), using the first letter of that middle name. REC forms print the formal name (`Engr. Juan D. Cruz Jr., PhD`). The stored middle initial is that letter, rewritten from the middle name. An older account that has only a letter shows that letter in the middle-name field.
+- Affiliation is one current profile on the person, not a column on the account type. The kinds are USC student, student at another institution, USC faculty, USC staff, outside adviser, and industry partner. Proponent and adviser stay protocol roles. The same faculty profile can be copied onto a protocol as leader or as adviser.
+- USC organization data is `institutions` and `org_units` (school, department, office, program). The seed loads the named USC schools and the named Arts and Sciences departments. A unit that is not in the list is stored as text. `Discipline` remains the REC panel and is not a school.
+- Creating a protocol or accepting an invitation requires a saved profile, then copies it onto the membership (institution, school, department, office, program, year, position, and the printed designation). A correction on that protocol does not change the profile unless the person asks to save it. A submitted protocol keeps the copied designation.
+- A `@usc.edu.ph` address is still approved from the domain alone. The local part only suggests a form: digits suggest a student, `firstname.lastname` suggests faculty or staff. An imported directory row matched on the verified email wins, and fills the profile on account creation. The import is a function. There is no admin upload screen in this slice.
+
 **Roles**
 
 Roles are rows in the database, not an enum, so REC can add roles later. Seed roles:

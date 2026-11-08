@@ -10,6 +10,7 @@ import {
   verifyEmailAction,
 } from "@/server/auth/actions";
 import type { ActionState } from "@/server/action-state";
+import { NameFields } from "@/components/account/name-fields";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -83,17 +84,9 @@ export function SignUpForm({ defaultEmail = "" }: { defaultEmail?: string }) {
   return (
     <form action={action} className="auth-form">
       <h2 className="heading">Create an account</h2>
-      <p className="body-sm rec-muted">Name as it should appear on REC forms, for example Juan D. Cruz.</p>
+      <p className="body-sm rec-muted">The short name on screens is Juan D. Cruz. Titles and degrees print on the REC forms.</p>
       <FormError state={state} />
-      <Field label="First name" htmlFor="first-name">
-        <Input id="first-name" name="firstName" autoComplete="given-name" required />
-      </Field>
-      <Field label="Middle initial" htmlFor="middle-initial" optional>
-        <Input id="middle-initial" name="middleInitial" maxLength={2} autoComplete="additional-name" />
-      </Field>
-      <Field label="Family name" htmlFor="family-name">
-        <Input id="family-name" name="familyName" autoComplete="family-name" required />
-      </Field>
+      <NameFields />
       <Field label="Email" htmlFor="sign-up-email">
         <Input id="sign-up-email" name="email" type="email" autoComplete="email" required defaultValue={defaultEmail} />
       </Field>

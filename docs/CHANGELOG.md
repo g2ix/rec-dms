@@ -1,5 +1,20 @@
 # Changelog
 
+## Names and affiliation profiles (2026-11-08)
+
+A person's name is stored in parts: title, first name, middle name, family name, suffix, and a list of credentials. The person enters the middle name once. Screens and submitted forms use the first letter of that name for the short form (`Juan D. Cruz`). The stored middle initial is that letter, not a second answer. Submitted forms also print the title and degrees.
+
+Affiliation is a profile on the person. The kinds are USC student, outside student, USC faculty, USC staff, outside adviser, and industry partner. Proponent and adviser remain protocol roles. Schools, departments, offices, and programs are organization rows. The seed loads School of Engineering, School of Arts and Sciences, School of Architecture, School of Fine Arts and Design, School of Law and Governance, and under Arts and Sciences the departments DCLL, DCISM, Biology, and Physics.
+
+Sign-up still asks for the name and the email. The profile is saved before a protocol is created or an invitation is accepted, then copied onto that membership. A later profile edit does not rewrite a submitted protocol. A `@usc.edu.ph` address is still activated from the domain. The shape of the address only suggests which form to open. `importDirectory` links a registrar or HR row to the account on creation when the verified email matches. No roster is seeded.
+
+### Deviation from the spec
+
+- Credentials are a text array. The name and the affiliation are columns and foreign keys, not a JSON document.
+- The membership still records `STUDENT` or `FACULTY` so existing form and workflow branches keep working. The specific kind is `profileKind`.
+- The directory import is a function. An admin screen for the organization list and a CSV upload are not in this slice.
+- Only the schools and departments named above are seeded.
+
 ## M12 — Hardening and deployment (2026-11-07)
 
 The deployment is Vercel in Singapore, a separate Supabase project in Singapore, and Google Cloud Run in Singapore for PDF conversion, virus scanning, and the nightly backup. Cloud Scheduler calls the cron routes. There is no on-prem server. The old compose file is in `deploy/archive/usc-server/` with a note that it is not used.

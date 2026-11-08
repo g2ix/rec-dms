@@ -117,7 +117,8 @@ export default async function SignInMethodsPage({
 
       <PasswordForm hasPassword={methods.hasPassword} />
       <p className="body-sm">
-        <Link href="/app/protocols/new">Create a protocol</Link> and choose the contact email and designation for that protocol.
+        <Link href="/app/account/profile">Your details</Link> are copied onto a protocol when you{" "}
+        <Link href="/app/protocols/new">create one</Link>.
       </p>
     </article>
   );

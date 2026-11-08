@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { formatDesignation } from "@/lib/affiliation";
-import { affiliationSchema } from "@/lib/auth-schemas";
+import { affiliationFromForm, savePersonProfile } from "@/server/profiles/profile";
 import { actionError, isNextRedirect, type ActionState } from "@/server/action-state";
 import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
@@ -43,16 +42,11 @@ export async function acceptInviteAction(_prev: ActionState, formData: FormData)
   try {
     const user = await requireUser();
     const id = protocolId(formData);
-    const kind = formData.get("kind") === "FACULTY" ? "FACULTY" : "STUDENT";
-    const affiliation = affiliationSchema.parse({
-      kind,
-      course: formData.get("course"),
-      yearLabel: formData.get("yearLabel"),
-      position: formData.get("position"),
-      unit: formData.get("unit"),
-      institution: formData.get("institution"),
-      contactEmailId: formData.get("contactEmailId"),
-    });
+    const resolved = await affiliationFromForm(formData);
+    if (resolved.draft && formData.get("saveToProfile") === "yes") {
+      await savePersonProfile(user.id, resolved.draft);
+    }
+    const affiliation = resolved.affiliation;
     await acceptInvite({
       protocolId: id,
       userId: user.id,
@@ -64,7 +58,13 @@ export async function acceptInviteAction(_prev: ActionState, formData: FormData)
       position: affiliation.kind === "FACULTY" ? affiliation.position : null,
       unit: affiliation.kind === "FACULTY" ? affiliation.unit : null,
       institution: affiliation.institution,
-      designation: formatDesignation(affiliation),
+      designation: affiliation.designationText,
+      profileKind: affiliation.profileKind,
+      academicLevel: affiliation.academicLevel,
+      schoolName: affiliation.schoolName,
+      departmentName: affiliation.departmentName,
+      officeName: affiliation.officeName,
+      programName: affiliation.programName,
     });
     revalidatePath(`/app/protocols/${id}`);
     return null;

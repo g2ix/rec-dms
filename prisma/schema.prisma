@@ -50,6 +50,18 @@ enum AffiliationKind {
   FACULTY
 }
 
+enum OrgUnitKind {
+  SCHOOL
+  DEPARTMENT
+  OFFICE
+  PROGRAM
+}
+
+enum AcademicLevel {
+  UNDERGRADUATE
+  GRADUATE
+}
+
 enum ReviewType {
   EXEMPT
   EXPEDITED
@@ -88,8 +100,12 @@ enum FeeStatus {
 model User {
   id             String     @id @default(uuid())
   firstName      String     @map("first_name")
+  middleName     String?    @map("middle_name")
   middleInitial  String?    @map("middle_initial")
   familyName     String     @map("family_name")
+  title          String?
+  suffix         String?
+  credentials    String[]   @default([])
   displayName    String     @map("display_name")
   name           String?
   email          String?    @unique
@@ -139,6 +155,8 @@ model User {
   presence               Presence[]
   uploadIntents          UploadIntent[]
   invitationsSent        ProtocolMember[]     @relation("MemberInviter")
+  profile                PersonProfile?
+  directoryEntry         DirectoryEntry?
 
   @@index([status])
   @@index([mergedIntoId])
@@ -379,6 +397,12 @@ model ProtocolMember {
   unit            String?
   institution     String             @default("")
   designation     String             @default("")
+  profileKind     String?            @map("profile_kind")
+  academicLevel   AcademicLevel?     @map("academic_level")
+  schoolName      String?            @map("school_name")
+  departmentName  String?            @map("department_name")
+  officeName      String?            @map("office_name")
+  programName     String?            @map("program_name")
   contactNumber   String?            @map("contact_number")
   invitedEmail    String?            @map("invited_email")
   invitedById     String?            @map("invited_by_id")
@@ -899,4 +923,111 @@ model FormFieldRevision {
   @@index([formInstanceId, fieldPath])
   @@index([formInstanceId, revision])
   @@map("form_field_revisions")
+}
+
+/// A university, an outside school, or a company. USC is one row.
+model Institution {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  category  String   @default("UNIVERSITY")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  units      OrgUnit[]
+  profiles   PersonProfile[]
+  directory  DirectoryEntry[]
+
+  @@map("institutions")
+}
+
+/// School, department, office, or program. Programs carry an academic level.
+model OrgUnit {
+  id            String         @id @default(uuid())
+  institutionId String         @map("institution_id")
+  parentId      String?        @map("parent_id")
+  kind          OrgUnitKind
+  name          String
+  code          String         @unique
+  academicLevel AcademicLevel? @map("academic_level")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  parent      OrgUnit?    @relation("OrgTree", fields: [parentId], references: [id])
+  children    OrgUnit[]   @relation("OrgTree")
+
+  profileSchools       PersonProfile[]  @relation("ProfileSchool")
+  profileDepartments   PersonProfile[]  @relation("ProfileDepartment")
+  profileOffices       PersonProfile[]  @relation("ProfileOffice")
+  profilePrograms      PersonProfile[]  @relation("ProfileProgram")
+  directorySchools     DirectoryEntry[] @relation("DirectorySchool")
+  directoryDepartments DirectoryEntry[] @relation("DirectoryDepartment")
+  directoryOffices     DirectoryEntry[] @relation("DirectoryOffice")
+  directoryPrograms    DirectoryEntry[] @relation("DirectoryProgram")
+
+  @@index([institutionId])
+  @@index([parentId])
+  @@map("org_units")
+}
+
+/// The person's current affiliation. A protocol membership copies it at the time of joining.
+model PersonProfile {
+  id              String         @id @default(uuid())
+  userId          String         @unique @map("user_id")
+  kind            String
+  institutionId   String?        @map("institution_id")
+  schoolId        String?        @map("school_id")
+  departmentId    String?        @map("department_id")
+  officeId        String?        @map("office_id")
+  programId       String?        @map("program_id")
+  institutionText String         @default("") @map("institution_text")
+  unitText        String         @default("") @map("unit_text")
+  programText     String         @default("") @map("program_text")
+  academicLevel   AcademicLevel? @map("academic_level")
+  yearLabel       String?        @map("year_label")
+  position        String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  school      OrgUnit?     @relation("ProfileSchool", fields: [schoolId], references: [id], onDelete: SetNull)
+  department  OrgUnit?     @relation("ProfileDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  office      OrgUnit?     @relation("ProfileOffice", fields: [officeId], references: [id], onDelete: SetNull)
+  program     OrgUnit?     @relation("ProfileProgram", fields: [programId], references: [id], onDelete: SetNull)
+
+  @@index([kind])
+  @@map("person_profiles")
+}
+
+/// An imported registrar or HR row, matched by verified email on account creation.
+model DirectoryEntry {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  studentNumber   String?        @map("student_number")
+  kind            String
+  institutionId   String?        @map("institution_id")
+  schoolId        String?        @map("school_id")
+  departmentId    String?        @map("department_id")
+  officeId        String?        @map("office_id")
+  programId       String?        @map("program_id")
+  institutionText String         @default("") @map("institution_text")
+  unitText        String         @default("") @map("unit_text")
+  programText     String         @default("") @map("program_text")
+  academicLevel   AcademicLevel? @map("academic_level")
+  yearLabel       String?        @map("year_label")
+  position        String?
+  linkedUserId    String?        @unique @map("linked_user_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  school      OrgUnit?     @relation("DirectorySchool", fields: [schoolId], references: [id], onDelete: SetNull)
+  department  OrgUnit?     @relation("DirectoryDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  office      OrgUnit?     @relation("DirectoryOffice", fields: [officeId], references: [id], onDelete: SetNull)
+  program     OrgUnit?     @relation("DirectoryProgram", fields: [programId], references: [id], onDelete: SetNull)
+  linkedUser  User?        @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@index([kind])
+  @@map("directory_entries")
 }

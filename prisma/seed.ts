@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { TEMPLATES } from "../src/lib/notifications/catalog";
+import { installUscOrg } from "../src/lib/org/usc-seed";
 import { installUscRec } from "./seed/usc-rec/install";
 
 const prisma = new PrismaClient();
@@ -68,6 +69,7 @@ async function main() {
     }
   }
 
+  await installUscOrg(prisma);
   await installUscRec(prisma);
   for (const template of TEMPLATES) {
     await prisma.notificationTemplate.upsert({

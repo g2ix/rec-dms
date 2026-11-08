@@ -48,8 +48,11 @@ describe("registration approval", () => {
     await startRegistration(
       {
         firstName: "Ana",
-        middleInitial: "B",
+        middleName: "Belen",
         familyName: "Reyes",
+        title: "Engr.",
+        suffix: "Jr",
+        credentials: "PhD, MSIT",
         email: "ana.reyes@usc.edu.ph",
         password: STRONG_PASSWORD,
       },
@@ -69,6 +72,12 @@ describe("registration approval", () => {
     const usc = await confirmRegistration("ana.reyes@usc.edu.ph", uscCode);
     const gmail = await confirmRegistration("ana.reyes@gmail.com", gmailCode);
     expect(usc.status).toBe("ACTIVE");
+    expect(usc.title).toBe("Engr.");
+    expect(usc.middleName).toBe("Belen");
+    expect(usc.middleInitial).toBe("B");
+    expect(usc.suffix).toBe("Jr");
+    expect(usc.credentials).toEqual(["PhD", "MSIT"]);
+    expect(usc.displayName).toBe("Ana B. Reyes");
     expect(gmail.status).toBe("PENDING_APPROVAL");
   });
 });

@@ -1,6 +1,7 @@
 import "server-only";
 import type { AffiliationKind, ProtocolMemberRole } from "@prisma/client";
 import { bindMembershipPrint, formatDesignation, type Affiliation } from "@/lib/affiliation";
+import { formatFormalName } from "@/lib/display-name";
 import { AuditAction } from "@/lib/audit-log";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
@@ -9,7 +10,39 @@ import { toJson } from "@/server/forms/json";
 import { ensureWorkingForms, openWorkingVersion } from "@/server/protocols/versions";
 import { maybeStartInitial } from "@/server/workflow/engine";
 
-type StoredAffiliation = Affiliation & { contactEmailId: string };
+type StoredAffiliation = {
+  kind: "STUDENT" | "FACULTY";
+  course?: string;
+  yearLabel?: string;
+  position?: string;
+  unit?: string;
+  institution: string;
+  contactEmailId: string;
+  profileKind?: string | null;
+  academicLevel?: "UNDERGRADUATE" | "GRADUATE" | null;
+  schoolName?: string | null;
+  departmentName?: string | null;
+  officeName?: string | null;
+  programName?: string | null;
+  designationText?: string | null;
+};
+
+function asAffiliation(affiliation: StoredAffiliation): Affiliation {
+  if (affiliation.kind === "STUDENT") {
+    return {
+      kind: "STUDENT",
+      course: affiliation.course ?? "",
+      yearLabel: affiliation.yearLabel ?? "",
+      institution: affiliation.institution,
+    };
+  }
+  return {
+    kind: "FACULTY",
+    position: affiliation.position ?? "",
+    unit: affiliation.unit ?? "",
+    institution: affiliation.institution,
+  };
+}
 
 async function ownedEmail(userId: string, emailId: string) {
   const email = await prisma.userEmail.findFirst({
@@ -19,15 +52,21 @@ async function ownedEmail(userId: string, emailId: string) {
   return email;
 }
 
-function columns(affiliation: Affiliation) {
+function columns(affiliation: StoredAffiliation) {
   return {
     affiliationKind: affiliation.kind as AffiliationKind,
-    course: affiliation.kind === "STUDENT" ? affiliation.course : null,
-    yearLabel: affiliation.kind === "STUDENT" ? affiliation.yearLabel : null,
-    position: affiliation.kind === "FACULTY" ? affiliation.position : null,
-    unit: affiliation.kind === "FACULTY" ? affiliation.unit : null,
+    course: affiliation.kind === "STUDENT" ? affiliation.course ?? null : null,
+    yearLabel: affiliation.kind === "STUDENT" ? affiliation.yearLabel ?? null : null,
+    position: affiliation.kind === "FACULTY" ? affiliation.position ?? null : null,
+    unit: affiliation.kind === "FACULTY" ? affiliation.unit ?? null : null,
     institution: affiliation.institution,
-    designation: formatDesignation(affiliation),
+    designation: affiliation.designationText?.trim() || formatDesignation(asAffiliation(affiliation)),
+    profileKind: affiliation.profileKind ?? null,
+    academicLevel: affiliation.academicLevel ?? null,
+    schoolName: affiliation.schoolName ?? null,
+    departmentName: affiliation.departmentName ?? null,
+    officeName: affiliation.officeName ?? null,
+    programName: affiliation.programName ?? null,
   };
 }
 
@@ -188,9 +227,14 @@ export async function membershipPrint(memberId: string) {
           unit: member.unit ?? "",
           institution: member.institution,
         };
-  return bindMembershipPrint({
+  const printed = bindMembershipPrint({
     name: member.user.displayName,
     email: member.contactEmail.email,
     affiliation,
   });
+  return {
+    ...printed,
+    name: formatFormalName(member.user),
+    designation: member.designation || printed.designation,
+  };
 }

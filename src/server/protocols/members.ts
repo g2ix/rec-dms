@@ -123,6 +123,12 @@ export async function acceptInvite(input: {
   unit?: string | null;
   institution: string;
   designation: string;
+  profileKind?: string | null;
+  academicLevel?: "UNDERGRADUATE" | "GRADUATE" | null;
+  schoolName?: string | null;
+  departmentName?: string | null;
+  officeName?: string | null;
+  programName?: string | null;
 }) {
   const meta = await auditRequestMeta({});
   return prisma.$transaction(async (tx) => {
@@ -148,6 +154,12 @@ export async function acceptInvite(input: {
         unit: input.affiliationKind === "FACULTY" ? input.unit : null,
         institution: input.institution,
         designation: input.designation,
+        profileKind: input.profileKind ?? null,
+        academicLevel: input.academicLevel ?? null,
+        schoolName: input.schoolName ?? null,
+        departmentName: input.departmentName ?? null,
+        officeName: input.officeName ?? null,
+        programName: input.programName ?? null,
       },
     });
     await audit.record(tx, {

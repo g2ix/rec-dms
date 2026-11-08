@@ -15,6 +15,7 @@ export async function exportUserData(userId: string) {
         select: { id: true, version: true, active: true, createdAt: true },
         orderBy: { version: "asc" },
       },
+      profile: { include: { institution: true, school: true, department: true, office: true, program: true } },
     },
   });
   if (!user) throw new AppError("NOT_FOUND", "That account was not found.", 404);
@@ -22,12 +23,29 @@ export async function exportUserData(userId: string) {
     exportedAt: new Date().toISOString(),
     profile: {
       id: user.id,
+      title: user.title,
       firstName: user.firstName,
+      middleName: user.middleName,
       middleInitial: user.middleInitial,
       familyName: user.familyName,
+      suffix: user.suffix,
+      credentials: user.credentials,
       displayName: user.displayName,
       status: user.status,
       createdAt: user.createdAt.toISOString(),
+      affiliation: user.profile
+        ? {
+            kind: user.profile.kind,
+            academicLevel: user.profile.academicLevel,
+            institution: user.profile.institution?.name || user.profile.institutionText,
+            school: user.profile.school?.name ?? null,
+            department: user.profile.department?.name ?? (user.profile.unitText || null),
+            office: user.profile.office?.name ?? null,
+            program: user.profile.program?.name || user.profile.programText || null,
+            yearLabel: user.profile.yearLabel,
+            position: user.profile.position,
+          }
+        : null,
     },
     emails: user.emails.map((email) => ({
       email: email.email,

@@ -89,12 +89,19 @@ export function AppShell({
             </DialogPrimitive.Portal>
           </DialogPrimitive.Root>
           <nav aria-label="Breadcrumb">
-            <ol className="rec-crumbs">
-              <li>
-                <Link href="/app">REC-DMS</Link>
-              </li>
-              <li aria-current="page">{pageTitle ?? page?.title ?? "Page"}</li>
-            </ol>
+            {pathname === "/app/account/profile" ? (
+              <ol className="rec-crumbs rec-crumbs--section">
+                <li>Account</li>
+                <li aria-current="page">Your details</li>
+              </ol>
+            ) : (
+              <ol className="rec-crumbs">
+                <li>
+                  <Link href="/app">REC-DMS</Link>
+                </li>
+                <li aria-current="page">{pageTitle ?? page?.title ?? "Page"}</li>
+              </ol>
+            )}
           </nav>
           {roleView === "staff" || roleView === "chair" || roleView === "panel-chair" ? (
             <form className="rec-search" action="/app/search" method="get" role="search">

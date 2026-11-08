@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
+import { formatFormalName } from "@/lib/display-name";
 import { formatManila } from "@/lib/time";
 import { audit, diffOf } from "@/server/audit";
 import { AppError } from "@/server/errors";
@@ -12,9 +13,32 @@ type MemberRow = {
   rosterOrder: number;
   contactNumber: string | null;
   designation: string;
-  user: { displayName: string } | null;
+  user: {
+    displayName: string;
+    title?: string | null;
+    firstName?: string;
+    middleName?: string | null;
+    middleInitial?: string | null;
+    familyName?: string;
+    suffix?: string | null;
+    credentials?: string[] | null;
+  } | null;
   contactEmail: { email: string } | null;
 };
+
+function researcherName(user: MemberRow["user"]): string {
+  if (!user) return "";
+  if (!user.firstName || !user.familyName) return user.displayName;
+  return formatFormalName({
+    title: user.title,
+    firstName: user.firstName,
+    middleName: user.middleName,
+    middleInitial: user.middleInitial,
+    familyName: user.familyName,
+    suffix: user.suffix,
+    credentials: user.credentials,
+  });
+}
 
 export function sharedSnapshot(
   protocol: {
@@ -41,7 +65,7 @@ export function sharedSnapshot(
     "protocol.code": protocol.code,
     "protocol.title": protocol.title,
     "protocol.versionLabel": label,
-    "protocol.researchers": proponents.map((member) => member.user?.displayName ?? ""),
+    "protocol.researchers": proponents.map((member) => researcherName(member.user)),
     "protocol.contactNumbers": proponents.map((member) => member.contactNumber).filter((value): value is string => Boolean(value)),
     "protocol.emails": proponents.map((member) => member.contactEmail?.email).filter((value): value is string => Boolean(value)),
     "protocol.institution": protocol.institution,

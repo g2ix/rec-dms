@@ -96,6 +96,7 @@ export function SidebarPanel({
             <div className="rec-menu__theme">
               <ThemeSwitch />
             </div>
+            <DropdownMenuItem render={<Link href="/app/account/profile" />}>Your details</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/signature" />}>My signature</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/notifications" />}>Notification preferences</DropdownMenuItem>
             <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>

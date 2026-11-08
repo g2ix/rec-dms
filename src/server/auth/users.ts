@@ -3,11 +3,13 @@ import type { Prisma, UserStatus } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { formatDisplayName } from "@/lib/display-name";
 import { normalizeEmail } from "@/lib/email";
+import { resolveMiddle } from "@/lib/name-parts";
 import { prisma } from "@/server/db";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { recordNotice } from "@/server/notifications/deliver";
 import { AppError } from "@/server/errors";
 import { bindInvitesForEmail } from "@/server/protocols/invites";
+import { claimDirectoryEntry } from "@/server/profiles/directory";
 
 type Writer = Prisma.TransactionClient | typeof prisma;
 
@@ -15,7 +17,11 @@ export async function createPerson(
   input: {
     firstName: string;
     middleInitial?: string | null;
+    middleName?: string | null;
     familyName: string;
+    title?: string | null;
+    suffix?: string | null;
+    credentials?: string[];
     email: string;
     passwordHash?: string | null;
     status: UserStatus;
@@ -26,14 +32,18 @@ export async function createPerson(
   const email = normalizeEmail(input.email);
   const taken = await db.userEmail.findUnique({ where: { email } });
   if (taken) throw new AppError("EMAIL_TAKEN", "An account already uses this email.", 409);
-  const middleInitial = input.middleInitial?.trim().replace(/\.$/, "") || null;
-  const displayName = formatDisplayName(input.firstName, middleInitial, input.familyName);
+  const middle = resolveMiddle(input.middleName, input.middleInitial);
+  const displayName = formatDisplayName(input.firstName, middle.middleName, input.familyName);
   const verifiedAt = new Date();
   const user = await db.user.create({
     data: {
       firstName: input.firstName.trim(),
-      middleInitial,
+      middleName: middle.middleName,
+      middleInitial: middle.middleInitial,
       familyName: input.familyName.trim(),
+      title: input.title?.trim() || null,
+      suffix: input.suffix?.trim() || null,
+      credentials: input.credentials ?? [],
       displayName,
       name: displayName,
       email,
@@ -58,6 +68,7 @@ export async function createPerson(
     include: { emails: true },
   });
   await bindInvitesForEmail(updated.id, email, db);
+  await claimDirectoryEntry(updated.id, email, db);
   return updated;
 }
 
