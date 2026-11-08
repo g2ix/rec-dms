@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Check } from "lucide-react";
 import { z } from "zod";
 import { Icon } from "@/components/icons";
 import { FundingChoices, ResearchTypeChoices } from "@/components/protocols/study-choices";
@@ -10,6 +10,19 @@ import { createProtocolAction } from "@/server/auth/actions";
 import type { ActionState } from "@/server/action-state";
 import { selectionError } from "@/lib/protocols/catalog";
 import { isAllCapsTitle } from "@/lib/protocols/format";
+import {
+  NEW_PROTOCOL_SECTIONS,
+  requiredFieldsLeft,
+  requiredLeftLabel,
+  sectionByKey,
+  sectionIdFromHash,
+  sectionProgress,
+  sectionStatusLabel,
+  sectionTone,
+  type SectionKey,
+  type SectionProgress,
+  type SectionStatus,
+} from "@/lib/protocols/sections";
 import {
   PROFILE_KIND_LABELS,
   PROFILE_KINDS,
@@ -34,14 +47,7 @@ type DisciplineOption = { id: string; name: string; panelName: string };
 const USC_KINDS = new Set<ProfileKind>(["USC_STUDENT", "USC_ACADEMIC", "USC_STAFF"]);
 const STUDENT_KINDS = new Set<ProfileKind>(["USC_STUDENT", "EXTERNAL_STUDENT"]);
 
-const SECTIONS = [
-  { id: "protocol-study", label: "1 · The study" },
-  { id: "protocol-place", label: "2 · Where and how big" },
-  { id: "protocol-funding", label: "3 · Funding and contact" },
-  { id: "protocol-affiliation", label: "4 · Your affiliation" },
-] as const;
-
-const SECTION_IDS = SECTIONS.map((section) => section.id);
+const SECTION_IDS = NEW_PROTOCOL_SECTIONS.map((section) => section.id);
 
 const FIELD_ORDER = [
   "title",
@@ -262,6 +268,37 @@ function useActiveSection(ids: readonly string[]) {
   return active;
 }
 
+function SectionMark({
+  status,
+  missing,
+  visited,
+}: {
+  status: SectionStatus;
+  missing: number;
+  visited: boolean;
+}) {
+  if (status === "complete") {
+    return (
+      <span className="protocol-new__mark" data-status="complete" aria-hidden="true">
+        <Icon icon={Check} size={14} />
+      </span>
+    );
+  }
+  if (status === "in-progress") {
+    return (
+      <span
+        className="protocol-new__mark"
+        data-status="in-progress"
+        data-visited={visited ? "true" : undefined}
+        aria-hidden="true"
+      >
+        {missing}
+      </span>
+    );
+  }
+  return <span className="protocol-new__mark" data-status={status} aria-hidden="true" />;
+}
+
 function ProtocolField({
   label,
   htmlFor,
@@ -324,7 +361,7 @@ export function ProtocolWizard({
 }) {
   const [state, action, pending] = useActionState(createProtocolAction, null);
   const [title, setTitle] = useState("");
-  const [disciplineId, setDisciplineId] = useState(disciplines[0]?.id ?? "");
+  const [disciplineId, setDisciplineId] = useState("");
   const [typeCodes, setTypeCodes] = useState<string[]>([]);
   const [typeOther, setTypeOther] = useState("");
   const [fundCodes, setFundCodes] = useState<string[]>([]);
@@ -343,8 +380,11 @@ export function ProtocolWizard({
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [sectionTouched, setSectionTouched] = useState<Partial<Record<SectionKey, boolean>>>({});
+  const [visited, setVisited] = useState<Partial<Record<SectionKey, boolean>>>({});
   const active = useActiveSection(SECTION_IDS);
   const alertRef = useRef<HTMLParagraphElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const serverError = (state as ActionState)?.error ?? "";
 
   const usc = USC_KINDS.has(aff.kind);
@@ -375,7 +415,22 @@ export function ProtocolWizard({
     hasPrograms,
   });
   const visible = (key: string) => ((submitted || touched.has(key)) && errors[key]) || undefined;
+  const progress = sectionProgress({
+    title,
+    disciplineId,
+    researchTypeCodes: typeCodes,
+    researchTypeOther: typeOther,
+    funding,
+    institution,
+    contactEmailId: emailId,
+    affiliation: postedDraft(aff, catalog.uscInstitutionId, hasPrograms),
+    affiliationFocus: aff.departmentId === "other" ? { departmentId: "unitText" } : undefined,
+    touched: sectionTouched,
+  });
+  const gapsLeft = requiredFieldsLeft(progress);
   const selected = orderedDisciplines.find((item) => item.id === disciplineId);
+  const copiedEmailId = emails[0]?.id ?? "";
+  const institutionCopied = institution.trim().length > 0 && institution.trim() === profile.institutionName.trim();
   const covered = orderedDisciplines.filter((item) => item.panelName === selected?.panelName).map((item) => item.name);
   const schoolName = catalog.units.find((unit) => unit.id === aff.schoolId && unit.kind === "SCHOOL")?.name ?? "";
   const departmentName =
@@ -402,6 +457,39 @@ export function ProtocolWizard({
     if (!serverError) return;
     alertRef.current?.scrollIntoView({ block: "center" });
   }, [serverError]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash) {
+        const sectionId = sectionIdFromHash(hash);
+        const headingId = NEW_PROTOCOL_SECTIONS.find((section) => section.id === sectionId)?.headingId;
+        const heading = headingId ? document.getElementById(headingId) : null;
+        if (heading instanceof HTMLElement) heading.focus();
+        return;
+      }
+      if (window.matchMedia("(pointer: fine)").matches) {
+        titleRef.current?.focus({ preventScroll: true });
+        markTouched("study");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function markTouched(key: SectionKey) {
+    setSectionTouched((current) => (current[key] ? current : { ...current, [key]: true }));
+  }
+
+  function markVisited(key: SectionKey) {
+    setVisited((current) => (current[key] ? current : { ...current, [key]: true }));
+  }
+
+  function openGap(event: React.MouseEvent<HTMLAnchorElement>, section: SectionProgress) {
+    if (section.status !== "in-progress" || !section.focusKey) return;
+    event.preventDefault();
+    if (AFFILIATION_KEYS.has(section.focusKey)) setEditing(true);
+    setFocusKey(section.focusKey);
+  }
 
   function touch(key: string) {
     setTouched((current) => {
@@ -439,22 +527,34 @@ export function ProtocolWizard({
     setFocusKey(first);
   }
 
+  function card(key: SectionKey) {
+    const section = sectionByKey(progress, key);
+    return {
+      id: section.id,
+      headingId: section.headingId,
+      number: section.number,
+      title: section.title,
+      description: section.description,
+      progress: {
+        status: section.status,
+        label: sectionStatusLabel(section.status, section.missing),
+        tone: sectionTone(section.status, visited[key] === true),
+      },
+      onTouch: () => markTouched(key),
+      onLeave: () => markVisited(key),
+    };
+  }
+
   return (
     <div className="protocol-new__layout">
-      <form className="protocol-new__form" action={action} noValidate onSubmit={onSubmit}>
+      <form className="protocol-new__form" action={action} aria-labelledby="new-protocol-heading" noValidate onSubmit={onSubmit}>
         {serverError ? (
           <p ref={alertRef} className="rec-alert" role="alert">
             {serverError}
           </p>
         ) : null}
 
-        <FormSection
-          id="protocol-study"
-          headingId="protocol-study-heading"
-          number="1"
-          title="The study"
-          description="What you are studying and how the REC should route it."
-        >
+        <FormSection {...card("study")}>
           <ProtocolField
             label="Protocol title"
             htmlFor="protocol-title"
@@ -464,6 +564,7 @@ export function ProtocolWizard({
           >
             {(describedBy) => (
               <Textarea
+                ref={titleRef}
                 id="protocol-title"
                 name="title"
                 className="protocol-new__title"
@@ -505,6 +606,7 @@ export function ProtocolWizard({
                 onBlur={() => touch("disciplineId")}
                 onChange={(event) => setDisciplineId(event.target.value)}
               >
+                <option value="">Choose a discipline</option>
                 {orderedDisciplines.map((discipline) => (
                   <option key={discipline.id} value={discipline.id}>
                     {discipline.name}
@@ -523,18 +625,12 @@ export function ProtocolWizard({
                 </p>
               </>
             ) : (
-              <span className="body-sm">No panel is mapped yet</span>
+              <span className="body-sm rec-muted">Choose a discipline to see the suggested panel.</span>
             )}
           </div>
         </FormSection>
 
-        <FormSection
-          id="protocol-place"
-          headingId="protocol-place-heading"
-          number="2"
-          title="Where and how big"
-          description="Where the data comes from and how many people take part."
-        >
+        <FormSection {...card("where")}>
           <div className="protocol-new__row">
             <ProtocolField label="Study site" htmlFor="protocol-site" optional className="protocol-new__site">
               {(describedBy) => <Input id="protocol-site" name="studySite" aria-describedby={describedBy} />}
@@ -582,13 +678,7 @@ export function ProtocolWizard({
           </div>
         </FormSection>
 
-        <FormSection
-          id="protocol-funding"
-          headingId="protocol-funding-heading"
-          number="3"
-          title="Funding and contact"
-          description="Who pays for the study and how the REC reaches you."
-        >
+        <FormSection {...card("contact")}>
           <FundingChoices
             id="protocol-funding-kind"
             selected={fundCodes}
@@ -607,7 +697,11 @@ export function ProtocolWizard({
               label="Contact email"
               htmlFor="protocol-email"
               className="protocol-new__equal"
-              help="Your account email. REC notices for this protocol go here."
+              help={
+                emailId === copiedEmailId && copiedEmailId
+                  ? "Copied from your details. REC notices for this protocol go here."
+                  : "REC notices for this protocol go here."
+              }
               error={visible("contactEmailId")}
             >
               {(describedBy) => (
@@ -637,19 +731,17 @@ export function ProtocolWizard({
           </div>
         </FormSection>
 
-        <FormSection
-          id="protocol-affiliation"
-          headingId="protocol-affiliation-heading"
-          number="4"
-          title="Your affiliation"
-          description="How you are identified on this protocol's forms."
-        >
+        <FormSection {...card("affiliation")}>
           <div className="protocol-new__row">
             <ProtocolField
               label="Institution"
               htmlFor="protocol-institution"
               className="protocol-new__equal"
-              help="From your account. Change it if this application uses a different institution."
+              help={
+                institutionCopied
+                  ? "Copied from your details. Change it if this application uses a different institution."
+                  : "Change it if this application uses a different institution."
+              }
               error={visible("institution")}
             >
               {(describedBy) => (
@@ -669,7 +761,11 @@ export function ProtocolWizard({
               htmlFor="protocol-address"
               optional
               className="protocol-new__equal"
-              help="From your USC account when that is your institution. Change it for this application if you need to."
+              help={
+                profile.institutionName === USC_INSTITUTION_NAME
+                  ? "Copied from your details. Change it for this application if you need to."
+                  : undefined
+              }
             >
               {(describedBy) => (
                 <Input
@@ -970,6 +1066,9 @@ export function ProtocolWizard({
         <div className="protocol-new__foot">
           <p className="caption rec-muted">This creates a draft. Nothing is sent to the REC until you submit.</p>
           <div className="protocol-new__actions">
+            <p className="protocol-new__ready" data-ready={gapsLeft === 0 ? "true" : undefined}>
+              {requiredLeftLabel(gapsLeft)}
+            </p>
             <Link className="rec-btn rec-btn--secondary" href="/app/protocols">
               <span>Cancel</span>
             </Link>
@@ -982,11 +1081,28 @@ export function ProtocolWizard({
 
       <aside className="protocol-new__aside">
         <nav className="protocol-new__nav" aria-label="On this page">
-          {SECTIONS.map((section) => (
-            <a key={section.id} href={`#${section.id}`} aria-current={active === section.id ? "location" : undefined}>
-              {section.label}
-            </a>
-          ))}
+          {progress.map((section) => {
+            const been = visited[section.key] === true;
+            const label = sectionStatusLabel(section.status, section.missing);
+            const tone = sectionTone(section.status, been);
+            return (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className={label ? "protocol-new__link--status" : undefined}
+                aria-current={active === section.id ? "location" : undefined}
+                onClick={(event) => openGap(event, section)}
+              >
+                <SectionMark status={section.status} missing={section.missing} visited={been} />
+                <span>{section.title}</span>
+                {label ? (
+                  <span className="protocol-new__nav-status" data-tone={tone}>
+                    {label}
+                  </span>
+                ) : null}
+              </a>
+            );
+          })}
         </nav>
         <section className="protocol-new__next" aria-labelledby="protocol-next-heading">
           <h2 id="protocol-next-heading" className="subheading">

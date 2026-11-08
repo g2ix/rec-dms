@@ -29,7 +29,7 @@ export default async function NewProtocolPage() {
   return (
     <article className="protocol-new">
       <header className="protocol-new__intro">
-        <h1 className="title">New protocol</h1>
+        <h1 id="new-protocol-heading" className="title">New protocol</h1>
         <p className="body rec-muted">
           Start with the basics. You will be the project leader, and these details fill in automatically on every REC form.
         </p>
