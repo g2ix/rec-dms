@@ -297,7 +297,7 @@ function Samples() {
           />
         </div>
         <div className="dev-frame">
-          <SidebarPanel pathname="/app" collapsed markerId={`${base}-rail`} showCollapse={false} />
+          <SidebarPanel pathname="/app" collapsed markerId={`${base}-rail`} />
         </div>
       </section>
 

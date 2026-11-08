@@ -6,10 +6,11 @@ import { motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Icon } from "@/components/icons";
-import { SidebarPanel } from "@/components/shell/sidebar";
+import { AccountMenu } from "@/components/shell/account-menu";
+import { SidebarCollapse, SidebarPanel } from "@/components/shell/sidebar";
 import { pageForPath, type RoleView } from "@/components/shell/nav";
 import { NotificationBell } from "@/components/shell/notification-bell";
-import { ThemeSwitch } from "@/components/theme/theme-switch";
+import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 import Link from "next/link";
 
 export function AppShell({
@@ -43,16 +44,15 @@ export function AppShell({
       <a className="skip" href="#content">
         Skip to content
       </a>
-      <div className="rec-side--desktop">
+      <div className="rec-side--desktop" data-collapsed={collapsed ? "true" : "false"}>
         <SidebarPanel
           pathname={pathname}
           collapsed={collapsed}
-          onToggle={toggleCollapsed}
           roleView={roleView}
           roleViews={roleViews}
           markerId="nav-marker-desktop"
-          account={account}
         />
+        <SidebarCollapse collapsed={collapsed} onToggle={toggleCollapsed} />
       </div>
       <div className="rec-main">
         <header className="rec-top">
@@ -81,8 +81,6 @@ export function AppShell({
                     roleView={roleView}
                     roleViews={roleViews}
                     markerId="nav-marker-drawer"
-                    showCollapse={false}
-                    account={account}
                   />
                 </motion.div>
               </DialogPrimitive.Popup>
@@ -112,10 +110,10 @@ export function AppShell({
             </form>
           ) : null}
           <div className="rec-top__end">
+            <ThemeIconSwitch />
+            <span className="rec-top__rule" aria-hidden="true" />
             <NotificationBell />
-            <div className="rec-top__theme">
-              <ThemeSwitch />
-            </div>
+            <AccountMenu name={account?.name ?? "Account"} />
           </div>
         </header>
         <main key={`${pathname}:${roleView}`} id="content" className="rec-page rec-content">

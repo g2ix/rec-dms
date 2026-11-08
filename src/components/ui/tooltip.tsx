@@ -14,10 +14,15 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
   return <TooltipPrimitive.Trigger {...props} />;
 }
 
-function TooltipContent({ children, ...props }: TooltipPrimitive.Popup.Props) {
+function TooltipContent({
+  children,
+  side = "bottom",
+  sideOffset = 6,
+  ...props
+}: TooltipPrimitive.Popup.Props & Pick<TooltipPrimitive.Positioner.Props, "side" | "sideOffset">) {
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner sideOffset={6}>
+      <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset}>
         <TooltipPrimitive.Popup className="rec-tooltip" {...props}>
           {children}
         </TooltipPrimitive.Popup>
