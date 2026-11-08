@@ -10,24 +10,7 @@ const REVIEW_WORD: Record<string, string> = {
 };
 
 export function DashboardView({ model }: { model: DashboardModel }) {
-  if (model.view === "proponent") {
-    return (
-      <>
-        <section className="rec-stack">
-          <CountHeading count={model.waiting.total} href="/app/tasks" label="waiting for you" />
-          <QueueTable rows={model.waiting.rows} empty="Nothing is waiting on you." />
-        </section>
-        <section className="rec-stack" id="revisions">
-          <CountHeading count={model.revisions.total} href="/app/revisions" label="revision deadlines" />
-          <QueueTable rows={model.revisions.rows} empty="No revision is waiting on you." />
-        </section>
-        <section className="rec-stack">
-          <CountHeading count={model.protocols.total} href="/app/protocols" label="protocols" />
-          <QueueTable rows={model.protocols.rows} empty="You have no protocols yet." />
-        </section>
-      </>
-    );
-  }
+  if (model.view === "proponent") return null;
   if (model.view === "adviser") {
     return (
       <>

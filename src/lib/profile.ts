@@ -21,6 +21,7 @@ export const PROFILE_KIND_LABELS: Record<ProfileKind, string> = {
 };
 
 export const USC_INSTITUTION_NAME = "University of San Carlos";
+export const USC_CAMPUS_ADDRESS = "Nasipit, Talamban, Cebu City";
 
 export type AcademicLevelValue = "UNDERGRADUATE" | "GRADUATE";
 

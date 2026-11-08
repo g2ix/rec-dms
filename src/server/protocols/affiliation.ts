@@ -110,12 +110,15 @@ export async function createProtocolForUser(
     title: string;
     affiliation: StoredAffiliation;
     disciplineId?: string | null;
+    institution?: string;
     institutionAddress?: string;
     researchType?: string;
+    researchTypeCodes?: string[];
+    researchTypeOther?: string;
     durationMonths?: number | null;
     expectedParticipants?: number | null;
     studySite?: string;
-    fundingSources?: { name: string }[];
+    fundingSources?: { code?: string; name: string; detail?: string }[];
     contactNumber?: string | null;
   },
 ) {
@@ -133,9 +136,11 @@ export async function createProtocolForUser(
         leaderUserId: userId,
         disciplineId: discipline?.id ?? null,
         panelId: discipline?.panelId ?? null,
-        institution: input.affiliation.institution,
+        institution: input.institution?.trim() || input.affiliation.institution,
         institutionAddress: input.institutionAddress?.trim() ?? "",
         researchType: input.researchType?.trim() ?? "",
+        researchTypeCodes: input.researchTypeCodes ?? [],
+        researchTypeOther: input.researchTypeOther?.trim() ?? "",
         durationMonths: input.durationMonths ?? null,
         expectedParticipants: input.expectedParticipants ?? null,
         studySite: input.studySite?.trim() ?? "",

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Icon } from "@/components/icons";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Button } from "@/components/ui/button";
+import { FormSection } from "@/components/ui/form-section";
 import { Input } from "@/components/ui/input";
 import { formatRecFormAffiliation, formatRecFormName } from "@/lib/display-name";
 import { SUFFIX_CHOICES, TITLE_CHOICES } from "@/lib/name-parts";
@@ -289,14 +290,12 @@ export function AccountDetailsForm({
             {serverError}
           </p>
         ) : null}
-        <section className="details-card" aria-labelledby="details-name-heading">
-          <div className="details-card__head">
-            <h2 id="details-name-heading" className="heading">
-              Name
-            </h2>
-            <p className="body-sm rec-muted">Enter it as it appears on your university ID.</p>
-          </div>
-          <div className="details-card__body">
+        <FormSection
+          number="1"
+          title="Name"
+          description="Enter it as it appears on your university ID."
+          headingId="details-name-heading"
+        >
             <div className="details-row">
               <div className="details-fixed">
                 <DetailsField label="Title" htmlFor="details-title" optional>
@@ -439,17 +438,14 @@ export function AccountDetailsForm({
                 )}
               </DetailsField>
             </div>
-          </div>
-        </section>
+        </FormSection>
 
-        <section className="details-card" aria-labelledby="details-affiliation-heading">
-          <div className="details-card__head">
-            <h2 id="details-affiliation-heading" className="heading">
-              Affiliation
-            </h2>
-            <p className="body-sm rec-muted">Where you do your research and what you do there.</p>
-          </div>
-          <div className="details-card__body">
+        <FormSection
+          number="2"
+          title="Affiliation"
+          description="Where you do your research and what you do there."
+          headingId="details-affiliation-heading"
+        >
             <div className="details-row">
               <DetailsField label="You are" htmlFor="details-kind" className="details-equal">
                 {(describedBy) => (
@@ -712,8 +708,7 @@ export function AccountDetailsForm({
               <Icon icon={Info} size={16} />
               <span>Protocols you already submitted keep the affiliation they were sent with. Changes here apply to new protocols.</span>
             </p>
-          </div>
-        </section>
+        </FormSection>
 
         <div className="details-savebar">
           <p className={cn("caption rec-muted", justSaved && !dirty && !pending && "details-saved")} aria-live="polite">

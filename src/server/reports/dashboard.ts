@@ -16,8 +16,10 @@ const OPEN = ["OPEN", "CLAIMED"] as const;
 export type StepCount = { key: string; name: string; reviewType: string; count: number; href: string };
 export type LoadRow = { userId: string; name: string; open: number };
 
+export type StatusCount = { status: string; count: number };
+
 export type DashboardModel =
-  | { view: "proponent"; waiting: Bucket; revisions: Bucket; protocols: Bucket }
+  | { view: "proponent"; waiting: Bucket; revisions: Bucket; protocols: Bucket; statuses: StatusCount[] }
   | { view: "adviser"; waiting: Bucket; protocols: Bucket }
   | { view: "reviewer"; open: Bucket; completed: Bucket }
   | { view: "panel-chair"; waiting: Bucket; steps: StepCount[]; loads: LoadRow[]; overdue: Bucket; panelLabel: string }
@@ -39,7 +41,12 @@ export async function dashboardIn(tx: Tx, userId: string, view: RoleView, now = 
   const holidays = await holidaySet(tx);
   const waiting = await bucketFromInbox(tx, userId, view, facts, holidays, now);
   if (view === "proponent") {
-    return { view, waiting, revisions: await revisions(tx, userId, facts, holidays, now), protocols: await memberProtocols(tx, userId, "PROPONENT", facts) };
+    const [revisionBucket, protocolBucket, statuses] = await Promise.all([
+      revisions(tx, userId, facts, holidays, now),
+      memberProtocols(tx, userId, "PROPONENT", facts),
+      protocolStatuses(tx, userId),
+    ]);
+    return { view, waiting, revisions: revisionBucket, protocols: protocolBucket, statuses };
   }
   if (view === "adviser") {
     return { view, waiting, protocols: await memberProtocols(tx, userId, "ADVISER", facts) };
@@ -170,7 +177,7 @@ async function memberProtocols(tx: Tx, userId: string, role: "PROPONENT" | "ADVI
     tx.protocolMember.count({ where }),
     tx.protocolMember.findMany({
       where,
-      orderBy: { updatedAt: "desc" },
+      orderBy: { protocol: { updatedAt: "desc" } },
       take: PREVIEW,
       select: {
         protocol: {
@@ -179,6 +186,7 @@ async function memberProtocols(tx: Tx, userId: string, role: "PROPONENT" | "ADVI
             code: true,
             title: true,
             status: true,
+            updatedAt: true,
             workflowInstances: {
               where: { status: "RUNNING" },
               orderBy: { startedAt: "desc" },
@@ -217,9 +225,23 @@ async function memberProtocols(tx: Tx, userId: string, role: "PROPONENT" | "ADVI
         dueAt,
         due: dueAt && dueAt.getTime() < Date.now() ? "overdue" : dueAt ? "scheduled" : "none",
         note: null,
+        updatedAt: protocol.updatedAt,
       } satisfies QueueRow;
     }),
   };
+}
+
+async function protocolStatuses(tx: Tx, userId: string): Promise<StatusCount[]> {
+  const memberships = await tx.protocolMember.findMany({
+    where: { userId, role: "PROPONENT", status: { not: "REMOVED" } },
+    select: { protocol: { select: { status: true } } },
+  });
+  const counts = new Map<string, number>();
+  for (const membership of memberships) {
+    const status = membership.protocol.status.trim() || "Draft";
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([status, count]) => ({ status, count }));
 }
 
 async function completedReviews(tx: Tx, userId: string, facts: StepFacts, holidays: Set<string>, now: Date): Promise<Bucket> {

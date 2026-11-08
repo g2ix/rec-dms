@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { FormSchema } from "../../../src/lib/forms/schema";
+import { FUNDING_KIND_OPTIONS, RESEARCH_TYPE_OPTIONS } from "../../../src/lib/protocols/catalog";
 import { F26_ITEMS, F35_POINTS, F36_POINTS, F41_CRITERIA } from "./points";
 
 const VERSION = "09-00";
@@ -164,17 +165,17 @@ const rawForms: {
             id: "research_type",
             label: "Type of research",
             type: "checkboxes",
-            required: true,
             fillers: [...PROPONENT],
-            options: [
-              { value: "BASIC", label: "Basic research" },
-              { value: "APPLIED", label: "Applied research" },
-              { value: "CLINICAL", label: "Clinical trial" },
-              { value: "SOCIAL", label: "Social research" },
-              { value: "OTHER", label: "Others: specify" },
-            ],
+            options: [...RESEARCH_TYPE_OPTIONS],
+            validation: { required: true },
           },
-          { id: "research_type_other", label: "Others: specify", type: "text", fillers: [...PROPONENT], requiredIf: { in: ["OTHER", { var: "research_type" }] } },
+          {
+            id: "research_type_other",
+            label: "Please specify",
+            type: "text",
+            fillers: [...PROPONENT],
+            validation: { requiredIf: { in: ["OTHER", { var: "research_type" }] } },
+          },
           { id: "duration", label: "Duration of the study", type: "text", required: true, fillers: [...PROPONENT] },
           { id: "participants", label: "Number and type of participants", type: "textarea", required: true, fillers: [...PROPONENT] },
           { id: "study_site", label: "Study site", type: "textarea", required: true, fillers: [...PROPONENT] },
@@ -182,13 +183,30 @@ const rawForms: {
             id: "funds",
             label: "Source of funds",
             type: "checkboxes",
-            required: true,
             fillers: [...PROPONENT],
-            options: [
-              { value: "PERSONAL", label: "Personal" },
-              { value: "EXTERNAL", label: "External" },
-              { value: "INTERNAL", label: "Internal / institutional" },
-            ],
+            options: [...FUNDING_KIND_OPTIONS],
+            validation: { required: true },
+          },
+          {
+            id: "fund_institution",
+            label: "Funding institution",
+            type: "text",
+            fillers: [...PROPONENT],
+            validation: { requiredIf: { in: ["INSTITUTION", { var: "funds" }] } },
+          },
+          {
+            id: "fund_agency",
+            label: "Funding agency",
+            type: "text",
+            fillers: [...PROPONENT],
+            validation: { requiredIf: { in: ["AGENCY", { var: "funds" }] } },
+          },
+          {
+            id: "fund_other",
+            label: "Other funding source",
+            type: "text",
+            fillers: [...PROPONENT],
+            validation: { requiredIf: { in: ["OTHER", { var: "funds" }] } },
           },
           { id: "fund_amounts", label: "Amount and name of each source", type: "textarea", required: true, fillers: [...PROPONENT] },
         ],

@@ -12,15 +12,21 @@ export default function Loading() {
           </div>
           <div className="details-layout">
             <div className="details-form">
-              <div className="details-card">
-                <div className="details-card__body">
+              <div className="form-section">
+                <div className="form-section__head">
+                  <span className="rec-bar" />
+                </div>
+                <div className="form-section__body">
                   <span className="rec-bar" />
                   <span className="rec-bar" />
                   <span className="rec-bar" />
                 </div>
               </div>
-              <div className="details-card">
-                <div className="details-card__body">
+              <div className="form-section">
+                <div className="form-section__head">
+                  <span className="rec-bar" />
+                </div>
+                <div className="form-section__body">
                   <span className="rec-bar" />
                   <span className="rec-bar" />
                 </div>

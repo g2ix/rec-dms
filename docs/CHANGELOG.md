@@ -1,5 +1,9 @@
 # Changelog
 
+## Proponent dashboard (2026-11-08)
+
+The proponent home at `/app` is a summary strip, an attention list, and a short protocol table. Someone with no protocol sees the submission steps and the checklist in `src/content/submission-checklist.ts`. My tasks shows a count when work is waiting. The notification bell uses a gold dot for unread notices. Other role dashboards are unchanged.
+
 ## Names and affiliation profiles (2026-11-08)
 
 A person's name is stored in parts: title, first name, middle name, family name, suffix, and a list of credentials. The person enters the middle name once. Screens and submitted forms use the first letter of that name for the short form (`Juan D. Cruz`). The stored middle initial is that letter, not a second answer. Submitted forms also print the title and degrees.

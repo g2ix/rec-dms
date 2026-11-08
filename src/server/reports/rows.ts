@@ -18,6 +18,9 @@ export type QueueRow = {
   dueAt: Date | null;
   due: DueState;
   note: string | null;
+  updatedAt?: Date | null;
+  openedAt?: Date | null;
+  askedBy?: string | null;
 };
 
 const taskSelect = {
@@ -31,7 +34,15 @@ const taskSelect = {
   assignee: { select: { displayName: true } },
   instance: {
     select: {
-      protocol: { select: { id: true, code: true, title: true, status: true } },
+      protocol: {
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          status: true,
+          leader: { select: { displayName: true } },
+        },
+      },
     },
   },
 } as const;
@@ -72,6 +83,8 @@ export function toQueueRow(
     dueAt: task.dueAt,
     due: dueState(task.dueAt, now),
     note,
+    openedAt: task.createdAt,
+    askedBy: protocol.leader.displayName,
   };
 }
 

@@ -86,7 +86,7 @@ export function NotificationBell() {
           <DropdownMenuItem render={<Link href="/app/notifications" />}>All notifications</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {unread > 0 ? <span className="rec-badge rec-badge--danger">{unread > 9 ? "9+" : unread}</span> : null}
+      {unread > 0 ? <span className="rec-bell__dot" aria-hidden="true" /> : null}
     </div>
   );
 }

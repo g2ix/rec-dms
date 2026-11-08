@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { FundingChoices, ResearchTypeChoices } from "@/components/protocols/study-choices";
 import { updateDetailsAction } from "@/server/protocols/actions";
 import type { ActionState } from "@/server/action-state";
 import { formatBoundValue } from "@/lib/forms/bindings";
 import { isAllCapsTitle } from "@/lib/protocols/format";
 import { BusyButton } from "@/components/ui/busy-button";
-import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
@@ -22,17 +22,25 @@ export function DetailsForm({
     title: string;
     institution: string;
     institutionAddress: string;
-    researchType: string;
+    researchTypeCodes: string[];
+    researchTypeOther: string;
+    legacyResearchType: string;
     durationMonths: number | null;
     expectedParticipants: number | null;
     studySite: string;
-    funding: string[];
+    funding: { code: string; detail: string }[];
+    legacyFunding: string[];
   };
   researchers: string[];
 }) {
   const [state, action, pending] = useActionState(updateDetailsAction, null);
   const [title, setTitle] = useState(values.title);
-  const [funds, setFunds] = useState(values.funding.length > 0 ? values.funding : [""]);
+  const [typeCodes, setTypeCodes] = useState(values.researchTypeCodes);
+  const [typeOther, setTypeOther] = useState(values.researchTypeOther);
+  const [fundCodes, setFundCodes] = useState(values.funding.map((source) => source.code));
+  const [fundDetails, setFundDetails] = useState(() =>
+    Object.fromEntries(values.funding.map((source) => [source.code, source.detail])),
+  );
   return (
     <div className="rec-stack">
       <section className="rec-card rec-stack">
@@ -55,15 +63,23 @@ export function DetailsForm({
             This title is in all capitals. The REC asks for sentence case.
           </p>
         ) : null}
-        <Field label="Institution" htmlFor="details-institution">
+        <Field label="Institution" htmlFor="details-institution" help="The proponents' institution for this application.">
           <Input id="details-institution" name="institution" required defaultValue={values.institution} disabled={locked} />
         </Field>
         <Field label="Institution address" htmlFor="details-address" optional>
           <Input id="details-address" name="institutionAddress" defaultValue={values.institutionAddress} disabled={locked} />
         </Field>
-        <Field label="Research type" htmlFor="details-type">
-          <Input id="details-type" name="researchType" required defaultValue={values.researchType} disabled={locked} />
-        </Field>
+        <ResearchTypeChoices
+          id="details-type"
+          selected={typeCodes}
+          other={typeOther}
+          disabled={locked}
+          onToggle={(code, checked) => setTypeCodes((current) => (checked ? [...current, code] : current.filter((item) => item !== code)))}
+          onOther={setTypeOther}
+        />
+        {values.legacyResearchType && values.researchTypeCodes.length === 0 ? (
+          <p className="caption rec-muted">Previously saved as {values.legacyResearchType}. Choose the types above to replace it.</p>
+        ) : null}
         <Field label="Duration in months" htmlFor="details-duration" optional>
           <Input id="details-duration" name="durationMonths" inputMode="numeric" defaultValue={values.durationMonths ?? ""} disabled={locked} />
         </Field>
@@ -79,24 +95,17 @@ export function DetailsForm({
         <Field label="Study site" htmlFor="details-site" optional>
           <Input id="details-site" name="studySite" defaultValue={values.studySite} disabled={locked} />
         </Field>
-        <fieldset className="rec-stack" disabled={locked}>
-          <legend className="label">Source of funds</legend>
-          {funds.map((fund, index) => (
-            <Field key={index} label={`Source ${index + 1}`} htmlFor={`details-funding-${index}`} optional>
-              <Input
-                id={`details-funding-${index}`}
-                name="funding"
-                defaultValue={fund}
-                onChange={(event) => setFunds((current) => current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))}
-              />
-            </Field>
-          ))}
-          {locked ? null : (
-            <Button type="button" onClick={() => setFunds((current) => [...current, ""])}>
-              Add a funding source
-            </Button>
-          )}
-        </fieldset>
+        <FundingChoices
+          id="details-funding"
+          selected={fundCodes}
+          details={fundDetails}
+          disabled={locked}
+          onToggle={(code, checked) => setFundCodes((current) => (checked ? [...current, code] : current.filter((item) => item !== code)))}
+          onDetail={(code, value) => setFundDetails((current) => ({ ...current, [code]: value }))}
+        />
+        {values.legacyFunding.length > 0 ? (
+          <p className="caption rec-muted">Previously saved as {values.legacyFunding.join("; ")}. Choose the sources above to replace it.</p>
+        ) : null}
         {locked ? <p className="body-sm">This version is submitted. Start a revision to edit these details.</p> : null}
         {locked ? null : (
           <BusyButton type="submit" variant="primary" busy={pending} busyLabel="Saving…">

@@ -10,11 +10,21 @@ export const protocolDetailsSchema = z.object({
   title: z.string().trim().min(1, "Enter the protocol title.").max(300),
   institution: z.string().trim().min(1, "Enter the institution.").max(160),
   institutionAddress: z.string().trim().max(240),
-  researchType: z.string().trim().min(1, "Enter the research type.").max(160),
+  researchType: z.string().trim().min(1, "Choose at least one research type.").max(800),
+  researchTypeCodes: z.array(z.string().min(1)).min(1, "Choose at least one research type."),
+  researchTypeOther: z.string().trim().max(160),
   durationMonths: z.number().int().positive().max(240).nullable(),
   expectedParticipants: z.number().int().nonnegative().max(1_000_000).nullable(),
   studySite: z.string().trim().max(240),
-  fundingSources: z.array(z.object({ name: z.string().trim().min(1).max(160) })).max(12),
+  fundingSources: z
+    .array(
+      z.object({
+        code: z.string().trim().min(1),
+        name: z.string().trim().min(1).max(240),
+        detail: z.string().trim().max(160),
+      }),
+    )
+    .max(8),
 });
 
 export type ProtocolDetails = z.infer<typeof protocolDetailsSchema>;
@@ -24,6 +34,8 @@ function snapshotOf(protocol: {
   institution: string;
   institutionAddress: string;
   researchType: string;
+  researchTypeCodes: string[];
+  researchTypeOther: string;
   durationMonths: number | null;
   expectedParticipants: number | null;
   studySite: string;
@@ -34,6 +46,8 @@ function snapshotOf(protocol: {
     institution: protocol.institution,
     institutionAddress: protocol.institutionAddress,
     researchType: protocol.researchType,
+    researchTypeCodes: protocol.researchTypeCodes,
+    researchTypeOther: protocol.researchTypeOther,
     durationMonths: protocol.durationMonths,
     expectedParticipants: protocol.expectedParticipants,
     studySite: protocol.studySite,
@@ -60,6 +74,8 @@ export async function updateSharedDetails(protocolId: string, userId: string, in
         institution: parsed.institution,
         institutionAddress: parsed.institutionAddress,
         researchType: parsed.researchType,
+        researchTypeCodes: parsed.researchTypeCodes,
+        researchTypeOther: parsed.researchTypeOther,
         durationMonths: parsed.durationMonths,
         expectedParticipants: parsed.expectedParticipants,
         studySite: parsed.studySite,

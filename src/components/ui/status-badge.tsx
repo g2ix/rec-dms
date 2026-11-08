@@ -12,9 +12,9 @@ const icons = {
   danger: X,
 } as const;
 
-export function StatusBadge({ tone, label }: { tone: StatusTone; label: string }) {
+export function StatusBadge({ tone, label, className }: { tone: StatusTone; label: string; className?: string }) {
   return (
-    <span className={cn("rec-badge", `rec-badge--${tone}`)}>
+    <span className={cn("rec-badge", `rec-badge--${tone}`, className)}>
       <Icon icon={icons[tone]} size={14} />
       {label}
     </span>

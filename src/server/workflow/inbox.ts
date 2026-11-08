@@ -3,6 +3,7 @@ import { Prisma, type Prisma as PrismaTypes } from "@prisma/client";
 import type { RoleView } from "@/lib/role-view";
 import { VIEW_KIND, VIEW_ROLES } from "@/lib/workflow/views";
 import { bootstrapAdminEmails } from "@/server/auth/bootstrap";
+import { prisma, useAppSchema } from "@/server/db";
 
 type Tx = PrismaTypes.TransactionClient;
 
@@ -143,4 +144,21 @@ export async function openTasks(
   `;
   const total = rows[0] ? Number(rows[0].total) : 0;
   return { total, ids: rows.map((row) => row.id) };
+}
+
+/** Open-task total for the role the person is viewing as. A slow pool leaves the nav without a count. */
+export async function inboxTotal(userId: string, view: RoleView): Promise<number> {
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        await useAppSchema(tx);
+        const { total } = await openTasks(tx, userId, view, 1);
+        return total;
+      },
+      { maxWait: 8_000, timeout: 20_000 },
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2028") return 0;
+    throw error;
+  }
 }

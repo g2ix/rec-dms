@@ -7,6 +7,7 @@ import { actionError, isNextRedirect, type ActionState } from "@/server/action-s
 import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
 import { requireActiveUser, requireUser } from "@/server/session";
+import { studySelectionFromForm } from "@/lib/protocols/catalog";
 import { protocolDetailsSchema, changePanel, updateSharedDetails } from "@/server/protocols/details";
 import { decideFee } from "@/server/protocols/fees";
 import { acceptInvite, inviteMember, moveRoster, removeMember, transferLeadership } from "@/server/protocols/members";
@@ -103,19 +104,18 @@ export async function updateDetailsAction(_prev: ActionState, formData: FormData
     const user = await requireUser();
     const id = protocolId(formData);
     await authorize(user, "protocol.edit", { type: "protocol", id });
+    const study = studySelectionFromForm(formData);
     const details = protocolDetailsSchema.parse({
       title: formData.get("title"),
       institution: formData.get("institution"),
       institutionAddress: String(formData.get("institutionAddress") ?? ""),
-      researchType: formData.get("researchType"),
+      researchType: study.researchType,
+      researchTypeCodes: study.researchTypeCodes,
+      researchTypeOther: study.researchTypeOther,
       durationMonths: optionalCount(formData.get("durationMonths")),
       expectedParticipants: optionalCount(formData.get("expectedParticipants")),
       studySite: String(formData.get("studySite") ?? ""),
-      fundingSources: formData
-        .getAll("funding")
-        .map((value) => String(value).trim())
-        .filter(Boolean)
-        .map((name) => ({ name })),
+      fundingSources: study.fundingSources,
     });
     await updateSharedDetails(id, user.id, details);
     revalidatePath(`/app/protocols/${id}`);

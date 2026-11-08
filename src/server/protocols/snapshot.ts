@@ -47,6 +47,8 @@ export function sharedSnapshot(
     institution: string;
     institutionAddress: string;
     researchType: string;
+    researchTypeCodes?: string[];
+    researchTypeOther?: string;
     durationMonths: number | null;
     expectedParticipants: number | null;
     studySite: string;
@@ -72,6 +74,8 @@ export function sharedSnapshot(
     "protocol.institutionAddress": protocol.institutionAddress,
     "protocol.submissionDate": submittedAt ? formatManila(submittedAt, "yyyy-MM-dd") : null,
     researchType: protocol.researchType,
+    researchTypeCodes: protocol.researchTypeCodes ?? [],
+    researchTypeOther: protocol.researchTypeOther ?? "",
     durationMonths: protocol.durationMonths,
     expectedParticipants: protocol.expectedParticipants,
     studySite: protocol.studySite,

@@ -19,14 +19,17 @@ function initials(name: string): string {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
 }
 
-export function AccountMenu({ name }: { name: string }) {
+export function AccountMenu({ name, role }: { name: string; role: string }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rec-account" aria-label={name}>
+      <DropdownMenuTrigger className="rec-account" aria-label={`${name}, ${role}`}>
         <span className="rec-account__avatar" aria-hidden="true">
           {initials(name)}
         </span>
-        <span className="rec-account__name">{name}</span>
+        <span className="rec-account__who">
+          <span className="rec-account__name">{name}</span>
+          <span className="rec-account__role">{role}</span>
+        </span>
         <Icon icon={ChevronDown} size={16} className="rec-account__chev" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

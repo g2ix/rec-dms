@@ -7,7 +7,7 @@ export function protocolTone(status: string): "draft" | "info" | "warning" | "su
   const key = status.toLowerCase();
   if (key.includes("draft")) return "draft";
   if (key.includes("approv") || key === "exempted") return "success";
-  if (key.includes("disapprov") || key.includes("lapse")) return "danger";
+  if (key.includes("disapprov") || key.includes("lapse") || key.includes("withdraw")) return "danger";
   if (key.includes("return") || key.includes("revision") || key.includes("await")) return "warning";
   return "info";
 }

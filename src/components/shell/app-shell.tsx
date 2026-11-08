@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Icon } from "@/components/icons";
 import { AccountMenu } from "@/components/shell/account-menu";
 import { SidebarCollapse, SidebarPanel } from "@/components/shell/sidebar";
-import { pageForPath, type RoleView } from "@/components/shell/nav";
+import { pageForPath, ROLE_LABEL, type RoleView } from "@/components/shell/nav";
 import { NotificationBell } from "@/components/shell/notification-bell";
 import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 import Link from "next/link";
@@ -20,6 +20,7 @@ export function AppShell({
   roleView = "proponent",
   roleViews,
   account,
+  counts,
 }: {
   collapsed: boolean;
   children: React.ReactNode;
@@ -27,6 +28,7 @@ export function AppShell({
   roleView?: RoleView;
   roleViews?: RoleView[];
   account?: { name: string; email: string };
+  counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(collapsedInitial);
@@ -51,6 +53,7 @@ export function AppShell({
           roleView={roleView}
           roleViews={roleViews}
           markerId="nav-marker-desktop"
+          counts={counts}
         />
         <SidebarCollapse collapsed={collapsed} onToggle={toggleCollapsed} />
       </div>
@@ -81,6 +84,7 @@ export function AppShell({
                     roleView={roleView}
                     roleViews={roleViews}
                     markerId="nav-marker-drawer"
+                    counts={counts}
                   />
                 </motion.div>
               </DialogPrimitive.Popup>
@@ -91,6 +95,13 @@ export function AppShell({
               <ol className="rec-crumbs rec-crumbs--section">
                 <li>Account</li>
                 <li aria-current="page">Your details</li>
+              </ol>
+            ) : pathname === "/app/protocols/new" ? (
+              <ol className="rec-crumbs rec-crumbs--section">
+                <li>
+                  <Link href="/app/protocols">My protocols</Link>
+                </li>
+                <li aria-current="page">New protocol</li>
               </ol>
             ) : (
               <ol className="rec-crumbs">
@@ -113,7 +124,7 @@ export function AppShell({
             <ThemeIconSwitch />
             <span className="rec-top__rule" aria-hidden="true" />
             <NotificationBell />
-            <AccountMenu name={account?.name ?? "Account"} />
+            <AccountMenu name={account?.name ?? "Account"} role={ROLE_LABEL[roleView]} />
           </div>
         </header>
         <main key={`${pathname}:${roleView}`} id="content" className="rec-page rec-content">

@@ -22,6 +22,7 @@ import { redirectToStartPage } from "@/server/auth/gate";
 import { decidePendingUser, ensureVerifiedEmail } from "@/server/auth/users";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
+import { studySelectionFromForm } from "@/lib/protocols/catalog";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 import { affiliationFromForm, savePersonProfile } from "@/server/profiles/profile";
 
@@ -325,21 +326,21 @@ export async function createProtocolAction(_prev: ActionState, formData: FormDat
     }
     const title = z.string().trim().min(1, "Enter the protocol title.").max(300).parse(formData.get("title"));
     const disciplineId = z.string().uuid("Choose a discipline.").parse(formData.get("disciplineId"));
-    const researchType = z.string().trim().min(1, "Enter the research type.").max(160).parse(formData.get("researchType"));
+    const institution = z.string().trim().min(1, "Enter the institution.").max(160).parse(formData.get("institution"));
+    const study = studySelectionFromForm(formData);
     const created = await createProtocolForUser(user.id, {
       title,
       affiliation: resolved.affiliation,
       disciplineId,
+      institution,
       institutionAddress: String(formData.get("institutionAddress") ?? ""),
-      researchType,
+      researchType: study.researchType,
+      researchTypeCodes: study.researchTypeCodes,
+      researchTypeOther: study.researchTypeOther,
       durationMonths: optionalCount(formData.get("durationMonths"), "duration"),
       expectedParticipants: optionalCount(formData.get("expectedParticipants"), "expected participants"),
       studySite: String(formData.get("studySite") ?? ""),
-      fundingSources: formData
-        .getAll("funding")
-        .map((value) => String(value).trim())
-        .filter(Boolean)
-        .map((name) => ({ name })),
+      fundingSources: study.fundingSources,
       contactNumber: String(formData.get("contactNumber") ?? "") || null,
     });
     redirect(`/app/protocols/${created.protocol.id}`);

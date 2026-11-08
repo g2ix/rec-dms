@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { TEMPLATES } from "../src/lib/notifications/catalog";
 import { installUscOrg } from "../src/lib/org/usc-seed";
+import { FUNDING_KINDS, RESEARCH_TYPES } from "../src/lib/protocols/catalog";
 import { installUscRec } from "./seed/usc-rec/install";
 
 const prisma = new PrismaClient();
@@ -67,6 +68,21 @@ async function main() {
         update: { panelId: row.id },
       });
     }
+  }
+
+  for (const [index, type] of RESEARCH_TYPES.entries()) {
+    await prisma.researchType.upsert({
+      where: { code: type.code },
+      create: { code: type.code, label: type.label, sortOrder: index + 1, specify: type.specify },
+      update: { label: type.label, sortOrder: index + 1, specify: type.specify, active: true },
+    });
+  }
+  for (const [index, kind] of FUNDING_KINDS.entries()) {
+    await prisma.fundingSourceKind.upsert({
+      where: { code: kind.code },
+      create: { code: kind.code, label: kind.label, sortOrder: index + 1, detail: kind.detail },
+      update: { label: kind.label, sortOrder: index + 1, detail: kind.detail, active: true },
+    });
   }
 
   await installUscOrg(prisma);

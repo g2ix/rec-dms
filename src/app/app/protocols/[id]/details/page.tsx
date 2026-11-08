@@ -7,12 +7,17 @@ export default async function ProtocolDetailsPage({ params }: { params: Promise<
   const { id } = await params;
   const user = await requireUser();
   const [header, bound, panels] = await Promise.all([protocolHeader(user.id, id), boundValues(id), listPanels()]);
-  const funding = Array.isArray(header.protocol.fundingSources)
-    ? header.protocol.fundingSources.flatMap((item) => {
-        if (item && typeof item === "object" && "name" in item && typeof item.name === "string") return [item.name];
-        return [];
-      })
-    : [];
+  const storedFunding = Array.isArray(header.protocol.fundingSources) ? header.protocol.fundingSources : [];
+  const funding = storedFunding.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("code" in item) || typeof item.code !== "string") return [];
+    const detail = "detail" in item && typeof item.detail === "string" ? item.detail : "";
+    return [{ code: item.code, detail }];
+  });
+  const legacyFunding = storedFunding.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("name" in item) || typeof item.name !== "string") return [];
+    if ("code" in item && typeof item.code === "string" && item.code) return [];
+    return [item.name];
+  });
   const researchers = Array.isArray(bound["protocol.researchers"])
     ? bound["protocol.researchers"].filter((item): item is string => typeof item === "string")
     : [];
@@ -27,11 +32,14 @@ export default async function ProtocolDetailsPage({ params }: { params: Promise<
           title: header.protocol.title,
           institution: header.protocol.institution,
           institutionAddress: header.protocol.institutionAddress,
-          researchType: header.protocol.researchType,
+          researchTypeCodes: header.protocol.researchTypeCodes,
+          researchTypeOther: header.protocol.researchTypeOther,
+          legacyResearchType: header.protocol.researchTypeCodes.length === 0 ? header.protocol.researchType : "",
           durationMonths: header.protocol.durationMonths,
           expectedParticipants: header.protocol.expectedParticipants,
           studySite: header.protocol.studySite,
           funding,
+          legacyFunding,
         }}
       />
       <section className="rec-card rec-stack">

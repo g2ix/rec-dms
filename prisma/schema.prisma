@@ -343,6 +343,34 @@ model Discipline {
   @@map("disciplines")
 }
 
+/// REC application research types. Others asks for a specification.
+model ResearchType {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  label     String
+  sortOrder Int      @map("sort_order")
+  specify   Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("research_types")
+}
+
+/// REC application funding sources. Some ask for an institution, agency, or other name.
+model FundingSourceKind {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  label     String
+  sortOrder Int      @map("sort_order")
+  detail    String   @default("NONE")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("funding_source_kinds")
+}
+
 model Protocol {
   id                   String      @id @default(uuid())
   code                 String?     @unique
@@ -355,6 +383,8 @@ model Protocol {
   institution          String      @default("")
   institutionAddress   String      @default("") @map("institution_address")
   researchType         String      @default("") @map("research_type")
+  researchTypeCodes    String[]    @default([]) @map("research_type_codes")
+  researchTypeOther    String      @default("") @map("research_type_other")
   durationMonths       Int?        @map("duration_months")
   expectedParticipants Int?        @map("expected_participants")
   studySite            String      @default("") @map("study_site")

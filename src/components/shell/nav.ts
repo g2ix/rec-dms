@@ -173,6 +173,11 @@ const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [
     title: "Revision deadlines",
     lede: "Revision deadlines waiting on you.",
   },
+  {
+    href: "/app/guide",
+    title: "Submission guide",
+    lede: "How a protocol moves through the REC.",
+  },
 ];
 
 export function pageForPath(pathname: string): { href: string; title: string; lede: string } | null {

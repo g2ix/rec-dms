@@ -27,11 +27,13 @@ export default async function NewProtocolPage() {
   };
 
   return (
-    <article className="rec-stack">
-      <h1 className="title">New protocol</h1>
-      <p className="body rec-muted">
-        You become the project leader. The discipline suggests a review panel. Shared details are entered once and shown on every form.
-      </p>
+    <article className="protocol-new">
+      <header className="protocol-new__intro">
+        <h1 className="title">New protocol</h1>
+        <p className="body rec-muted">
+          Start with the basics. You will be the project leader, and these details fill in automatically on every REC form.
+        </p>
+      </header>
       {suggestions.emails.length === 0 ? (
         <p className="rec-alert" role="alert">
           Verify an email before creating a protocol.

@@ -50,7 +50,7 @@ export function SidebarPanel({
   roleViews?: RoleView[];
   roleSwitcher?: React.ReactNode;
   markerId: string;
-  counts?: Record<string, { value: number; overdue?: boolean }>;
+  counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
 }) {
   const groups = NAV[roleView];
   const items = groups.flatMap((group) => group.items);
@@ -142,10 +142,14 @@ function NavLink({
   active: boolean;
   collapsed: boolean;
   markerId: string;
-  count?: { value: number; overdue?: boolean };
+  count?: { value: number; overdue?: boolean; waiting?: boolean };
 }) {
   const link = (
-    <Link href={item.href} aria-current={active ? "page" : undefined}>
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      aria-label={count?.waiting ? `${item.label}, ${count.value} waiting` : undefined}
+    >
       {active ? (
         <motion.span
           layoutId={markerId}
@@ -156,7 +160,15 @@ function NavLink({
       <Icon icon={item.icon} />
       <span className="rec-side__label">{item.label}</span>
       {count ? (
-        <span className={count.overdue ? "rec-nav__count rec-nav__count--overdue rec-side__label" : "rec-nav__count rec-side__label"}>
+        <span
+          className={
+            count.waiting
+              ? "rec-nav__count rec-nav__count--waiting"
+              : count.overdue
+                ? "rec-nav__count rec-nav__count--overdue rec-side__label"
+                : "rec-nav__count rec-side__label"
+          }
+        >
           {count.value}
         </span>
       ) : null}
@@ -168,7 +180,7 @@ function NavLink({
   return (
     <Tooltip>
       <TooltipTrigger render={link} />
-      <TooltipContent>{item.label}</TooltipContent>
+      <TooltipContent>{count?.waiting ? `${item.label}, ${count.value} waiting` : item.label}</TooltipContent>
     </Tooltip>
   );
 }
