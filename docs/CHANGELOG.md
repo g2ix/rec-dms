@@ -1,5 +1,9 @@
 # Changelog
 
+## Public front page (2026-11-09)
+
+The signed-out page at `/` introduces REC-DMS: who uses it, the five submission stages, the checklist, forms and guides, and the REC office. Signed-in visitors still leave `/` for their start page. Wording and links live in `src/lib/site-content.ts`. The stages and the checklist are the same lists as the proponent dashboard. Office hours are the Talamban weekday hours and can be edited in that file.
+
 ## Proponent dashboard (2026-11-08)
 
 The proponent home at `/app` is a summary strip, an attention list, and a short protocol table. Someone with no protocol sees the submission steps and the checklist in `src/content/submission-checklist.ts`. My tasks shows a count when work is waiting. The notification bell uses a gold dot for unread notices. Other role dashboards are unchanged.

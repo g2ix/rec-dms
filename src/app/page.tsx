@@ -1,20 +1,19 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import { FrontPage } from "@/components/site/front-page";
+import { SiteFrame } from "@/components/site/site-frame";
+import { siteContent } from "@/lib/site-content";
 import { redirectAwayFromAuthEntry } from "@/server/auth/gate";
+
+export const metadata: Metadata = {
+  title: { absolute: siteContent.meta.title },
+  description: siteContent.meta.description,
+};
 
 export default async function HomePage() {
   await redirectAwayFromAuthEntry("/", "");
   return (
-    <main className="rec-content">
-      <h1 className="title">USC REC-DMS</h1>
-      <p className="body">
-        REC-DMS replaces the email-and-Word submission process of the USC Research
-        Ethics Committee with one web system. Proponents fill the REC forms once,
-        reviewers assess inside the system, and every step is tracked, signed and
-        logged.
-      </p>
-      <p className="body">
-        <Link href="/sign-in">Sign in</Link>
-      </p>
-    </main>
+    <SiteFrame>
+      <FrontPage />
+    </SiteFrame>
   );
 }

@@ -2,6 +2,7 @@
 @import "shadcn/tailwind.css";
 @import "../styles/tokens.css";
 @import "../styles/components.css";
+@import "../styles/site.css";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
