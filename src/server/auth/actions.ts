@@ -61,7 +61,7 @@ export async function signInWithGoogle(_prev: ActionState, formData: FormData): 
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       return { ok: false, error: "Google sign-in is not configured." };
     }
-    await signIn("google", { redirectTo: afterSignIn(formData) });
+    await signIn("google", { redirectTo: afterSignIn(formData) }, { hd: "usc.edu.ph" });
     return null;
   } catch (error) {
     return actionError(error, "Google sign-in did not complete.");
@@ -98,7 +98,7 @@ export async function signInWithPassword(_prev: ActionState, formData: FormData)
       const state = actionError(inner, SUSPENDED_SIGN_IN_MESSAGE);
       if (state?.error === SUSPENDED_SIGN_IN_MESSAGE) return state;
     }
-    return { ok: false, error: "The email or password is not right, or this account cannot sign in." };
+    return { ok: false, error: "That email and password don't match. Try again or use a sign-in link." };
   }
 }
 

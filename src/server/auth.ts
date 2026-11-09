@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { normalizeEmail } from "@/lib/email";
+import { MAGIC_LINK_TTL_SECONDS } from "@/lib/magic-link";
 import { env } from "@/lib/env";
 import { AuditAction } from "@/lib/audit-log";
 import { prisma } from "@/server/db";
@@ -42,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Nodemailer({
       server: env.SMTP_URL,
       from: env.EMAIL_FROM,
+      maxAge: MAGIC_LINK_TTL_SECONDS,
     }),
     Credentials({
       credentials: {

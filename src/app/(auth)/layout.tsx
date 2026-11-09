@@ -8,5 +8,6 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   if (pathname) {
     await redirectAwayFromAuthEntry(pathname, headerList.get("x-rec-search") ?? "");
   }
+  if (pathname === "/sign-in") return children;
   return <AuthFrame>{children}</AuthFrame>;
 }

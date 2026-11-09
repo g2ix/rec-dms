@@ -5,7 +5,7 @@ export function Seal({
   alt = "University of San Carlos seal",
   priority = false,
 }: {
-  size: 24 | 32 | 36 | 96;
+  size: 24 | 32 | 36 | 80 | 96;
   alt?: string;
   priority?: boolean;
 }) {

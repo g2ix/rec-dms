@@ -1,5 +1,9 @@
 # Changelog
 
+## Sign-in page (2026-11-09)
+
+The sign-in page is a single column: Google, then one shared email field that switches between a password and a one-time link. The link expires in 24 hours. Google receives `hd=usc.edu.ph` as a hint; other Google accounts can still sign in. Sign-up and email verification keep the previous frame.
+
 ## Public front page (2026-11-09)
 
 The signed-out page at `/` introduces REC-DMS: who uses it, the five submission stages, the checklist, forms and guides, and the REC office. Signed-in visitors still leave `/` for their start page. Wording and links live in `src/lib/site-content.ts`. The stages and the checklist are the same lists as the proponent dashboard. Office hours are the Talamban weekday hours and can be edited in that file.

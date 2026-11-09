@@ -2,13 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import {
-  sendMagicLink,
-  signInWithGoogle,
-  signInWithPassword,
-  signUpAction,
-  verifyEmailAction,
-} from "@/server/auth/actions";
+import { signUpAction, verifyEmailAction } from "@/server/auth/actions";
 import type { ActionState } from "@/server/action-state";
 import { NameFields } from "@/components/account/name-fields";
 import { BusyButton } from "@/components/ui/busy-button";
@@ -21,61 +15,6 @@ function FormError({ state }: { state: ActionState }) {
     <p className="rec-alert" role="alert">
       {state.error}
     </p>
-  );
-}
-
-export function SignInForm({
-  notice,
-  googleEnabled,
-  callbackUrl = "",
-}: {
-  notice?: string;
-  googleEnabled: boolean;
-  callbackUrl?: string;
-}) {
-  const [passwordState, passwordAction, passwordPending] = useActionState(signInWithPassword, null);
-  const [linkState, linkAction, linkPending] = useActionState(sendMagicLink, null);
-  const [googleState, googleAction, googlePending] = useActionState(signInWithGoogle, null);
-
-  return (
-    <div className="auth-form">
-      <h2 className="heading">Sign in</h2>
-      {notice ? <p className="rec-banner">{notice}</p> : null}
-      <FormError state={passwordState} />
-      <form action={passwordAction} className="auth-form">
-        <input type="hidden" name="callbackUrl" value={callbackUrl} />
-        <Field label="Email" htmlFor="sign-in-email">
-          <Input id="sign-in-email" name="email" type="email" autoComplete="username" required />
-        </Field>
-        <Field label="Password" htmlFor="sign-in-password">
-          <Input id="sign-in-password" name="password" type="password" autoComplete="current-password" required />
-        </Field>
-        <BusyButton type="submit" variant="primary" busy={passwordPending} busyLabel="Signing in…">
-          Sign in
-        </BusyButton>
-      </form>
-      <form action={linkAction} className="auth-form">
-        <input type="hidden" name="callbackUrl" value={callbackUrl} />
-        <FormError state={linkState} />
-        <Field label="Email a sign-in link" htmlFor="magic-email" help="For an email already on your account.">
-          <Input id="magic-email" name="email" type="email" autoComplete="email" required />
-        </Field>
-        <BusyButton type="submit" busy={linkPending} busyLabel="Sending…">
-          Email me a sign-in link
-        </BusyButton>
-      </form>
-      <form action={googleAction}>
-        <input type="hidden" name="callbackUrl" value={callbackUrl} />
-        <FormError state={googleState} />
-        <BusyButton type="submit" busy={googlePending} busyLabel="Opening Google…" disabled={!googleEnabled}>
-          Continue with Google
-        </BusyButton>
-      </form>
-      {!googleEnabled ? <p className="caption rec-muted">Google sign-in is not configured on this server.</p> : null}
-      <p className="body-sm">
-        New to REC-DMS? <Link href="/sign-up">Create an account</Link>
-      </p>
-    </div>
   );
 }
 
