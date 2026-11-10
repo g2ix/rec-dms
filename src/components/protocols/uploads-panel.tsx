@@ -31,12 +31,14 @@ export function UploadsPanel({
   suggestedManuscript,
   locked,
   feeStatus,
+  maxBytes,
 }: {
   protocolId: string;
   files: FileRow[];
   suggestedManuscript: string | null;
   locked: boolean;
   feeStatus: string | null;
+  maxBytes: number;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<(typeof KINDS)[number]["value"]>("MANUSCRIPT");
@@ -132,7 +134,11 @@ export function UploadsPanel({
         <p className="body-sm">This version is submitted. Start a revision to upload a new file.</p>
       ) : (
         <form className="rec-form" onSubmit={(event) => void onSubmit(event)}>
-          <Field label="Kind" htmlFor="upload-kind" help="Manuscript and cover letter must be PDF. A receipt may be a PDF or an image. Limit 25 MB.">
+          <Field
+            label="Kind"
+            htmlFor="upload-kind"
+            help={`Manuscript and cover letter must be PDF. A receipt may be a PDF or an image. Limit ${formatUploadLimit(maxBytes)}.`}
+          >
             <select id="upload-kind" className="rec-select" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
               {KINDS.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -155,6 +161,12 @@ export function UploadsPanel({
 
 function labelFor(kind: string): string {
   return KINDS.find((item) => item.value === kind)?.label ?? kind;
+}
+
+function formatUploadLimit(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  const rounded = Number.isInteger(mb) ? String(mb) : mb.toFixed(1).replace(/\.0$/, "");
+  return `${rounded} MB`;
 }
 
 function feeLabel(status: string): string {

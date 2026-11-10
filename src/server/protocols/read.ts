@@ -8,6 +8,7 @@ import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { ensureWorkingForms, sharedSnapshot } from "@/server/protocols/versions";
+import { maxUploadBytes } from "@/server/protocols/settings";
 import { suggestedManuscriptName } from "@/lib/protocols/format";
 import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
 
@@ -167,6 +168,17 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
   if (!version) throw new AppError("NOT_FOUND", "That form was not found.", 404);
   const parsed = validateSchema(instance.formDefinition.schema);
   if (!parsed.ok) throw new AppError("INVALID", "This form schema cannot be shown.", 400);
+  let data = instance.data;
+  if (instance.status === "DRAFT" && version.state === "WORKING") {
+    const { prefillResearcherTable } = await import("@/server/forms/roster-prefill");
+    const next = await prefillResearcherTable(prisma, {
+      instanceId: instance.id,
+      protocolId,
+      schema: instance.formDefinition.schema,
+      data: instance.data,
+    });
+    data = next as typeof instance.data;
+  }
   const member = await prisma.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
   });
@@ -182,13 +194,20 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
   }
   const { editingStepFor } = await import("@/server/workflow/access");
   const stepKey = await editingStepFor(prisma, userId, version.id, instance.formDefinition.code);
-  return { instance, version, schema: parsed.schema, roles, stepKey };
+  return {
+    instance: { ...instance, data },
+    version,
+    schema: parsed.schema,
+    roles,
+    stepKey,
+  };
 }
 
 export async function listUploads(userId: string, protocolId: string) {
   const header = await protocolHeader(userId, protocolId);
   const version = header.working ?? header.shown;
-  if (!version) return { header, files: [], suggestedManuscript: null, fee: null };
+  const limit = await maxUploadBytes();
+  if (!version) return { header, files: [], suggestedManuscript: null, fee: null, maxBytes: limit };
   const [files, fee] = await Promise.all([
     prisma.storedFile.findMany({ where: { protocolVersionId: version.id }, orderBy: { createdAt: "desc" } }),
     prisma.feeVerification.findUnique({ where: { protocolVersionId: version.id } }),
@@ -198,6 +217,7 @@ export async function listUploads(userId: string, protocolId: string) {
     files,
     suggestedManuscript: header.working ? suggestedManuscriptName(header.working.label) : null,
     fee,
+    maxBytes: limit,
   };
 }
 

@@ -89,6 +89,7 @@ const columnSchema = z
     options: z.array(optionSchema).optional(),
     editableInSteps: z.array(z.string().min(1)).optional(),
     formula: z.string().optional(),
+    required: z.boolean().optional(),
     /** This column can be edited only on rows the same person commented on in an earlier form. */
     authoredFrom: z
       .object({
@@ -107,6 +108,8 @@ const rowSchema = z
     code: z.string().min(1),
     label: z.string().min(1),
     help: z.string().optional(),
+    visibleIf: jsonLogicSchema.optional(),
+    requiredIf: jsonLogicSchema.optional(),
   })
   .strict();
 
@@ -150,6 +153,7 @@ export type FormSchema = z.infer<typeof formSchema>;
 export type FormSection = FormSchema["sections"][number];
 export type FormField = FormSection["fields"][number];
 export type FormColumn = NonNullable<FormField["columns"]>[number];
+export type FormRow = NonNullable<FormField["rows"]>[number];
 export type FieldType = FormField["type"];
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 

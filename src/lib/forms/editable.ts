@@ -1,4 +1,4 @@
-import { isSectionVisible } from "@/lib/forms/logic";
+import { isRowVisible, isSectionVisible } from "@/lib/forms/logic";
 import type { RoleKey } from "@/lib/forms/roles";
 import type { FormColumn, FormField, FormSchema } from "@/lib/forms/schema";
 
@@ -78,6 +78,7 @@ function addField(
   if (field.type === "assessmentTable") {
     const table = record(record(data)[field.id]);
     for (const row of field.rows ?? []) {
+      if (!isRowVisible(row, data)) continue;
       const cells = table[row.id];
       if (!rowShown(field, cells)) continue;
       for (const column of field.columns ?? []) {

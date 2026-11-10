@@ -1,5 +1,5 @@
-import { isSectionVisible, logicIsTrue } from "@/lib/forms/logic";
-import type { ColumnType, FormColumn, FormField, FormSchema } from "@/lib/forms/schema";
+import { isRowRequired, isRowVisible, isSectionVisible, logicIsTrue } from "@/lib/forms/logic";
+import type { ColumnType, FormColumn, FormField, FormRow, FormSchema } from "@/lib/forms/schema";
 
 export type FieldIssue = { path: string; message: string };
 
@@ -97,7 +97,7 @@ function checkRepeating(
       if (shape) issues.push({ path: `${path}.${index}.${column.id}`, message: shape });
       if (
         mode === "complete" &&
-        isRequired(field, data) &&
+        columnNeeded(field, column, data) &&
         column.type !== "computed" &&
         cellOpen(column.fillers, column.editableInSteps ?? field.editableInSteps, context) &&
         isEmpty(column.type, cell)
@@ -123,7 +123,6 @@ function checkAssessment(
   }
   const table = (value ?? {}) as Record<string, unknown>;
   const issues: FieldIssue[] = [];
-  const required = mode === "complete" && isRequired(field, data);
   for (const row of field.rows ?? []) {
     const rowValue = table[row.id];
     const record = rowValue && typeof rowValue === "object" && !Array.isArray(rowValue) ? (rowValue as Record<string, unknown>) : {};
@@ -131,7 +130,8 @@ function checkAssessment(
       issues.push({ path: `${path}.${row.id}`, message: "A row is missing its values." });
       continue;
     }
-    if (!rowShown(field, record)) continue;
+    if (!assessmentRowShown(field, row, record, data)) continue;
+    const required = mode === "complete" && assessmentRowRequired(field, row, data);
     for (const column of field.columns ?? []) {
       const cell = record[column.id];
       const shape = columnShape(column, cell, field);
@@ -174,6 +174,30 @@ function rowShown(field: FormField, record: Record<string, unknown>): boolean {
   const keys = field.showRowsWhenFilled;
   if (!keys || keys.length === 0) return true;
   return keys.some((key) => typeof record[key] === "string" && record[key].trim() !== "");
+}
+
+function assessmentRowShown(
+  field: FormField,
+  row: FormRow,
+  record: Record<string, unknown>,
+  data: Record<string, unknown>,
+): boolean {
+  if (!isRowVisible(row, data)) return false;
+  return rowShown(field, record);
+}
+
+function assessmentRowRequired(field: FormField, row: FormRow, data: Record<string, unknown>): boolean {
+  const fromRow = isRowRequired(row, data);
+  if (fromRow != null) return fromRow;
+  return isRequired(field, data);
+}
+
+function columnNeeded(field: FormField, column: FormColumn, data: Record<string, unknown>): boolean {
+  if (column.required === true) return true;
+  if (column.required === false) return false;
+  const mixed = (field.columns ?? []).some((item) => item.required === true || item.required === false);
+  if (mixed) return false;
+  return isRequired(field, data);
 }
 
 function rowAllowed(field: FormField, column: FormColumn, rowId: string, context?: ValidateContext): boolean {

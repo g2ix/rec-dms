@@ -42,7 +42,7 @@ postgresql://postgres.<project-ref>:[PASSWORD]@aws-0-ap-southeast-1.pooler.supab
 
 `DATABASE_URL` is the first. `DIRECT_URL` is the second. The Vercel build command is `prisma migrate deploy && next build` (`pnpm vercel-build`), and migrate uses `DIRECT_URL`.
 
-Storage: create a private bucket `recdms-files` and an S3 access key. The endpoint looks like `https://<project-ref>.storage.supabase.co/storage/v1/s3`. Region `ap-southeast-1`.
+Storage: create a private bucket `recdms-files` and an S3 access key. The endpoint looks like `https://<project-ref>.storage.supabase.co/storage/v1/s3`. Region `ap-southeast-1`. The app default for `uploads.maxBytes` is 100 MB. Supabase’s free plan caps a single file at 50 MB, so production needs a paid plan or a lower setting.
 
 Data API: in Project Settings → Data API, remove `public` from Exposed schemas if that schema is not serving another application. The `recdms` schema must not be exposed. Confirm with the anon key:
 

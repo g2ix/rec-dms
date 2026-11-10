@@ -1,5 +1,20 @@
 # Changelog
 
+## Upload limit, F-29 email, F-36 “If NO…”, and spell-check (2026-11-10)
+
+The default `uploads.maxBytes` is 100 MB (was 25 MB). The uploads panel help text shows that setting. `docs/DEPLOY.md` notes Supabase’s free plan 50 MB file cap.
+
+F-29’s researcher table requires name and email; opening a draft form pre-fills rows from each proponent’s contact email, name, and designation. F-36 row `1.NO` uses `visibleIf` / `requiredIf` so it appears and is required only when item 1 is No; the print map still reads the same paths. Assessment rows may carry those conditions in the form schema.
+
+Those form changes publish as version `09-01`. Seeding retires earlier published versions of the same code so new protocols get `09-01` while existing form instances keep their old definition id.
+
+`pnpm lint` and CI run cspell on `src/**/*.tsx`, notification templates, and USC REC seed labels, with an allow-list for REC and stack terms.
+
+### Deviation from the request
+
+- Designation and CV appendix on the researcher table stay optional; only name and email are marked required, matching the adviser block’s pattern.
+- `docs/SECURITY.md` was updated to the same 100 MB default so it does not disagree with the setting.
+
 ## In-app document viewer (2026-11-10)
 
 Opening a file no longer uses `window.open` in a new tab. A large in-app panel shows the file name, protocol code, Close (also Escape and the browser Back button), Download, and a small “Open in new tab” link. PDFs use the browser’s built-in viewer in an `<object>` / `<iframe>` on a white plate; images show on the same plate; DOCX and other types offer Download. Signed URLs still expire in five minutes and refresh while the viewer stays open. Opening a file is still audited.

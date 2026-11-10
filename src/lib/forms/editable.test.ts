@@ -66,4 +66,63 @@ describe("editable fields", () => {
       ).size,
     ).toBe(0);
   });
+
+  it("hides assessment rows that fail visibleIf", () => {
+    const schema = schemaOf({
+      sections: [
+        {
+          id: "icf",
+          title: "ICF",
+          fields: [
+            {
+              id: "points",
+              label: "Points",
+              type: "assessmentTable",
+              fillers: ["PRIMARY_REVIEWER"],
+              rows: [
+                { id: "p1", code: "1", label: "Consent needed?" },
+                {
+                  id: "p1NO",
+                  code: "1.NO",
+                  label: "If NO…",
+                  visibleIf: { "==": [{ var: "points.p1.assessment" }, "NO"] },
+                },
+              ],
+              columns: [
+                {
+                  id: "assessment",
+                  label: "Assessment",
+                  type: "select",
+                  options: [
+                    { value: "YES", label: "Yes" },
+                    { value: "NO", label: "No" },
+                  ],
+                  fillers: ["PRIMARY_REVIEWER"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const hidden = getEditableFields(
+      { schema },
+      { status: "DRAFT", data: { points: { p1: { assessment: "YES" } } } },
+      user,
+      ["PRIMARY_REVIEWER"],
+      null,
+    );
+    expect(hidden.has("points.p1.assessment")).toBe(true);
+    expect(hidden.has("points.p1NO.assessment")).toBe(false);
+
+    const shown = getEditableFields(
+      { schema },
+      { status: "DRAFT", data: { points: { p1: { assessment: "NO" } } } },
+      user,
+      ["PRIMARY_REVIEWER"],
+      null,
+    );
+    expect(shown.has("points.p1NO.assessment")).toBe(true);
+  });
 });
+

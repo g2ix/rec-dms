@@ -3,7 +3,7 @@ import type { FormSchema } from "../../../src/lib/forms/schema";
 import { FUNDING_KIND_OPTIONS, RESEARCH_TYPE_OPTIONS } from "../../../src/lib/protocols/catalog";
 import { F26_ITEMS, F35_POINTS, F36_POINTS, F41_CRITERIA } from "./points";
 
-const VERSION = "09-00";
+const VERSION = "09-01";
 const EFFECTIVE = "2025-08-01";
 const PROPONENT = ["PROPONENT"] as const;
 const ADVISER = ["ADVISER"] as const;
@@ -39,8 +39,15 @@ function rowId(code: string): string {
   return `p${code.replaceAll(".", "")}`;
 }
 
-function points(items: { code: string; label: string; help?: string }[]) {
-  return items.map((item) => ({ id: rowId(item.code), code: item.code, label: item.label, ...(item.help ? { help: item.help } : {}) }));
+function points(items: { code: string; label: string; help?: string; visibleIf?: unknown; requiredIf?: unknown }[]) {
+  return items.map((item) => ({
+    id: rowId(item.code),
+    code: item.code,
+    label: item.label,
+    ...(item.help ? { help: item.help } : {}),
+    ...(item.visibleIf != null ? { visibleIf: item.visibleIf } : {}),
+    ...(item.requiredIf != null ? { requiredIf: item.requiredIf } : {}),
+  }));
 }
 
 function area(id: string, label: string, help: string) {
@@ -331,9 +338,9 @@ const rawForms: {
             minRows: 1,
             fillers: [...PROPONENT],
             columns: [
-              { id: "name", label: "Name", type: "text", fillers: [...PROPONENT] },
+              { id: "name", label: "Name", type: "text", required: true, fillers: [...PROPONENT] },
               { id: "designation", label: "Designation / course, year, and institution", type: "text", fillers: [...PROPONENT] },
-              { id: "email", label: "Email", type: "text", fillers: [...PROPONENT] },
+              { id: "email", label: "Email", type: "text", required: true, fillers: [...PROPONENT] },
               { id: "cv", label: "CV appendix no.", type: "text", fillers: [...PROPONENT] },
             ],
           },

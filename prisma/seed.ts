@@ -34,7 +34,7 @@ async function main() {
   });
   await prisma.setting.upsert({
     where: { key: "uploads.maxBytes" },
-    create: { key: "uploads.maxBytes", value: 25 * 1024 * 1024 },
+    create: { key: "uploads.maxBytes", value: 100 * 1024 * 1024 },
     update: {},
   });
 

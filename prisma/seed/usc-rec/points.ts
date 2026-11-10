@@ -30,9 +30,22 @@ export const F35_POINTS: { code: string; label: string; help?: string }[] = [
   { code: "4", label: "Do you have any other concerns?" },
 ];
 
-export const F36_POINTS: { code: string; label: string; help?: string }[] = [
+const WHEN_ITEM_1_IS_NO = { "==": [{ var: "points.p1.assessment" }, "NO"] } as const;
+
+export const F36_POINTS: {
+  code: string;
+  label: string;
+  help?: string;
+  visibleIf?: unknown;
+  requiredIf?: unknown;
+}[] = [
   { code: "1", label: "Is it necessary to seek the informed consent of the participant(s)?" },
-  { code: "1.NO", label: "If NO, are specific exemptions under duly recognized guidelines invoked in the study/research proposal according to the contextual conditions?" },
+  {
+    code: "1.NO",
+    label: "If NO, are specific exemptions under duly recognized guidelines invoked in the study/research proposal according to the contextual conditions?",
+    visibleIf: WHEN_ITEM_1_IS_NO,
+    requiredIf: WHEN_ITEM_1_IS_NO,
+  },
   { code: "1.01", label: "Purpose of the study?", help: "If YES, are the participants provided with sufficient information about:" },
   { code: "1.02", label: "Institutional affiliation of the researcher(s), research sponsor(s)/research funder(s)?" },
   { code: "1.03", label: "Expected duration of the participation in the study?" },

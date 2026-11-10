@@ -12,3 +12,13 @@ export function isSectionVisible(section: { visibleIf?: unknown }, data: unknown
   if (section.visibleIf == null) return true;
   return logicIsTrue(section.visibleIf, data);
 }
+
+export function isRowVisible(row: { visibleIf?: unknown }, data: unknown): boolean {
+  if (row.visibleIf == null) return true;
+  return logicIsTrue(row.visibleIf, data);
+}
+
+export function isRowRequired(row: { requiredIf?: unknown }, data: unknown): boolean | null {
+  if (row.requiredIf == null) return null;
+  return logicIsTrue(row.requiredIf, data);
+}

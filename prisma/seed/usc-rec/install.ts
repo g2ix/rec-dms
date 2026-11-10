@@ -145,6 +145,13 @@ async function publishForm(
     });
     return;
   }
+  const previous = await prisma.formDefinition.findMany({
+    where: { code: form.code, status: "PUBLISHED", NOT: { version: form.version } },
+    select: { id: true },
+  });
+  for (const row of previous) {
+    await prisma.formDefinition.update({ where: { id: row.id }, data: { status: "RETIRED" } });
+  }
   const row =
     existing ??
     (await prisma.formDefinition.create({

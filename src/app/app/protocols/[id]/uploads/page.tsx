@@ -13,6 +13,7 @@ export default async function ProtocolUploadsPage({ params }: { params: Promise<
       suggestedManuscript={data.suggestedManuscript}
       locked={!data.header.working || !canUpload}
       feeStatus={data.fee?.status ?? null}
+      maxBytes={data.maxBytes}
       files={data.files.map((file) => ({
         id: file.id,
         kind: file.kind,

@@ -28,7 +28,7 @@ Next.js compares the `Origin` of a Server Action to the host. `middleware.ts` re
 
 ## Uploads
 
-Confirming an upload reads the bytes with `file-type` and rejects a file whose detected type is not the type that was declared, except the EICAR test string, which is stored so the scanner can mark it infected. Manuscripts and cover letters must be PDF. A fee receipt or supporting file may be PDF, JPEG, PNG, or WebP. The size limit is the `uploads.maxBytes` setting (default 25 MB).
+Confirming an upload reads the bytes with `file-type` and rejects a file whose detected type is not the type that was declared, except the EICAR test string, which is stored so the scanner can mark it infected. Manuscripts and cover letters must be PDF. A fee receipt or supporting file may be PDF, JPEG, PNG, or WebP. The size limit is the `uploads.maxBytes` setting (default 100 MB).
 
 Download URLs expire after 5 minutes (`getSignedDownloadUrl`).
 

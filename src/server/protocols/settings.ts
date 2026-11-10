@@ -6,7 +6,7 @@ export const REQUIRED_FORMS_KEY = "protocol.requiredForms";
 export const REQUIRED_UPLOADS_KEY = "protocol.requiredUploads";
 export const MAX_UPLOAD_KEY = "uploads.maxBytes";
 
-export const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+export const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 export const DEFAULT_REQUIRED_UPLOADS = ["MANUSCRIPT", "COVER_LETTER", "FEE_RECEIPT"] as const;
 
 type Db = Prisma.TransactionClient | typeof prisma;

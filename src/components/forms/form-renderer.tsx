@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatBoundValue } from "@/lib/forms/bindings";
 import { canChangeRepeatingRows, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
 import { centavosFromPesos, formatCentavos, pesosInput } from "@/lib/forms/money";
-import { isSectionVisible } from "@/lib/forms/logic";
+import { isRowVisible, isSectionVisible } from "@/lib/forms/logic";
 import { getPath, setPath } from "@/lib/forms/paths";
 import { computedText } from "@/lib/forms/recompute";
 import type { RoleKey } from "@/lib/forms/roles";
@@ -725,7 +725,9 @@ function AssessmentTable({
             </tr>
           </thead>
           <tbody>
-            {(field.rows ?? []).filter((row) => shownAssessmentRow(field, record[row.id])).map((row) => {
+            {(field.rows ?? [])
+              .filter((row) => isRowVisible(row, data) && shownAssessmentRow(field, record[row.id]))
+              .map((row) => {
               const rowValue = record[row.id];
               const cells = rowValue && typeof rowValue === "object" && !Array.isArray(rowValue) ? (rowValue as Record<string, unknown>) : {};
               return (
@@ -764,7 +766,9 @@ function AssessmentTable({
             })}
           </tbody>
         </table>
-        {field.showRowsWhenFilled && field.showRowsWhenFilled.length > 0 && (field.rows ?? []).every((row) => !shownAssessmentRow(field, record[row.id])) ? (
+        {field.showRowsWhenFilled &&
+        field.showRowsWhenFilled.length > 0 &&
+        (field.rows ?? []).every((row) => !isRowVisible(row, data) || !shownAssessmentRow(field, record[row.id])) ? (
           <p className="body-sm rec-muted">No reviewer comments or suggestions were recorded for these points.</p>
         ) : null}
       </div>
