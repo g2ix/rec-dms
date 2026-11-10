@@ -160,7 +160,7 @@
   "cb_fund_personal": {
     "helper": "checkbox",
     "path": "funds",
-    "includes": "PERSONAL",
+    "includes": "RESEARCHER",
     "covers": [
       "funds"
     ]
@@ -168,32 +168,32 @@
   "cb_fund_external": {
     "helper": "checkbox",
     "path": "funds",
-    "includes": "EXTERNAL"
+    "includes": "AGENCY"
   },
   "cb_fund_internal": {
     "helper": "checkbox",
     "path": "funds",
-    "includes": "INTERNAL"
+    "includes": "INSTITUTION"
   },
   "cb_fund_other": {
     "helper": "checkbox",
     "path": "funds",
-    "includes": "FUND_OTHER"
+    "includes": "OTHER"
   },
   "fund_agency": {
     "helper": "text",
-    "path": "fund_amounts",
+    "path": "fund_agency",
     "covers": [
       "fund_amounts"
     ]
   },
   "fund_internal_name": {
     "helper": "text",
-    "path": "fund_amounts"
+    "path": "fund_institution"
   },
   "fund_other_name": {
     "helper": "text",
-    "path": "fund_amounts"
+    "path": "fund_other"
   },
   "cb_conflict_none": {
     "helper": "checkbox",
