@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS = [
+export const PROTOCOL_TABS = [
   { href: "", label: "Overview" },
   { href: "/details", label: "Details" },
   { href: "/members", label: "Members" },
@@ -19,7 +19,7 @@ export function ProtocolNav({ protocolId }: { protocolId: string }) {
   const base = `/app/protocols/${protocolId}`;
   return (
     <nav className="rec-proto-nav" aria-label="Protocol">
-      {TABS.map((tab) => {
+      {PROTOCOL_TABS.map((tab) => {
         const href = `${base}${tab.href}`;
         const current = tab.href === "" ? pathname === base : pathname === href || pathname.startsWith(`${href}/`);
         return (

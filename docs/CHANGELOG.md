@@ -1,5 +1,34 @@
 # Changelog
 
+## Action results (2026-11-10)
+
+After an action succeeds, a confirmation dialog says what happened and who acts next. Its OK button goes to the next place to work. Closing the dialog with Escape or a click outside does the same. Errors stay inline on the same page, above the button, and the fields keep what was typed.
+
+The dialog covers completing a workflow task (submit, screen, return, decide, release, review), Submit version, Request extension, and signing a form. Claiming a task, reassigning one, and starting a revision still stay on the page with no dialog, because the next thing to do is on that page.
+
+The second line comes from the open tasks of the workflow's next step: the step name, the role or person assigned, the step's deadline, and the due date. A role task shows the role, for example "REC Staff acts next: Screen the submission, within 2 days (by 12 Nov 2026)." A person shows by name, and proponents and advisers still see "Reviewer" in place of a reviewer's name. When the pass has ended it says so. The first line is "Protocol submitted." when the project leader completes the workflow's first step, "Returned to Juan D. Cruz with your comment." when the chosen outcome leads to a Returned status, and otherwise the step name with the outcome label.
+
+Where OK goes:
+
+- A reviewer's task goes to My reviews (`/app/reviews`).
+- Signing a form goes to the protocol's Forms page.
+- Everything else goes to the protocol page.
+
+Saving a form field still stays on the form with the autosave caption. The top bar on every protocol page now reads Dashboard / protocol code / tab, and a form adds its form code. Each part links back.
+
+`ActionForm` and `ActionResultProvider` in `src/components/ui/action-result.tsx` are the shared pattern. An action returns `{ ok: true, result }` or `{ ok: false, error }`. `resultHref` in `src/lib/action-result.ts` chooses the destination. The dialog is the existing Dialog, so reduced motion gets the 120ms fade with no movement.
+
+### Deviation from the request
+
+- "Within 2 days" is followed by the step name, not a verb such as "check it". The workflow stores no verb for a step, and the rules forbid hard-coding one per step.
+- The role's home in the breadcrumb is the Dashboard at `/app`, which is where every role view opens.
+- No form in a protocol had a submit action. Signing is the only form action that is not an autosave, so it is the one that returns to the Forms page.
+- `completeTaskAction`, `submitVersionAction`, and `requestExtensionAction` no longer redirect with `?error=`. The protocol page still reads `?error=` for claim and reassign.
+- The Playwright file `e2e/action-result.spec.ts` creates its own unpublished workflow (`E2E_ACTION_RESULT`) and two accounts in the development database, as the assessment tests do.
+- When the destination is the page the user is already on, OK only closes the dialog. The action has already refreshed that page.
+- `src/server/db.ts` now sets Prisma's `transactionOptions.maxWait` to 20 seconds (the default is 2). After OK, the next page can load while the old page is still refreshing. With `connection_limit=1` the second request failed with P2028 and showed the error page. It now waits for the connection.
+- `.claude/launch.json` is new. It lets the Claude preview start `pnpm dev` on port 3000.
+
 ## Navigation links (2026-11-10)
 
 In the REC Staff and REC Chair views, people who pass `users.manage` now see Users linking to `/admin/users`, and a new Panels link. Others in those views keep Users linking to `/app/users`, and do not see Panels.

@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { affiliationFromForm, savePersonProfile } from "@/server/profiles/profile";
-import { actionError, isNextRedirect, type ActionState } from "@/server/action-state";
+import type { ActionOutcome } from "@/lib/action-result";
+import { actionError, actionFailure, isNextRedirect, type ActionState } from "@/server/action-state";
+import { protocolResult } from "@/server/workflow/result";
 import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
 import { requireActiveUser, requireUser } from "@/server/session";
@@ -140,19 +142,22 @@ export async function changePanelAction(formData: FormData): Promise<void> {
   revalidatePath(`/app/protocols/${id}`);
 }
 
-export async function submitVersionAction(formData: FormData): Promise<void> {
-  const user = await requireActiveUser();
-  const id = protocolId(formData);
-  await authorize(user, "protocol.submit", { type: "protocol", id });
+/** On success the caller shows the result dialog. On failure the message stays inline on the same page. */
+export async function submitVersionAction(formData: FormData): Promise<ActionOutcome> {
   try {
+    const user = await requireActiveUser();
+    const id = protocolId(formData);
+    await authorize(user, "protocol.submit", { type: "protocol", id });
     await submitVersion(id, user.id);
+    revalidatePath(`/app/protocols/${id}`);
+    revalidatePath("/app/tasks");
+    return {
+      ok: true,
+      result: await protocolResult({ title: "Protocol submitted.", protocolId: id, viewerId: user.id, target: "protocol" }),
+    };
   } catch (error) {
-    if (isNextRedirect(error)) throw error;
-    const message = error instanceof AppError ? error.message : "The version could not be submitted.";
-    const { redirect } = await import("next/navigation");
-    redirect(`/app/protocols/${id}?error=${encodeURIComponent(message)}`);
+    return actionFailure(error, "The version could not be submitted.");
   }
-  revalidatePath(`/app/protocols/${id}`);
 }
 
 export async function startRevisionAction(formData: FormData): Promise<void> {

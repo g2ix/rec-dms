@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useActionResult } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,7 @@ function SignatureSlot({ slot, signing }: { slot: SignatureSlotView; signing: Si
 
 function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: SigningPrompt }) {
   const router = useRouter();
+  const showResult = useActionResult();
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -91,6 +93,7 @@ function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: Signi
         return;
       }
       router.refresh();
+      showResult(result.result);
     });
   }
 

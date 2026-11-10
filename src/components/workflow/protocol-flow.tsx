@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ActionForm } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { TaskCommentList } from "@/components/workflow/task-comments";
 import { auditActionLabel } from "@/lib/audit-log";
@@ -52,12 +53,17 @@ export async function ProtocolFlow({
         );
       })}
       {flow.extension?.step ? (
-        <form action={requestExtensionAction} className="rec-card rec-stack">
+        <ActionForm
+          action={requestExtensionAction}
+          className="rec-card rec-stack"
+          submitLabel="Request extension"
+          busyLabel="Requesting…"
+          variant="secondary"
+        >
           <p className="body-sm">Ask the Panel Chair for a later revision deadline. The request stays open until they approve a new date or deny it.</p>
           <input type="hidden" name="instanceId" value={flow.extension.instanceId} />
           <input type="hidden" name="protocolId" value={protocolId} />
-          <BusyButton type="submit">Request extension</BusyButton>
-        </form>
+        </ActionForm>
       ) : null}
       {flow.mine.map((task) =>
         task.step && task.step.type !== "WAIT_PROPONENT" ? (
@@ -118,69 +124,74 @@ async function TaskForm({
   if (!step) return null;
   const outcomes = side?.outcomes ?? step.outcomes;
   const reviewers = !side && step.assignReviewers ? await reviewerOptions(protocolId, step.assignReviewers.roles) : [];
-  return (
-    <form action={unclaimed ? claimTaskAction : completeTaskAction} className="rec-card rec-stack">
-      <input type="hidden" name="taskId" value={taskId} />
-      <input type="hidden" name="protocolId" value={protocolId} />
-      {unclaimed ? (
+  if (unclaimed) {
+    return (
+      <form action={claimTaskAction} className="rec-card rec-stack">
+        <input type="hidden" name="taskId" value={taskId} />
+        <input type="hidden" name="protocolId" value={protocolId} />
         <BusyButton type="submit" variant="primary">
           Claim {step.name}
         </BusyButton>
-      ) : (
-        <>
-          {outcomes && outcomes.length > 0 ? (
-            <fieldset className="rec-stack">
-              <legend className="label">Outcome</legend>
-              {outcomes.map((outcome) => (
-                <label key={outcome.key} className="rec-choice">
-                  <input type="radio" name="outcome" value={outcome.key} required />
-                  <span>{outcome.label}</span>
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
-          {side?.effect === "SET_DUE" ? (
-            <label className="rec-field">
-              <span className="label">New due date</span>
-              <input className="rec-input" type="date" name="newDueAt" />
+      </form>
+    );
+  }
+  return (
+    <ActionForm
+      action={completeTaskAction}
+      className="rec-card rec-stack"
+      submitLabel={`Complete ${step.name}`}
+      busyLabel="Completing…"
+    >
+      <input type="hidden" name="taskId" value={taskId} />
+      <input type="hidden" name="protocolId" value={protocolId} />
+      {outcomes && outcomes.length > 0 ? (
+        <fieldset className="rec-stack">
+          <legend className="label">Outcome</legend>
+          {outcomes.map((outcome) => (
+            <label key={outcome.key} className="rec-choice">
+              <input type="radio" name="outcome" value={outcome.key} required />
+              <span>{outcome.label}</span>
             </label>
-          ) : null}
-          {step.capture?.meetingDate ? (
-            <label className="rec-field">
-              <span className="label">Meeting date</span>
-              <input className="rec-input" type="date" name="meetingDate" required />
+          ))}
+        </fieldset>
+      ) : null}
+      {side?.effect === "SET_DUE" ? (
+        <label className="rec-field">
+          <span className="label">New due date</span>
+          <input className="rec-input" type="date" name="newDueAt" />
+        </label>
+      ) : null}
+      {step.capture?.meetingDate ? (
+        <label className="rec-field">
+          <span className="label">Meeting date</span>
+          <input className="rec-input" type="date" name="meetingDate" required />
+        </label>
+      ) : null}
+      {step.assignReviewers && !side ? (
+        <fieldset className="rec-stack">
+          <legend className="label">
+            Reviewers (
+            {step.assignReviewers.max != null
+              ? `${step.assignReviewers.min} to ${step.assignReviewers.max}`
+              : `at least ${step.assignReviewers.min}`}
+            )
+          </legend>
+          {reviewers.length === 0 ? <p className="body-sm">No one holding those roles is free of a conflict.</p> : null}
+          {reviewers.map((reviewer) => (
+            <label key={reviewer.id} className="rec-choice">
+              <input type="checkbox" name="reviewerUserId" value={reviewer.id} />
+              <span>
+                {reviewer.name} · {reviewer.openTasks} open {reviewer.openTasks === 1 ? "task" : "tasks"}
+              </span>
             </label>
-          ) : null}
-          {step.assignReviewers && !side ? (
-            <fieldset className="rec-stack">
-              <legend className="label">
-                Reviewers (
-                {step.assignReviewers.max != null
-                  ? `${step.assignReviewers.min} to ${step.assignReviewers.max}`
-                  : `at least ${step.assignReviewers.min}`}
-                )
-              </legend>
-              {reviewers.length === 0 ? <p className="body-sm">No one holding those roles is free of a conflict.</p> : null}
-              {reviewers.map((reviewer) => (
-                <label key={reviewer.id} className="rec-choice">
-                  <input type="checkbox" name="reviewerUserId" value={reviewer.id} />
-                  <span>
-                    {reviewer.name} · {reviewer.openTasks} open {reviewer.openTasks === 1 ? "task" : "tasks"}
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
-          <label className="rec-field rec-field--wide">
-            <span className="label">Comment</span>
-            <textarea className="rec-input" name="comment" rows={3} />
-          </label>
-          <BusyButton type="submit" variant="primary">
-            Complete {step.name}
-          </BusyButton>
-        </>
-      )}
-    </form>
+          ))}
+        </fieldset>
+      ) : null}
+      <label className="rec-field rec-field--wide">
+        <span className="label">Comment</span>
+        <textarea className="rec-input" name="comment" rows={3} />
+      </label>
+    </ActionForm>
   );
 }
 

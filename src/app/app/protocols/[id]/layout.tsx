@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PdfDownload } from "@/components/docs/pdf-download";
 import { ProtocolHeader } from "@/components/protocols/protocol-header";
 import { ProtocolNav } from "@/components/protocols/protocol-nav";
+import { ProtocolCrumb } from "@/components/shell/crumbs";
 import { AppError } from "@/server/errors";
 import { protocolHeader } from "@/server/protocols/read";
 import { requireUser } from "@/server/session";
@@ -19,6 +20,7 @@ export default async function ProtocolLayout({
     const header = await protocolHeader(user.id, id);
     return (
       <article className="rec-stack">
+        <ProtocolCrumb id={id} label={header.protocol.code ?? header.protocol.title} />
         <ProtocolHeader
           code={header.protocol.code}
           title={header.protocol.title}

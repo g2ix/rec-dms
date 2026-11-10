@@ -31,7 +31,7 @@ type Member = { role: string; isLeader: boolean };
 
 const RETURNED = /^returned/i;
 
-function returnsToProponent(graph: WorkflowGraph, stepKey: string, outcome: string | null): boolean {
+export function returnsToProponent(graph: WorkflowGraph, stepKey: string, outcome: string | null): boolean {
   if (!outcome) return false;
   return graph.transitions.some((transition) => {
     if (transition.from !== stepKey || transition.when == null || !logicIsTrue(transition.when, { outcome })) return false;

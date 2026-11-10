@@ -804,6 +804,8 @@ html.theme-fade * {
 .rec-crumbs a { color: var(--ink-muted); text-decoration: none; }
 .rec-crumbs a:hover { color: var(--primary); }
 .rec-crumbs--section li + li::before { content: "/"; color: var(--ink-muted); }
+.rec-crumbs li { white-space: nowrap; }
+.rec-crumbs__clip { display: block; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
 .rec-search {
   flex: 1;
   min-width: 0;

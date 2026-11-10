@@ -6,7 +6,10 @@ import { motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
 import { Icon } from "@/components/icons";
+import { PROTOCOL_TABS } from "@/components/protocols/protocol-nav";
 import { AccountMenu } from "@/components/shell/account-menu";
+import { CrumbSetter, EMPTY_CRUMBS, type CrumbState } from "@/components/shell/crumbs";
+import { ActionResultProvider } from "@/components/ui/action-result";
 import { SidebarCollapse, SidebarPanel } from "@/components/shell/sidebar";
 import { pageForPath, ROLE_LABEL, type RoleView } from "@/components/shell/nav";
 import { NotificationBell } from "@/components/shell/notification-bell";
@@ -35,7 +38,9 @@ export function AppShell({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(collapsedInitial);
   const [open, setOpen] = useState(false);
+  const [crumbs, setCrumbs] = useState<CrumbState>(EMPTY_CRUMBS);
   const page = pageForPath(pathname);
+  const protocolId = /^\/app\/protocols\/([0-9a-f-]{36})(?:\/|$)/i.exec(pathname)?.[1] ?? null;
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -44,6 +49,8 @@ export function AppShell({
   }
 
   return (
+    <CrumbSetter.Provider value={setCrumbs}>
+    <ActionResultProvider>
     <div className="rec-shell">
       <a className="skip" href="#content">
         Skip to content
@@ -107,6 +114,8 @@ export function AppShell({
                 </li>
                 <li aria-current="page">New protocol</li>
               </ol>
+            ) : protocolId ? (
+              <ProtocolCrumbs pathname={pathname} protocolId={protocolId} crumbs={crumbs} />
             ) : (
               <ol className="rec-crumbs">
                 <li>
@@ -136,5 +145,41 @@ export function AppShell({
         </main>
       </div>
     </div>
+    </ActionResultProvider>
+    </CrumbSetter.Provider>
+  );
+}
+
+/** Role home, then the protocol, then the tab, then a page below the tab. The last one is the current page. */
+function ProtocolCrumbs({ pathname, protocolId, crumbs }: { pathname: string; protocolId: string; crumbs: CrumbState }) {
+  const base = `/app/protocols/${protocolId}`;
+  const rest = pathname.slice(base.length);
+  const tab = PROTOCOL_TABS.find((item) => item.href !== "" && (rest === item.href || rest.startsWith(`${item.href}/`)));
+  const below = tab ? rest !== tab.href : false;
+  const label = crumbs.protocol?.id === protocolId ? crumbs.protocol.label : "Protocol";
+  return (
+    <ol className="rec-crumbs rec-crumbs--section">
+      <li>
+        <Link href="/app">Dashboard</Link>
+      </li>
+      {tab ? (
+        <li>
+          <Link href={base} className="rec-crumbs__clip">
+            {label}
+          </Link>
+        </li>
+      ) : (
+        <li aria-current="page">
+          <span className="rec-crumbs__clip">{label}</span>
+        </li>
+      )}
+      {tab && below ? (
+        <li>
+          <Link href={`${base}${tab.href}`}>{tab.label}</Link>
+        </li>
+      ) : null}
+      {tab && !below ? <li aria-current="page">{tab.label}</li> : null}
+      {tab && below ? <li aria-current="page">{crumbs.leaf ?? "Page"}</li> : null}
+    </ol>
   );
 }

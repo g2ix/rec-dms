@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type { ActionResult } from "@/lib/action-result";
 import { actionError, type ActionState } from "@/server/action-state";
+import { protocolResult } from "@/server/workflow/result";
 import { issueEmailCode } from "@/server/auth/codes";
 import { authorize } from "@/server/authz";
 import { auditRequestMeta } from "@/server/audit";
@@ -65,7 +67,9 @@ export async function sendSigningCodeAction(): Promise<ActionState> {
   }
 }
 
-export async function signFieldAction(input: unknown): Promise<{ ok: true } | { ok: false; message: string }> {
+export async function signFieldAction(
+  input: unknown,
+): Promise<{ ok: true; result: ActionResult } | { ok: false; message: string }> {
   try {
     const user = await requireUser();
     const parsed = signSchema.parse(input);
@@ -86,7 +90,11 @@ export async function signFieldAction(input: unknown): Promise<{ ok: true } | { 
       meta,
     });
     revalidatePath(`/app/protocols/${protocolId}`);
-    return { ok: true };
+    revalidatePath(`/app/protocols/${protocolId}/forms`);
+    return {
+      ok: true,
+      result: await protocolResult({ title: "Form signed.", protocolId, viewerId: user.id, target: "form" }),
+    };
   } catch (error) {
     if (error instanceof AppError) return { ok: false, message: error.message };
     if (error instanceof z.ZodError) return { ok: false, message: "That signature could not be saved." };

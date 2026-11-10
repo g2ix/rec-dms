@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { REVIEWS_PATH, type ActionOutcome } from "@/lib/action-result";
+import { actionFailure } from "@/server/action-state";
 import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
@@ -15,6 +17,7 @@ import {
 } from "@/server/workflow/definitions";
 import { claimTask, completeTask, reassignTask, requestExtension } from "@/server/workflow/engine";
 import { removeHoliday, saveHoliday } from "@/server/workflow/holidays";
+import { protocolResult, taskResult } from "@/server/workflow/result";
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof AppError ? error.message : fallback;
@@ -82,13 +85,14 @@ export async function publishWorkflowAction(formData: FormData): Promise<void> {
   redirect(`/admin/workflows/${versionId}?published=1`);
 }
 
-export async function completeTaskAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
-  const taskId = z.string().uuid().parse(formData.get("taskId"));
-  const protocolId = z.string().uuid().parse(formData.get("protocolId"));
-  await authorize(user, "task.complete", { type: "task", id: taskId });
-  const reviewers = formData.getAll("reviewerUserId").map(String).filter((id) => z.string().uuid().safeParse(id).success);
+/** On success the caller shows the result dialog. On failure the message stays inline on the same page. */
+export async function completeTaskAction(formData: FormData): Promise<ActionOutcome> {
   try {
+    const user = await requireUser();
+    const taskId = z.string().uuid().parse(formData.get("taskId"));
+    const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+    await authorize(user, "task.complete", { type: "task", id: taskId });
+    const reviewers = formData.getAll("reviewerUserId").map(String).filter((id) => z.string().uuid().safeParse(id).success);
     await completeTask(taskId, user.id, {
       outcome: String(formData.get("outcome") ?? "").trim() || null,
       comment: String(formData.get("comment") ?? "").trim() || null,
@@ -96,26 +100,32 @@ export async function completeTaskAction(formData: FormData): Promise<void> {
       newDueAt: String(formData.get("newDueAt") ?? "").trim() || null,
       meetingDate: String(formData.get("meetingDate") ?? "").trim() || null,
     });
+    revalidatePath(`/app/protocols/${protocolId}`);
+    revalidatePath(`/app/protocols/${protocolId}/forms`);
+    revalidatePath("/app/tasks");
+    revalidatePath(REVIEWS_PATH);
+    return { ok: true, result: await taskResult(taskId, protocolId, user.id) };
   } catch (error) {
-    redirect(`/app/protocols/${protocolId}?error=${encodeURIComponent(messageOf(error, "The task could not be completed."))}`);
+    return actionFailure(error, "The task could not be completed.");
   }
-  revalidatePath(`/app/protocols/${protocolId}`);
-  revalidatePath(`/app/protocols/${protocolId}/forms`);
-  revalidatePath("/app/tasks");
 }
 
-export async function requestExtensionAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
-  const instanceId = z.string().uuid().parse(formData.get("instanceId"));
-  const protocolId = z.string().uuid().parse(formData.get("protocolId"));
-  await authorize(user, "protocol.submit", { type: "protocol", id: protocolId });
+export async function requestExtensionAction(formData: FormData): Promise<ActionOutcome> {
   try {
+    const user = await requireUser();
+    const instanceId = z.string().uuid().parse(formData.get("instanceId"));
+    const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+    await authorize(user, "protocol.submit", { type: "protocol", id: protocolId });
     await requestExtension(instanceId, user.id);
+    revalidatePath(`/app/protocols/${protocolId}`);
+    revalidatePath("/app/tasks");
+    return {
+      ok: true,
+      result: await protocolResult({ title: "Extension requested.", protocolId, viewerId: user.id, target: "protocol", kind: "SIDE" }),
+    };
   } catch (error) {
-    redirect(`/app/protocols/${protocolId}?error=${encodeURIComponent(messageOf(error, "The extension could not be requested."))}`);
+    return actionFailure(error, "The extension could not be requested.");
   }
-  revalidatePath(`/app/protocols/${protocolId}`);
-  revalidatePath("/app/tasks");
 }
 
 export async function claimTaskAction(formData: FormData): Promise<void> {

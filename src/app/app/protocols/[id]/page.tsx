@@ -1,6 +1,7 @@
 import { AuditTimeline } from "@/components/audit/audit-timeline";
 import { ProtocolFlow } from "@/components/workflow/protocol-flow";
 import { ReturnBanner } from "@/components/workflow/task-comments";
+import { ActionForm } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { roster } from "@/server/protocols/read";
 import { protocolTaskComments } from "@/server/workflow/comments";
@@ -52,12 +53,9 @@ export default async function ProtocolOverviewPage({
       </section>
       <ProtocolFlow protocolId={id} userId={user.id} comments={taskComments.comments} />
       {leader && header.working && !workflowRunning ? (
-        <form action={submitVersionAction}>
+        <ActionForm action={submitVersionAction} className="rec-stack" submitLabel="Submit version" busyLabel="Submitting…">
           <input type="hidden" name="protocolId" value={id} />
-          <BusyButton type="submit" variant="primary">
-            Submit version
-          </BusyButton>
-        </form>
+        </ActionForm>
       ) : null}
       {leader && !header.working ? (
         <form action={startRevisionAction}>

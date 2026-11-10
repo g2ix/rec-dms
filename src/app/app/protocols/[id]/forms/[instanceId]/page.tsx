@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PdfDownload } from "@/components/docs/pdf-download";
 import { ProtocolForm } from "@/components/protocols/protocol-form";
+import { CrumbLeaf } from "@/components/shell/crumbs";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { loadAuthoredRows } from "@/server/forms/authored";
 import { boundValues, formForEdit } from "@/server/protocols/read";
@@ -36,6 +37,7 @@ export default async function ProtocolFormPage({
     : {};
   return (
     <div className="rec-stack">
+      <CrumbLeaf label={form.instance.formDefinition.code} />
       <p className="body-sm">
         <Link href={`/app/protocols/${id}/forms`}>{form.instance.formDefinition.code}</Link>
         {" · "}

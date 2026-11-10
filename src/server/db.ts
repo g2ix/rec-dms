@@ -9,6 +9,9 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    // Two requests can overlap (a page still refreshing while the next one loads). On a small
+    // pool the second one waits for a connection instead of failing after the default two seconds.
+    transactionOptions: { maxWait: 20_000 },
   });
 
 if (process.env.NODE_ENV !== "production") {
