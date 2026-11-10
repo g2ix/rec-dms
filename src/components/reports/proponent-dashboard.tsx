@@ -67,7 +67,7 @@ export function ProponentDashboard({
               : model.waiting.rows[0]?.step || "Open My tasks"}
           </p>
         </Link>
-        <Link className="rec-strip__cell" href="/app/protocols?status=returned">
+        <Link className="rec-strip__cell" href="/app/revisions">
           <p className={countClass(model.revisions.total, revisionTone)}>{model.revisions.total}</p>
           <p className="rec-strip__label">{revisionLabel(model.revisions.total)}</p>
           <p className={detailClass(model.revisions.total === 0 ? null : revisionTone)}>

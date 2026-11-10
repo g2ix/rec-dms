@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { AppShell } from "@/components/shell/app-shell";
 import { signOut } from "@/server/auth";
 import { resolveRoleView } from "@/server/auth/view";
+import { canManageUsers } from "@/server/authz/policy";
+import { userAdminFacts } from "@/server/authz/user-admin";
 import { AppError } from "@/server/errors";
 import { inboxTotal } from "@/server/workflow/inbox";
 import { requireUser } from "@/server/session";
@@ -27,13 +29,18 @@ export async function SignedInChrome({
   }
   const jar = await cookies();
   const { view: roleView, views: roleViews } = await resolveRoleView(user.id, jar.get("activeView")?.value);
-  const waiting = await inboxTotal(user.id, roleView);
+  const showUserAdmin = roleView === "staff" || roleView === "chair";
+  const [waiting, adminFacts] = await Promise.all([
+    inboxTotal(user.id, roleView),
+    showUserAdmin ? userAdminFacts(user.id) : null,
+  ]);
   return (
     <AppShell
       collapsed={jar.get("sidebar")?.value === "rail"}
       pageTitle={pageTitle}
       roleView={roleView}
       roleViews={roleViews}
+      canManageUsers={adminFacts ? canManageUsers(adminFacts) : false}
       account={{ name: user.displayName, email: user.email ?? "" }}
       counts={waiting > 0 ? { "/app/tasks": { value: waiting, waiting: true } } : undefined}
     >

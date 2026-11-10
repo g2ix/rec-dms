@@ -19,6 +19,7 @@ import {
   Settings,
   UserRound,
   Users,
+  UsersRound,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -116,6 +117,20 @@ export const NAV: Record<RoleView, NavGroup[]> = {
   staff: [{ items: staffItems }],
   chair: [{ items: chairItems }],
 };
+
+const USER_ADMIN_ITEMS: NavItem[] = [
+  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/panels", label: "Panels", icon: UsersRound },
+];
+
+/** People who pass users.manage get the management screens. Everyone else keeps the waiting list. */
+export function navGroups(view: RoleView, canManageUsers: boolean): NavGroup[] {
+  if (!canManageUsers) return NAV[view];
+  return NAV[view].map((group) => ({
+    ...group,
+    items: group.items.flatMap((item) => (item.href === "/app/users" ? USER_ADMIN_ITEMS : [item])),
+  }));
+}
 
 const LEDES: Record<string, string> = {
   "/app": "Work waiting for you in this role will be listed here.",

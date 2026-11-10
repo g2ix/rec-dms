@@ -35,6 +35,9 @@ export function AccountMenu({ name, role }: { name: string; role: string }) {
       <DropdownMenuContent align="end">
         <DropdownMenuItem render={<Link href="/app/account/profile" />}>Your details</DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/app/account/signature" />}>Signature</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/app/account/security" />}>Authenticator</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/app/account/data" />}>Your data</DropdownMenuItem>
         <form action={signOutAction}>
           <DropdownMenuItem nativeButton render={<button type="submit" />}>
             Sign out

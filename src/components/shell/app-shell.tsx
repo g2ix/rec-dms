@@ -19,6 +19,7 @@ export function AppShell({
   pageTitle,
   roleView = "proponent",
   roleViews,
+  canManageUsers,
   account,
   counts,
 }: {
@@ -27,6 +28,7 @@ export function AppShell({
   pageTitle?: string;
   roleView?: RoleView;
   roleViews?: RoleView[];
+  canManageUsers?: boolean;
   account?: { name: string; email: string };
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
 }) {
@@ -52,6 +54,7 @@ export function AppShell({
           collapsed={collapsed}
           roleView={roleView}
           roleViews={roleViews}
+          canManageUsers={canManageUsers}
           markerId="nav-marker-desktop"
           counts={counts}
         />
@@ -83,6 +86,7 @@ export function AppShell({
                     collapsed={false}
                     roleView={roleView}
                     roleViews={roleViews}
+                    canManageUsers={canManageUsers}
                     markerId="nav-marker-drawer"
                     counts={counts}
                   />

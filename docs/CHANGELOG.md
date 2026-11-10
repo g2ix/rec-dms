@@ -1,5 +1,13 @@
 # Changelog
 
+## Navigation links (2026-11-10)
+
+In the REC Staff and REC Chair views, people who pass `users.manage` now see Users linking to `/admin/users`, and a new Panels link. Others in those views keep Users linking to `/app/users`, and do not see Panels.
+
+The account menu now links to Sign-in methods, Authenticator, and Your data. The Revision deadlines count on the proponent dashboard opens `/app/revisions`.
+
+An address in `BOOTSTRAP_ADMIN_EMAILS` with no roles has only the Proponent view, so it reaches `/admin/users` by address until it holds a role.
+
 ## User roles and panels (2026-11-09)
 
 REC Staff and System Admins can now open `/admin/users` and `/admin/users/pending`, through `authorize(user, "users.manage")`. An address in `BOOTSTRAP_ADMIN_EMAILS` counts as a System Admin on these screens only while no active System Admin exists. Approving, rejecting, and merging accounts use the same check.
