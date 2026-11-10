@@ -208,13 +208,23 @@ export async function confirmUploadAction(input: unknown): Promise<{ ok: true } 
 
 export async function downloadFileAction(
   input: unknown,
-): Promise<{ ok: true; url: string; warning: string | null } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; url: string; warning: string | null; fileName: string; mime: string; protocolCode: string | null }
+  | { ok: false; message: string }
+> {
   try {
     const user = await requireUser();
     const parsed = z.object({ fileId: z.string().uuid(), protocolId: z.string().uuid() }).parse(input);
     await authorize(user, "protocol.download", { type: "protocol", id: parsed.protocolId });
     const result = await downloadFile({ fileId: parsed.fileId, userId: user.id });
-    return { ok: true, url: result.url, warning: result.warning };
+    return {
+      ok: true,
+      url: result.url,
+      warning: result.warning,
+      fileName: result.fileName,
+      mime: result.mime,
+      protocolCode: result.protocolCode,
+    };
   } catch (error) {
     if (error instanceof AppError) return { ok: false, message: error.message };
     return { ok: false, message: "The file could not be opened." };

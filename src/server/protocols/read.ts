@@ -201,6 +201,33 @@ export async function listUploads(userId: string, protocolId: string) {
   };
 }
 
+/** Manuscript on the version that owns a form instance, for side-by-side review. */
+export async function manuscriptForForm(userId: string, protocolId: string, instanceId: string) {
+  await requireView(userId, protocolId);
+  const instance = await prisma.formInstance.findFirst({
+    where: { id: instanceId, ownerType: "PROTOCOL_VERSION" },
+    select: { ownerId: true },
+  });
+  if (!instance) return null;
+  const version = await prisma.protocolVersion.findFirst({
+    where: { id: instance.ownerId, protocolId },
+    select: { id: true, protocol: { select: { code: true } } },
+  });
+  if (!version) return null;
+  const file = await prisma.storedFile.findFirst({
+    where: { protocolVersionId: version.id, kind: "MANUSCRIPT", scanStatus: { not: "INFECTED" } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!file) return null;
+  return {
+    fileId: file.id,
+    protocolId,
+    fileName: file.suggestedName || file.originalName,
+    mime: file.mime,
+    protocolCode: version.protocol.code,
+  };
+}
+
 export type VersionDiff = {
   code: string;
   title: string;

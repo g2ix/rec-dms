@@ -22,6 +22,7 @@ export default async function ReceiptsPage() {
           code: fee.protocolVersion.protocol.code,
           label: fee.protocolVersion.label,
           fileName: fee.protocolVersion.files[0]?.originalName ?? null,
+          fileId: fee.protocolVersion.files[0]?.id ?? null,
         }))}
       />
     </article>

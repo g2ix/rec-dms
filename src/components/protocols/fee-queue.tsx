@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { OpenStoredFileButton } from "@/components/docs/document-open";
 import { rejectFeeAction, verifyFeeAction } from "@/server/protocols/actions";
 import type { ActionState } from "@/server/action-state";
 import { BusyButton } from "@/components/ui/busy-button";
@@ -17,6 +18,7 @@ export function FeeQueue({
     code: string | null;
     label: string;
     fileName: string | null;
+    fileId: string | null;
   }[];
 }) {
   if (rows.length === 0) return <p className="body">No fee receipts are waiting.</p>;
@@ -32,7 +34,15 @@ export function FeeQueue({
 function FeeRow({
   row,
 }: {
-  row: { id: string; protocolId: string; title: string; code: string | null; label: string; fileName: string | null };
+  row: {
+    id: string;
+    protocolId: string;
+    title: string;
+    code: string | null;
+    label: string;
+    fileName: string | null;
+    fileId: string | null;
+  };
 }) {
   const [state, action, pending] = useActionState(rejectFeeAction, null);
   return (
@@ -43,6 +53,7 @@ function FeeRow({
         Version <span className="code">{row.label}</span>
         {row.fileName ? ` · ${row.fileName}` : ""}
       </p>
+      {row.fileId ? <OpenStoredFileButton fileId={row.fileId} protocolId={row.protocolId} label="Open receipt" /> : null}
       <div className="rec-inline">
         <form action={verifyFeeAction}>
           <input type="hidden" name="feeId" value={row.id} />

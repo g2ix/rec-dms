@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { PdfDownload } from "@/components/docs/pdf-download";
+import { ManuscriptOpenButton, ManuscriptPane } from "@/components/docs/manuscript-pane";
 import { ProtocolForm } from "@/components/protocols/protocol-form";
 import { CrumbLeaf } from "@/components/shell/crumbs";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { loadAuthoredRows } from "@/server/forms/authored";
-import { boundValues, formForEdit } from "@/server/protocols/read";
+import { boundValues, formForEdit, manuscriptForForm } from "@/server/protocols/read";
 import { prisma } from "@/server/db";
 import { loadSignaturePanel } from "@/server/signatures/views";
 import { requireUser } from "@/server/session";
@@ -16,7 +17,11 @@ export default async function ProtocolFormPage({
 }) {
   const { id, instanceId } = await params;
   const user = await requireUser();
-  const [form, bound] = await Promise.all([formForEdit(user.id, id, instanceId), boundValues(id)]);
+  const [form, bound, manuscript] = await Promise.all([
+    formForEdit(user.id, id, instanceId),
+    boundValues(id),
+    manuscriptForForm(user.id, id, instanceId),
+  ]);
   const roles = form.roles.filter(isRoleKey) as RoleKey[];
   const editing =
     form.instance.status !== "COMPLETE" &&
@@ -35,7 +40,9 @@ export default async function ProtocolFormPage({
   const data = form.instance.data && typeof form.instance.data === "object" && !Array.isArray(form.instance.data)
     ? (form.instance.data as Record<string, unknown>)
     : {};
-  return (
+  const showSplit = Boolean(manuscript && form.stepKey);
+
+  const formBlock = (
     <div className="rec-stack">
       <CrumbLeaf label={form.instance.formDefinition.code} />
       <p className="body-sm">
@@ -50,10 +57,12 @@ export default async function ProtocolFormPage({
         <PdfDownload href={`/api/forms/${form.instance.id}/document?format=pdf`} label="Download PDF" />
         <PdfDownload
           href={`/api/forms/${form.instance.id}/document?format=pdf&disposition=inline`}
-          label="Print"
+          label="View PDF"
           inline
+          protocolCode={manuscript?.protocolCode ?? null}
         />
       </div>
+      {manuscript && showSplit ? <ManuscriptOpenButton manuscript={manuscript} /> : null}
       <ProtocolForm
         instanceId={form.instance.id}
         schema={form.schema}
@@ -74,4 +83,15 @@ export default async function ProtocolFormPage({
       />
     </div>
   );
+
+  if (showSplit && manuscript) {
+    return (
+      <div className="rec-review-split">
+        <div className="rec-review-split__form">{formBlock}</div>
+        <ManuscriptPane manuscript={manuscript} />
+      </div>
+    );
+  }
+
+  return formBlock;
 }

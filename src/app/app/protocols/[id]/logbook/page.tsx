@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { formatManila } from "@/lib/time";
+import { LogbookTable } from "@/components/docs/logbook-documents";
 import { AppError } from "@/server/errors";
 import { protocolLogbook } from "@/server/reports/logbook";
 import { requireUser } from "@/server/session";
@@ -16,32 +16,7 @@ export default async function LogbookPage({ params }: { params: Promise<{ id: st
         <h2 className="heading">Logbook</h2>
         <p className="body rec-muted">Workflow events, releases, notices, and generated documents.</p>
         {entries.length === 0 ? <p className="body">Nothing is recorded for this protocol yet.</p> : null}
-        {entries.length > 0 ? (
-          <div className="rec-table-wrap">
-            <table className="rec-table">
-              <thead>
-                <tr>
-                  <th scope="col">When</th>
-                  <th scope="col">Kind</th>
-                  <th scope="col">What happened</th>
-                  <th scope="col">Who</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>
-                      <time dateTime={entry.at.toISOString()}>{formatManila(entry.at)}</time>
-                    </td>
-                    <td>{entry.kind}</td>
-                    <td>{entry.summary}</td>
-                    <td>{entry.actor}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+        {entries.length > 0 ? <LogbookTable protocolId={id} entries={entries} /> : null}
       </section>
     );
   } catch (error) {

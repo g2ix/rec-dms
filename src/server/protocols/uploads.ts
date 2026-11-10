@@ -162,7 +162,7 @@ async function sniffedMime(bytes: Uint8Array): Promise<string | null> {
 export async function downloadFile(input: { fileId: string; userId: string }) {
   const file = await prisma.storedFile.findUnique({
     where: { id: input.fileId },
-    include: { protocolVersion: true },
+    include: { protocolVersion: { include: { protocol: { select: { code: true } } } } },
   });
   if (!file?.protocolVersion) throw new AppError("NOT_FOUND", "That file was not found.", 404);
   if (file.scanStatus === "INFECTED") {
@@ -191,5 +191,12 @@ export async function downloadFile(input: { fileId: string; userId: string }) {
   const url = await getSignedDownloadUrl(file.storageKey, 300);
   const warning =
     file.scanStatus === "PENDING" ? "This file has not been scanned yet. Open it only if you trust the source." : null;
-  return { url, file, warning };
+  return {
+    url,
+    file,
+    warning,
+    fileName: file.suggestedName || file.originalName,
+    mime: file.mime,
+    protocolCode: file.protocolVersion.protocol.code,
+  };
 }

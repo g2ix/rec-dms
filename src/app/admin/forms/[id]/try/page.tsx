@@ -56,7 +56,7 @@ export default async function TryFormPage({ params }: { params: Promise<{ id: st
           <span>Download Word</span>
         </a>
         <PdfDownload href={`/api/forms/${instance.id}/document?format=pdf`} label="Download PDF" />
-        <PdfDownload href={`/api/forms/${instance.id}/document?format=pdf&disposition=inline`} label="Print" inline />
+        <PdfDownload href={`/api/forms/${instance.id}/document?format=pdf&disposition=inline`} label="View PDF" inline />
       </div>
       <SandboxForm
         definitionId={definition.id}

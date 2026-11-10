@@ -1,20 +1,44 @@
 "use client";
 
+import { OpenDocumentHref } from "@/components/docs/document-open";
+import { ProgressRow } from "@/components/ui/progress-row";
 import { useState } from "react";
 import { toast } from "@/components/ui/toast";
-import { ProgressRow } from "@/components/ui/progress-row";
 
+/**
+ * Downloads a generated PDF or ZIP, or opens a PDF in the in-app viewer when `inline`.
+ * ZIP and explicit downloads stay as file saves; Print / view opens the DocumentViewer.
+ */
 export function PdfDownload({
   href,
   label,
   inline = false,
   ready = "PDF ready",
+  protocolCode = null,
 }: {
   href: string;
   label: string;
   inline?: boolean;
   ready?: string;
+  protocolCode?: string | null;
 }) {
+  if (inline) {
+    return (
+      <OpenDocumentHref
+        href={href}
+        label={label}
+        inline
+        protocolCode={protocolCode}
+        mime="application/pdf"
+        fileName="document.pdf"
+      />
+    );
+  }
+
+  return <PdfFileDownload href={href} label={label} ready={ready} />;
+}
+
+function PdfFileDownload({ href, label, ready }: { href: string; label: string; ready: string }) {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -40,14 +64,11 @@ export function PdfDownload({
         }
         const blob = await file.blob();
         const url = URL.createObjectURL(blob);
-        if (inline) {
-          window.open(url, "_blank", "noopener");
-        } else {
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = fileName(file) ?? "document.pdf";
-          anchor.click();
-        }
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName(file) ?? "document.pdf";
+        anchor.click();
+        URL.revokeObjectURL(url);
         toast(ready);
         return;
       }

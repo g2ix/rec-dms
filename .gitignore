@@ -48,3 +48,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# REC files with personal data (real names, emails)
+docs/forms/2026-11/billing statement template FINAL (Autosaved).xlsx
+docs/forms/2026-11/REC members.xlsx

@@ -1,5 +1,16 @@
 # Changelog
 
+## In-app document viewer (2026-11-10)
+
+Opening a file no longer uses `window.open` in a new tab. A large in-app panel shows the file name, protocol code, Close (also Escape and the browser Back button), Download, and a small “Open in new tab” link. PDFs use the browser’s built-in viewer in an `<object>` / `<iframe>` on a white plate; images show on the same plate; DOCX and other types offer Download. Signed URLs still expire in five minutes and refresh while the viewer stays open. Opening a file is still audited.
+
+The viewer is used from Uploads, fee receipts, the protocol logbook for generated PDFs (including F-39), form “View PDF”, and the manuscript control on review form screens. On wide screens, a review form that has a manuscript sits beside that manuscript. Focus moves into the viewer and returns to the control that opened it. Reduced motion keeps the open/close fade without the rise.
+
+### Deviation from the request
+
+- “Print” on form and sandbox pages is labelled “View PDF” because the action opens the in-app viewer rather than the system print dialog.
+- Side-by-side manuscript layout appears when the form is tied to an open workflow step (`stepKey`), which is how review screens reach the form.
+
 ## Autosave flush on leave (2026-11-10)
 
 Form field edits no longer wait only on the 800 ms debounce. `flushAll()` saves every pending field at once, in order, with the same conflict handling as a normal save. It runs when the form unmounts or the App Router route changes, before Return / Complete / Sign / Submit on the page, and when the tab hides (`visibilitychange` / `pagehide`) through `sendBeacon` or a keepalive `POST` to `/api/forms/[instanceId]/fields` (same authorization and validation as `saveFieldAction`). If a save is still pending or failed, the browser’s unsaved-changes warning appears. Assessment tables use the same queue; the sandbox form does too. Task comments still go with the Complete action (they are not debounced).

@@ -28,6 +28,9 @@ export type LogEntry = {
   kind: "Workflow" | "Release" | "Notification" | "Document";
   summary: string;
   actor: string;
+  /** Set for generated documents so the logbook can open them in the viewer. */
+  fileId?: string;
+  fileMime?: string;
 };
 
 export async function protocolLogbook(userId: string, protocolId: string): Promise<LogEntry[]> {
@@ -55,7 +58,14 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
         where: { kind: { in: ["GENERATED_DOCX", "GENERATED_PDF"] }, protocolVersion: { protocolId } },
         orderBy: { createdAt: "desc" },
         take: 100,
-        select: { id: true, originalName: true, kind: true, createdAt: true, uploadedBy: { select: { id: true, displayName: true } } },
+        select: {
+          id: true,
+          originalName: true,
+          kind: true,
+          mime: true,
+          createdAt: true,
+          uploadedBy: { select: { id: true, displayName: true } },
+        },
       }),
       tx.protocolMember.findMany({
         where: { protocolId, status: { not: "REMOVED" }, role: { in: ["REVIEWER", "PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT"] } },
@@ -93,6 +103,8 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
         kind: "Document" as const,
         summary: `${file.kind === "GENERATED_PDF" ? "PDF" : "Word file"} generated · ${file.originalName}`,
         actor: actorName(file.uploadedBy.id, file.uploadedBy.displayName),
+        fileId: file.id,
+        fileMime: file.mime,
       })),
     ];
     return entries.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 400);

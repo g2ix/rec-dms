@@ -20,6 +20,7 @@ export default async function ProtocolUploadsPage({ params }: { params: Promise<
         suggestedName: file.suggestedName,
         scanStatus: file.scanStatus,
         size: file.size,
+        mime: file.mime,
       }))}
     />
   );

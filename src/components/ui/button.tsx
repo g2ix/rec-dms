@@ -11,10 +11,12 @@ export function Button({
   className,
   type = "button",
   children,
+  ref,
   ...props
 }: ButtonProps) {
   return (
     <button
+      ref={ref}
       type={type}
       className={cn("rec-btn", `rec-btn--${variant}`, size === "icon" && "rec-btn--icon", className)}
       {...props}

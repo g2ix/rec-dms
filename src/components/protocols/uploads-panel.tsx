@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { OpenStoredFileButton } from "@/components/docs/document-open";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
-import { confirmUploadAction, downloadFileAction, prepareUploadAction } from "@/server/protocols/actions";
+import { confirmUploadAction, prepareUploadAction } from "@/server/protocols/actions";
 
 type FileRow = {
   id: string;
@@ -15,6 +15,7 @@ type FileRow = {
   suggestedName: string | null;
   scanStatus: string;
   size: number;
+  mime: string;
 };
 
 const KINDS = [
@@ -80,16 +81,6 @@ export function UploadsPanel({
     router.refresh();
   }
 
-  async function openFile(fileId: string) {
-    const result = await downloadFileAction({ fileId, protocolId });
-    if (!result.ok) {
-      setMessage(result.message);
-      return;
-    }
-    if (result.warning) setMessage(result.warning);
-    window.open(result.url, "_blank", "noopener");
-  }
-
   return (
     <div className="rec-stack">
       {suggestedManuscript ? (
@@ -122,14 +113,17 @@ export function UploadsPanel({
             {file.suggestedName ? <p className="caption rec-muted">Suggested name {file.suggestedName}</p> : null}
             <p className="caption rec-muted">{Math.ceil(file.size / 1024)} KB</p>
             {file.scanStatus === "PENDING" ? (
-              <p className="caption">Waiting for the virus scan. REC Staff can download it, with a warning, until the scan finishes.</p>
+              <p className="caption">Waiting for the virus scan. REC Staff can open it, with a warning, until the scan finishes.</p>
             ) : null}
             {file.scanStatus === "INFECTED" ? (
               <p className="caption">This file is blocked. It cannot be downloaded or included in a submission.</p>
             ) : (
-              <Button type="button" onClick={() => void openFile(file.id)}>
-                Download
-              </Button>
+              <OpenStoredFileButton
+                fileId={file.id}
+                protocolId={protocolId}
+                onWarning={setMessage}
+                onError={setMessage}
+              />
             )}
           </li>
         ))}
