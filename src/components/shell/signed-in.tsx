@@ -1,12 +1,33 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/shell/app-shell";
+import { EMPTY_NAV_CAPABILITIES, type NavCapabilities } from "@/components/shell/nav";
 import { signOut } from "@/server/auth";
 import { resolveRoleView } from "@/server/auth/view";
-import { canManageUsers } from "@/server/authz/policy";
+import {
+  canEditForms,
+  canEditHolidays,
+  canEditSettings,
+  canEditWorkflow,
+  canManageUsers,
+  canReviewRetention,
+  canViewAudit,
+} from "@/server/authz/policy";
 import { userAdminFacts } from "@/server/authz/user-admin";
 import { AppError } from "@/server/errors";
 import { inboxTotal } from "@/server/workflow/inbox";
 import { requireUser } from "@/server/session";
+
+function navCapabilitiesFromFacts(facts: Awaited<ReturnType<typeof userAdminFacts>>): NavCapabilities {
+  return {
+    manageUsers: canManageUsers(facts),
+    viewAudit: canViewAudit(facts),
+    editForms: canEditForms(facts),
+    editWorkflow: canEditWorkflow(facts),
+    editSettings: canEditSettings(facts),
+    editHolidays: canEditHolidays(facts),
+    reviewRetention: canReviewRetention(facts),
+  };
+}
 
 export async function SignedInChrome({
   children,
@@ -29,10 +50,10 @@ export async function SignedInChrome({
   }
   const jar = await cookies();
   const { view: roleView, views: roleViews } = await resolveRoleView(user.id, jar.get("activeView")?.value);
-  const showUserAdmin = roleView === "staff" || roleView === "chair";
+  const showAdminNav = roleView === "staff" || roleView === "chair";
   const [waiting, adminFacts] = await Promise.all([
     inboxTotal(user.id, roleView),
-    showUserAdmin ? userAdminFacts(user.id) : null,
+    showAdminNav ? userAdminFacts(user.id) : null,
   ]);
   return (
     <AppShell
@@ -40,7 +61,7 @@ export async function SignedInChrome({
       pageTitle={pageTitle}
       roleView={roleView}
       roleViews={roleViews}
-      canManageUsers={adminFacts ? canManageUsers(adminFacts) : false}
+      navCapabilities={adminFacts ? navCapabilitiesFromFacts(adminFacts) : EMPTY_NAV_CAPABILITIES}
       account={{ name: user.displayName, email: user.email ?? "" }}
       counts={waiting > 0 ? { "/app/tasks": { value: waiting, waiting: true } } : undefined}
     >

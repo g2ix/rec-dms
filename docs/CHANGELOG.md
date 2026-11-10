@@ -1,5 +1,15 @@
 # Changelog
 
+## Admin screen permissions (2026-11-10)
+
+The remaining admin screens use `authorize()` the same way `/admin/users` does. An address in `BOOTSTRAP_ADMIN_EMAILS` still counts as a System Admin only while no active System Admin exists.
+
+- `/admin/audit` and its CSV export: REC Staff, REC Chair, and System Admin (`audit.view`).
+- `/admin/forms`, `/admin/workflows`, and `/admin/notifications`: System Admin only (`forms.edit`, `workflow.edit`, `settings.edit`).
+- `/admin/holidays` and `/admin/retention`: REC Staff and System Admin (`holiday.edit`, `retention.review`).
+
+The sidebar shows those links only when the person passes the matching check. `/admin/users` again links to Forms and Audit log for people who can open them.
+
 ## Action results (2026-11-10)
 
 After an action succeeds, a confirmation dialog says what happened and who acts next. Its OK button goes to the next place to work. Closing the dialog with Escape or a click outside does the same. Errors stay inline on the same page, above the button, and the fields keep what was typed.
@@ -55,7 +65,7 @@ The user list shows each person's roles. Manage roles at `/admin/users/[id]` lis
 - The revoke reason is stored in the audit event. `user_roles` has no column for it, and no migration was needed.
 - Primary Reviewer and Independent Consultant are seeded as global roles, although `docs/SPEC.md` lists them per protocol. Workflow steps offer reviewers from standing grants, and the choice per protocol is made on the step.
 - Panel members are people holding a role tied to that panel, other than chair. Panel Chair is the only per-panel role in the seed, so the list is empty until another role is made per-panel.
-- `/admin/panels` is linked from Users rather than the sidebar. The sidebar is per view and would show it to Chairs who cannot open it. The Forms and Audit log links on `/admin/users` were removed because those screens are still limited to bootstrap administrators.
+- `/admin/panels` is linked from Users rather than the sidebar. The sidebar is per view and would show it to Chairs who cannot open it. Forms and Audit log on `/admin/users` are restored for people who pass `forms.edit` or `audit.view`.
 
 ## Workflow task comments (2026-11-09)
 

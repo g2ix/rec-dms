@@ -1,21 +1,19 @@
 import "server-only";
-import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { prismaMembershipReader, type ProtocolMembershipReader } from "@/server/authz/membership";
-import { canManageUsers, decideProtocolAction } from "@/server/authz/policy";
+import {
+  canEditForms,
+  canEditHolidays,
+  canEditSettings,
+  canEditWorkflow,
+  canManageUsers,
+  canReviewRetention,
+  canViewAudit,
+  decideProtocolAction,
+} from "@/server/authz/policy";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { userAdminFacts } from "@/server/authz/user-admin";
-
-const FORM_ACTIONS = new Set([
-  "forms.view",
-  "forms.edit",
-  "forms.fill",
-  "workflow.view",
-  "workflow.edit",
-  "holiday.edit",
-  "notification.edit",
-]);
 
 let reader: ProtocolMembershipReader = prismaMembershipReader();
 
@@ -37,8 +35,8 @@ function protocolIdOf(resource?: AuthzResource): string | undefined {
 }
 
 /**
- * One gate for server actions. Form administration stays with bootstrap admins
- * until M02 permissions exist. Protocol actions use membership rows.
+ * One gate for server actions. Admin screens use role grants, with the bootstrap
+ * list standing in for System Admin only while none exists.
  */
 export async function authorize(
   user: { id: string },
@@ -66,9 +64,29 @@ export async function authorize(
     if (canManageUsers(await userAdminFacts(user.id))) return;
     throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can manage users.", 403);
   }
+  if (action === "audit.view") {
+    if (canViewAudit(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff, the REC Chair, or a System Admin can view the audit log.", 403);
+  }
+  if (action === "forms.view" || action === "forms.edit" || action === "forms.fill") {
+    if (canEditForms(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only a System Admin can manage forms.", 403);
+  }
+  if (action === "workflow.view" || action === "workflow.edit") {
+    if (canEditWorkflow(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only a System Admin can manage workflows.", 403);
+  }
+  if (action === "settings.edit" || action === "notification.edit") {
+    if (canEditSettings(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only a System Admin can edit notification templates.", 403);
+  }
+  if (action === "holiday.edit") {
+    if (canEditHolidays(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can edit holidays.", 403);
+  }
   if (action === "retention.review") {
-    if (await isCommitteeStaff(user.id)) return;
-    throw new AppError("FORBIDDEN", "Only REC Staff can review retention.", 403);
+    if (canReviewRetention(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can review retention.", 403);
   }
   if (action === "task.reassign") {
     if (await isCommitteeStaff(user.id)) return;
@@ -85,10 +103,7 @@ export async function authorize(
     return;
   }
 
-  if (!FORM_ACTIONS.has(action)) {
-    throw new AppError("FORBIDDEN", "You cannot do that.", 403);
-  }
-  await assertBootstrapAdmin(user.id);
+  throw new AppError("FORBIDDEN", "You cannot do that.", 403);
 }
 
 function forbiddenMessage(action: string): string {

@@ -59,16 +59,16 @@ const staffItems: NavItem[] = [
   { href: "/app/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/app/search", label: "Search", icon: Search },
   { href: "/admin/retention", label: "Retention", icon: Archive },
+  { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
+  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/workflows", label: "Workflows", icon: Workflow },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/forms", label: "Forms", icon: FileText },
 ];
 
 const chairItems: NavItem[] = [
   ...staffItems,
-  { href: "/admin/workflows", label: "Workflows", icon: Workflow },
-  { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
-  { href: "/admin/notifications", label: "Notifications", icon: Bell },
-  { href: "/admin/forms", label: "Forms", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ];
 
 export const NAV: Record<RoleView, NavGroup[]> = {
@@ -123,12 +123,45 @@ const USER_ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/panels", label: "Panels", icon: UsersRound },
 ];
 
-/** People who pass users.manage get the management screens. Everyone else keeps the waiting list. */
-export function navGroups(view: RoleView, canManageUsers: boolean): NavGroup[] {
-  if (!canManageUsers) return NAV[view];
+export type NavCapabilities = {
+  manageUsers: boolean;
+  viewAudit: boolean;
+  editForms: boolean;
+  editWorkflow: boolean;
+  editSettings: boolean;
+  editHolidays: boolean;
+  reviewRetention: boolean;
+};
+
+export const EMPTY_NAV_CAPABILITIES: NavCapabilities = {
+  manageUsers: false,
+  viewAudit: false,
+  editForms: false,
+  editWorkflow: false,
+  editSettings: false,
+  editHolidays: false,
+  reviewRetention: false,
+};
+
+const HREF_CAPABILITY: Partial<Record<string, keyof NavCapabilities>> = {
+  "/admin/audit": "viewAudit",
+  "/admin/forms": "editForms",
+  "/admin/workflows": "editWorkflow",
+  "/admin/notifications": "editSettings",
+  "/admin/holidays": "editHolidays",
+  "/admin/retention": "reviewRetention",
+};
+
+/** Admin links appear only when the person passes the matching authorize check. */
+export function navGroups(view: RoleView, caps: NavCapabilities = EMPTY_NAV_CAPABILITIES): NavGroup[] {
   return NAV[view].map((group) => ({
     ...group,
-    items: group.items.flatMap((item) => (item.href === "/app/users" ? USER_ADMIN_ITEMS : [item])),
+    items: group.items.flatMap((item) => {
+      if (item.href === "/app/users") return caps.manageUsers ? USER_ADMIN_ITEMS : [item];
+      const needed = HREF_CAPABILITY[item.href];
+      if (needed && !caps[needed]) return [];
+      return [item];
+    }),
   }));
 }
 

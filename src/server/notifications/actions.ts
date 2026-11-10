@@ -59,7 +59,7 @@ export async function saveNotificationPreference(formData: FormData): Promise<vo
 
 export async function saveNotificationTemplate(formData: FormData): Promise<void> {
   const user = await requireUser();
-  await authorize(user, "notification.edit");
+  await authorize(user, "settings.edit");
   const channels = formData.getAll("channels").map(String);
   const parsed = templateSchema.safeParse({
     key: formData.get("key"),

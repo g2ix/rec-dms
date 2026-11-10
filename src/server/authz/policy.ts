@@ -37,6 +37,33 @@ export function canManageUsers(facts: UserAdminFacts): boolean {
   return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
 }
 
+/** Audit log: REC Staff, REC Chair, and System Admin. */
+export function canViewAudit(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("REC_STAFF") || facts.roleKeys.has("REC_CHAIR") || actsAsSystemAdmin(facts);
+}
+
+/** Forms, workflows, and notification templates: System Admin only. */
+export function canEditForms(facts: UserAdminFacts): boolean {
+  return actsAsSystemAdmin(facts);
+}
+
+export function canEditWorkflow(facts: UserAdminFacts): boolean {
+  return actsAsSystemAdmin(facts);
+}
+
+export function canEditSettings(facts: UserAdminFacts): boolean {
+  return actsAsSystemAdmin(facts);
+}
+
+/** Holidays and retention: REC Staff and System Admin. */
+export function canEditHolidays(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
+}
+
+export function canReviewRetention(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
+}
+
 /**
  * Protocol access from a membership row. The active-view cookie is not an input.
  * A proponent or adviser cannot review, chair, or verify the fee on that protocol.

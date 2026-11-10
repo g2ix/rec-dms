@@ -9,7 +9,7 @@ export const metadata = { title: "Notification templates" };
 export default async function NotificationTemplatesPage() {
   const user = await requireUser();
   try {
-    await authorize(user, "notification.edit");
+    await authorize(user, "settings.edit");
   } catch {
     redirect("/app");
   }

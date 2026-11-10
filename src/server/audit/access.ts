@@ -1,10 +1,7 @@
 import "server-only";
-import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
+import { authorize } from "@/server/authz";
 
-/**
- * Gate for the audit log and its CSV export.
- * M02 replaces this with authorize(user, "audit.view").
- */
+/** Gate for the audit log and its CSV export. */
 export async function assertCanViewAudit(userId: string): Promise<void> {
-  await assertBootstrapAdmin(userId);
+  await authorize({ id: userId }, "audit.view");
 }

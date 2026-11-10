@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AdminMergeForm } from "@/components/account/merge-forms";
 import { UserStatusBadge } from "@/components/admin/user-status-badge";
 import { authorize } from "@/server/authz";
+import { canEditForms, canViewAudit } from "@/server/authz/policy";
+import { userAdminFacts } from "@/server/authz/user-admin";
 import { requireUser } from "@/server/session";
 import { listUsersWithRoles } from "@/server/users/roles";
 
@@ -21,7 +23,9 @@ export default async function AdminUsersPage({
   }
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
-  const users = await listUsersWithRoles(q);
+  const [users, facts] = await Promise.all([listUsersWithRoles(q), userAdminFacts(actor.id)]);
+  const showForms = canEditForms(facts);
+  const showAudit = canViewAudit(facts);
 
   return (
     <article className="rec-stack">
@@ -33,6 +37,18 @@ export default async function AdminUsersPage({
         <Link href="/admin/users/pending">Pending approval</Link>
         {" · "}
         <Link href="/admin/panels">Panels</Link>
+        {showForms ? (
+          <>
+            {" · "}
+            <Link href="/admin/forms">Forms</Link>
+          </>
+        ) : null}
+        {showAudit ? (
+          <>
+            {" · "}
+            <Link href="/admin/audit">Audit log</Link>
+          </>
+        ) : null}
       </p>
       {query.merged ? <p className="rec-banner">The accounts were merged. The second account can no longer sign in.</p> : null}
       <form className="rec-actions" action="/admin/users">

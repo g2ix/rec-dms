@@ -13,7 +13,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { activeHref, navGroups, ROLE_LABEL, type NavItem, type RoleView } from "@/components/shell/nav";
+import {
+  activeHref,
+  EMPTY_NAV_CAPABILITIES,
+  navGroups,
+  ROLE_LABEL,
+  type NavCapabilities,
+  type NavItem,
+  type RoleView,
+} from "@/components/shell/nav";
 
 export function SidebarCollapse({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const label = collapsed ? "Expand menu" : "Collapse menu";
@@ -40,7 +48,7 @@ export function SidebarPanel({
   collapsed,
   roleView = "proponent",
   roleViews,
-  canManageUsers = false,
+  navCapabilities = EMPTY_NAV_CAPABILITIES,
   roleSwitcher,
   markerId,
   counts,
@@ -49,12 +57,12 @@ export function SidebarPanel({
   collapsed: boolean;
   roleView?: RoleView;
   roleViews?: RoleView[];
-  canManageUsers?: boolean;
+  navCapabilities?: NavCapabilities;
   roleSwitcher?: React.ReactNode;
   markerId: string;
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
 }) {
-  const groups = navGroups(roleView, canManageUsers);
+  const groups = navGroups(roleView, navCapabilities);
   const items = groups.flatMap((group) => group.items);
   const current = activeHref(pathname, items);
 

@@ -86,6 +86,75 @@ describe("users.manage", () => {
   });
 });
 
+describe("admin screen permissions", () => {
+  it("allows REC Staff, REC Chair, and System Admin to view the audit log", async () => {
+    const staff = await person("staff");
+    const chair = await person("chair");
+    const admin = await person("admin");
+    const plain = await person("plain");
+    await hold(staff.id, "REC_STAFF");
+    await hold(chair.id, "REC_CHAIR");
+    await hold(admin.id, "SYSTEM_ADMIN");
+
+    await expect(authorize(staff, "audit.view")).resolves.toBeUndefined();
+    await expect(authorize(chair, "audit.view")).resolves.toBeUndefined();
+    await expect(authorize(admin, "audit.view")).resolves.toBeUndefined();
+    await expect(authorize(plain, "audit.view")).rejects.toMatchObject(forbidden);
+  });
+
+  it("limits forms, workflows, and settings to System Admin", async () => {
+    const staff = await person("staff");
+    const chair = await person("chair");
+    const admin = await person("admin");
+    await hold(staff.id, "REC_STAFF");
+    await hold(chair.id, "REC_CHAIR");
+    await hold(admin.id, "SYSTEM_ADMIN");
+
+    for (const action of ["forms.edit", "forms.view", "forms.fill", "workflow.edit", "workflow.view", "settings.edit", "notification.edit"] as const) {
+      await expect(authorize(admin, action)).resolves.toBeUndefined();
+      await expect(authorize(staff, action)).rejects.toMatchObject(forbidden);
+      await expect(authorize(chair, action)).rejects.toMatchObject(forbidden);
+    }
+  });
+
+  it("allows REC Staff and System Admin for holidays and retention", async () => {
+    const staff = await person("staff");
+    const chair = await person("chair");
+    const admin = await person("admin");
+    await hold(staff.id, "REC_STAFF");
+    await hold(chair.id, "REC_CHAIR");
+    await hold(admin.id, "SYSTEM_ADMIN");
+
+    for (const action of ["holiday.edit", "retention.review"] as const) {
+      await expect(authorize(staff, action)).resolves.toBeUndefined();
+      await expect(authorize(admin, action)).resolves.toBeUndefined();
+      await expect(authorize(chair, action)).rejects.toMatchObject(forbidden);
+    }
+  });
+
+  it("keeps the bootstrap fallback for each admin permission until a System Admin exists", async () => {
+    const bootstrap = await bootstrapPerson();
+    const actions = [
+      "audit.view",
+      "forms.edit",
+      "workflow.edit",
+      "settings.edit",
+      "holiday.edit",
+      "retention.review",
+    ] as const;
+
+    for (const action of actions) {
+      await expect(authorize(bootstrap, action)).resolves.toBeUndefined();
+    }
+
+    const admin = await person("admin");
+    await hold(admin.id, "SYSTEM_ADMIN");
+    for (const action of actions) {
+      await expect(authorize(bootstrap, action)).rejects.toMatchObject(forbidden);
+    }
+  });
+});
+
 describe("granting a role", () => {
   it("grants a global role and audits it", async () => {
     const staff = await person("staff");

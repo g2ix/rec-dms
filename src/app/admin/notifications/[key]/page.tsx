@@ -21,7 +21,7 @@ export default async function EditTemplatePage({
   const { error } = await searchParams;
   const user = await requireUser();
   try {
-    await authorize(user, "notification.edit");
+    await authorize(user, "settings.edit");
   } catch {
     redirect("/app");
   }

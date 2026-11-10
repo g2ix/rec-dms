@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { actsAsSystemAdmin, canManageUsers, decideProtocolAction, type MembershipFact } from "@/server/authz/policy";
+import {
+  actsAsSystemAdmin,
+  canEditForms,
+  canEditHolidays,
+  canEditSettings,
+  canEditWorkflow,
+  canManageUsers,
+  canReviewRetention,
+  canViewAudit,
+  decideProtocolAction,
+  type MembershipFact,
+} from "@/server/authz/policy";
 
 describe("user administration", () => {
   const facts = (keys: string[], bootstrap = false, systemAdminExists = false) => ({
@@ -24,6 +35,34 @@ describe("user administration", () => {
 
   it("does not make REC Staff a System Admin", () => {
     expect(actsAsSystemAdmin(facts(["REC_STAFF"]))).toBe(false);
+  });
+
+  it("allows REC Staff, REC Chair, and System Admin to view the audit log", () => {
+    expect(canViewAudit(facts(["REC_STAFF"], false, true))).toBe(true);
+    expect(canViewAudit(facts(["REC_CHAIR"], false, true))).toBe(true);
+    expect(canViewAudit(facts(["SYSTEM_ADMIN"], false, true))).toBe(true);
+    expect(canViewAudit(facts(["PANEL_CHAIR"], false, true))).toBe(false);
+    expect(canViewAudit(facts([], true, false))).toBe(true);
+    expect(canViewAudit(facts([], true, true))).toBe(false);
+  });
+
+  it("limits forms, workflows, and settings to System Admin", () => {
+    for (const check of [canEditForms, canEditWorkflow, canEditSettings]) {
+      expect(check(facts(["SYSTEM_ADMIN"], false, true))).toBe(true);
+      expect(check(facts(["REC_STAFF", "REC_CHAIR"], false, true))).toBe(false);
+      expect(check(facts([], true, false))).toBe(true);
+      expect(check(facts([], true, true))).toBe(false);
+    }
+  });
+
+  it("allows REC Staff and System Admin for holidays and retention", () => {
+    for (const check of [canEditHolidays, canReviewRetention]) {
+      expect(check(facts(["REC_STAFF"], false, true))).toBe(true);
+      expect(check(facts(["SYSTEM_ADMIN"], false, true))).toBe(true);
+      expect(check(facts(["REC_CHAIR"], false, true))).toBe(false);
+      expect(check(facts([], true, false))).toBe(true);
+      expect(check(facts([], true, true))).toBe(false);
+    }
   });
 });
 

@@ -11,7 +11,7 @@ import { AccountMenu } from "@/components/shell/account-menu";
 import { CrumbSetter, EMPTY_CRUMBS, type CrumbState } from "@/components/shell/crumbs";
 import { ActionResultProvider } from "@/components/ui/action-result";
 import { SidebarCollapse, SidebarPanel } from "@/components/shell/sidebar";
-import { pageForPath, ROLE_LABEL, type RoleView } from "@/components/shell/nav";
+import { EMPTY_NAV_CAPABILITIES, pageForPath, ROLE_LABEL, type NavCapabilities, type RoleView } from "@/components/shell/nav";
 import { NotificationBell } from "@/components/shell/notification-bell";
 import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 import Link from "next/link";
@@ -22,7 +22,7 @@ export function AppShell({
   pageTitle,
   roleView = "proponent",
   roleViews,
-  canManageUsers,
+  navCapabilities = EMPTY_NAV_CAPABILITIES,
   account,
   counts,
 }: {
@@ -31,7 +31,7 @@ export function AppShell({
   pageTitle?: string;
   roleView?: RoleView;
   roleViews?: RoleView[];
-  canManageUsers?: boolean;
+  navCapabilities?: NavCapabilities;
   account?: { name: string; email: string };
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
 }) {
@@ -61,7 +61,7 @@ export function AppShell({
           collapsed={collapsed}
           roleView={roleView}
           roleViews={roleViews}
-          canManageUsers={canManageUsers}
+          navCapabilities={navCapabilities}
           markerId="nav-marker-desktop"
           counts={counts}
         />
@@ -93,7 +93,7 @@ export function AppShell({
                     collapsed={false}
                     roleView={roleView}
                     roleViews={roleViews}
-                    canManageUsers={canManageUsers}
+                    navCapabilities={navCapabilities}
                     markerId="nav-marker-drawer"
                     counts={counts}
                   />
