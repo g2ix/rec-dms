@@ -2,6 +2,7 @@ import "server-only";
 import { isRoleKey } from "@/lib/forms/roles";
 import { validateSchema } from "@/lib/forms/schema";
 import { formProgress, type FormProgress } from "@/lib/protocols/format";
+import { isReviewerRole, seesReviewerNames } from "@/lib/workflow/blinding";
 import { diffFieldValues, type FieldChange } from "@/lib/protocols/format";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
@@ -83,7 +84,8 @@ export async function roster(userId: string, protocolId: string) {
     }),
     prisma.protocolMember.findFirst({ where: { protocolId, userId, status: { not: "REMOVED" } } }),
   ]);
-  return { members, mine };
+  if (seesReviewerNames(await isCommitteeStaff(userId), members, userId)) return { members, mine };
+  return { members: members.filter((member) => member.userId === userId || !isReviewerRole(member.role)), mine };
 }
 
 export async function boundValues(protocolId: string) {

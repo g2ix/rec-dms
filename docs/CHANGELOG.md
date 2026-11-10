@@ -1,5 +1,22 @@
 # Changelog
 
+## Workflow task comments (2026-11-09)
+
+A comment entered when completing a workflow task now appears on the protocol page and the Forms page, newest first, with the step, the outcome, who wrote it, their role, and the date. While a protocol is returned, the protocol page shows the latest return reason in a banner at the top. The banner goes away when the protocol leaves the returned status.
+
+Proponents and advisers see "Return incomplete" and other comments from before the review stage at once. Reviewer and Chair comments stay hidden from them until the decision on that pass is released. Reviewer names show only to REC Staff, Chairs, and administrators. Everyone else sees "Reviewer", in these comments, in the open tasks and history of the Review section, and in the protocol Activity timeline. The Roster and Members page leave reviewers out for those viewers, apart from a reviewer's own row. This changes the display only: stored tasks and audit events keep the real person, and the admin audit page still shows full names. Someone who is a proponent or adviser on the protocol is treated as one even if they also hold a committee role.
+
+These rules read the published workflow, not step names. A return is an outcome whose transition leads to a Returned status. The review stage starts at the step that freezes the version. A release is a step that generates documents. A workflow with no freeze step counts every step as review. No schema change was needed: the comment was already stored on the task.
+
+### Deviation from the request
+
+- The request asked for every comment and its author to be visible to all protocol members. `docs/SPEC.md` says proponents see review comments after release and do not see reviewer names. The spec was followed, as confirmed during this change.
+- A return with no comment shows no banner, because there is no reason to show. The comment box is still optional.
+
+### Also fixed
+
+The F-27 print map still used the funding values from before the study catalogs. The funding checkboxes now read the current codes, and the agency, institution, and other blanks print those fields. The official form has no place for "Amount and name of each source", so that answer no longer prints.
+
 ## Sign-in page (2026-11-09)
 
 The sign-in page is a single column: Google, then one shared email field that switches between a password and a one-time link. The link expires in 24 hours. Google receives `hd=usc.edu.ph` as a hint; other Google accounts can still sign in. Sign-up and email verification keep the previous frame.

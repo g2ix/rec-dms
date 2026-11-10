@@ -1,8 +1,10 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import type { RoleView } from "@/lib/role-view";
+import { isReviewerAuthor, REVIEWER_LABEL, seesReviewerNames } from "@/lib/workflow/blinding";
 import { dueState, type DueState } from "@/lib/workflow/due";
-import { parseGraph, type Step } from "@/lib/workflow/graph";
+import { parseGraph, type AssigneeRule, type Step } from "@/lib/workflow/graph";
+import { isCommitteeStaff } from "@/server/authz/staff";
 import { prisma, useAppSchema } from "@/server/db";
 import { openTasks } from "@/server/workflow/inbox";
 import { readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
@@ -70,6 +72,20 @@ export type OpenTaskView = {
   mine: boolean;
 };
 
+/** Display only: gives the name this viewer may see for a person on this protocol. Stored records are not changed. */
+export async function reviewerNameMask(protocolId: string, viewerId: string) {
+  const memberRows = await prisma.protocolMember.findMany({
+    where: { protocolId },
+    select: { userId: true, role: true, status: true },
+  });
+  const members = new Map(memberRows.flatMap((row) => (row.userId ? [[row.userId, row] as const] : [])));
+  const showNames = seesReviewerNames(await isCommitteeStaff(viewerId), memberRows, viewerId);
+  return (personId: string | null | undefined, name: string | null | undefined, rule: AssigneeRule | null = null): string | null => {
+    if (!name) return null;
+    return !showNames && isReviewerAuthor(rule, members.get(personId ?? "")) ? REVIEWER_LABEL : name;
+  };
+}
+
 export async function protocolFlow(protocolId: string, userId: string) {
   const instance = await prisma.workflowInstance.findFirst({
     where: { protocolId },
@@ -111,12 +127,19 @@ export async function protocolFlow(protocolId: string, userId: string) {
     take: 40,
     include: { actor: { select: { displayName: true } } },
   });
+  const nameFor = await reviewerNameMask(protocolId, userId);
   return {
     instance,
     steps,
     current,
-    open,
-    history,
+    open: open.map(({ assignee, ...task }) => ({
+      ...task,
+      assigneeName: nameFor(assignee?.id, assignee?.displayName, readRule(task.candidateRule)),
+    })),
+    history: history.map(({ actor, ...event }) => ({
+      ...event,
+      actorName: nameFor(event.actorUserId, actor?.displayName),
+    })),
     mine: actionable.map((task) => {
       const step = steps.find((item) => item.key === task.stepKey) ?? null;
       const side = task.kind === "SIDE" ? step?.sideTasks?.find((item) => item.key === task.sideKey) ?? null : null;

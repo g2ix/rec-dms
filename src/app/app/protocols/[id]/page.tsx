@@ -1,7 +1,9 @@
 import { AuditTimeline } from "@/components/audit/audit-timeline";
 import { ProtocolFlow } from "@/components/workflow/protocol-flow";
+import { ReturnBanner } from "@/components/workflow/task-comments";
 import { BusyButton } from "@/components/ui/busy-button";
 import { roster } from "@/server/protocols/read";
+import { protocolTaskComments } from "@/server/workflow/comments";
 import { protocolFlow } from "@/server/workflow/read";
 import { startRevisionAction, submitVersionAction } from "@/server/protocols/actions";
 import { protocolHeader } from "@/server/protocols/read";
@@ -17,7 +19,12 @@ export default async function ProtocolOverviewPage({
   const { id } = await params;
   const { error } = await searchParams;
   const user = await requireUser();
-  const [header, people, flow] = await Promise.all([protocolHeader(user.id, id), roster(user.id, id), protocolFlow(id, user.id)]);
+  const [header, people, flow, taskComments] = await Promise.all([
+    protocolHeader(user.id, id),
+    roster(user.id, id),
+    protocolFlow(id, user.id),
+    protocolTaskComments(user.id, id),
+  ]);
   const leader = header.mine?.isLeader && header.mine.role === "PROPONENT" && header.mine.status === "ACTIVE";
   const workflowRunning = flow?.instance.status === "RUNNING";
   return (
@@ -27,6 +34,7 @@ export default async function ProtocolOverviewPage({
           {error}
         </p>
       ) : null}
+      <ReturnBanner reason={taskComments.returnReason} />
       <section className="rec-card rec-stack">
         <h2 className="heading">Roster</h2>
         <ul className="rec-methods">
@@ -42,7 +50,7 @@ export default async function ProtocolOverviewPage({
           ))}
         </ul>
       </section>
-      <ProtocolFlow protocolId={id} userId={user.id} />
+      <ProtocolFlow protocolId={id} userId={user.id} comments={taskComments.comments} />
       {leader && header.working && !workflowRunning ? (
         <form action={submitVersionAction}>
           <input type="hidden" name="protocolId" value={id} />
@@ -60,7 +68,7 @@ export default async function ProtocolOverviewPage({
       {!leader ? <p className="body-sm rec-muted">Only the project leader can submit a version.</p> : null}
       <section className="rec-stack">
         <h2 className="heading">Activity</h2>
-        <AuditTimeline protocolId={id} simplified />
+        <AuditTimeline protocolId={id} viewerUserId={user.id} simplified />
       </section>
     </div>
   );

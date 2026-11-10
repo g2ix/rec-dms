@@ -188,7 +188,7 @@ export default async function AuditLogPage({
               <Link href={`/admin/audit${queryString({ ...filters, simplified: true })}`}>Proponent view</Link>
             )}
           </p>
-          <AuditTimeline protocolId={listed.protocolId} simplified={filters.simplified} />
+          <AuditTimeline protocolId={listed.protocolId} viewerUserId={null} simplified={filters.simplified} />
         </section>
       ) : null}
     </article>

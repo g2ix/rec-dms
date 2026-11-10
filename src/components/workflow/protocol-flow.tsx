@@ -1,10 +1,12 @@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { BusyButton } from "@/components/ui/busy-button";
+import { TaskCommentList } from "@/components/workflow/task-comments";
 import { auditActionLabel } from "@/lib/audit-log";
 import { dueState } from "@/lib/workflow/due";
 import { formatManila } from "@/lib/time";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { claimTaskAction, completeTaskAction, reassignTaskAction, requestExtensionAction } from "@/server/workflow/actions";
+import type { TaskComment } from "@/server/workflow/comments";
 import { protocolFlow, reviewerOptions } from "@/server/workflow/read";
 import { readRule } from "@/server/workflow/who";
 
@@ -15,7 +17,15 @@ const DUE = {
   none: null,
 };
 
-export async function ProtocolFlow({ protocolId, userId }: { protocolId: string; userId: string }) {
+export async function ProtocolFlow({
+  protocolId,
+  userId,
+  comments,
+}: {
+  protocolId: string;
+  userId: string;
+  comments: TaskComment[];
+}) {
   const flow = await protocolFlow(protocolId, userId);
   if (!flow) return null;
   const staff = await isCommitteeStaff(userId);
@@ -35,7 +45,7 @@ export async function ProtocolFlow({ protocolId, userId }: { protocolId: string;
         return (
           <article key={task.id} className="rec-card rec-stack">
             <h3 className="subheading">{task.title}</h3>
-            <p className="body-sm">{task.assignee?.displayName ?? "Unclaimed"}</p>
+            <p className="body-sm">{task.assigneeName ?? "Unclaimed"}</p>
             {task.dueAt ? <p className="body-sm">{formatManila(task.dueAt, "d MMM yyyy, h:mm a")}</p> : null}
             {due ? <StatusBadge tone={due.tone} label={due.label} /> : null}
           </article>
@@ -66,6 +76,7 @@ export async function ProtocolFlow({ protocolId, userId }: { protocolId: string;
             <Reassign key={`reassign-${task.id}`} protocolId={protocolId} taskId={task.id} ruleRole={roleOf(task.candidateRule)} />
           ))
         : null}
+      <TaskCommentList comments={comments} level="h3" />
       <h3 className="subheading">History</h3>
       {flow.history.length === 0 ? (
         <p className="body-sm rec-muted">No workflow events yet.</p>
@@ -75,7 +86,7 @@ export async function ProtocolFlow({ protocolId, userId }: { protocolId: string;
             <li key={event.id}>
               <p className="body-sm">
                 {auditActionLabel(event.action)}
-                {event.actor ? ` · ${event.actor.displayName}` : ""} · {formatManila(event.occurredAt, "d MMM yyyy, h:mm a")}
+                {event.actorName ? ` · ${event.actorName}` : ""} · {formatManila(event.occurredAt, "d MMM yyyy, h:mm a")}
               </p>
             </li>
           ))}

@@ -100,6 +100,7 @@ export async function completeTaskAction(formData: FormData): Promise<void> {
     redirect(`/app/protocols/${protocolId}?error=${encodeURIComponent(messageOf(error, "The task could not be completed."))}`);
   }
   revalidatePath(`/app/protocols/${protocolId}`);
+  revalidatePath(`/app/protocols/${protocolId}/forms`);
   revalidatePath("/app/tasks");
 }
 
