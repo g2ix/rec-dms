@@ -16,18 +16,17 @@ import {
   saveTemplate,
   updateDefinition,
 } from "@/server/forms/definitions";
-import { markComplete, reopenSandbox, saveField, setSandboxPreview, type SaveFieldResult } from "@/server/forms/fill";
+import { markComplete, reopenSandbox, setSandboxPreview, type SaveFieldResult } from "@/server/forms/fill";
+import {
+  authorizeFormInstance,
+  saveAuthorizedField,
+  saveFieldInputSchema,
+  saveInputError,
+} from "@/server/forms/save-input";
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/session";
 
 const roleKeySchema = z.enum(ROLE_KEYS);
-
-const saveSchema = z.object({
-  instanceId: z.string().uuid(),
-  path: z.string().min(1).max(240),
-  value: z.unknown(),
-  expectedRevision: z.number().int().nonnegative(),
-});
 
 const previewSchema = z.object({
   instanceId: z.string().uuid(),
@@ -50,50 +49,15 @@ function formError(error: unknown, fallback: string): { ok: false; message: stri
   return { ok: false, message: fallback };
 }
 
-async function authorizeInstance(user: { id: string }, instanceId: string) {
-  const instance = await prisma.formInstance.findUnique({
-    where: { id: instanceId },
-    include: { formDefinition: { select: { code: true } } },
-  });
-  if (!instance) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
-  if (instance.ownerType === "SANDBOX") {
-    await authorize(user, "forms.fill");
-    if (instance.ownerId !== user.id) throw new AppError("FORBIDDEN", "You cannot edit that sandbox.", 403);
-    return;
-  }
-  const version = await prisma.protocolVersion.findUnique({ where: { id: instance.ownerId } });
-  if (!version) throw new AppError("NOT_FOUND", "That form copy was not found.", 404);
-  const { editingStepFor } = await import("@/server/workflow/access");
-  const step = await editingStepFor(prisma, user.id, version.id, instance.formDefinition.code);
-  if (step) return;
-  await authorize(user, "protocol.fill", { type: "protocol", id: version.protocolId });
-}
-
 export async function saveFieldAction(input: unknown): Promise<SaveFieldResult> {
   try {
     const user = await requireUser();
-    const parsedPreview = saveSchema.parse(input);
-    await authorizeInstance(user, parsedPreview.instanceId);
-    const parsed = parsedPreview;
-    const value = parsed.value ?? null;
-    const encoded = JSON.stringify(value);
-    if (encoded.length > 200_000) {
-      return { ok: false, code: "INVALID", message: "That value is too long." };
-    }
-    return await saveField({
-      instanceId: parsed.instanceId,
-      path: parsed.path,
-      expectedRevision: parsed.expectedRevision,
-      value,
-      userId: user.id,
-    });
+    const parsed = saveFieldInputSchema.parse(input);
+    await authorizeFormInstance(user, parsed.instanceId);
+    return await saveAuthorizedField(user.id, parsed);
   } catch (error) {
     if (isNextRedirect(error)) throw error;
-    if (error instanceof AppError) return { ok: false, code: error.code, message: error.message };
-    if (error instanceof ZodError) {
-      return { ok: false, code: "INVALID", message: error.issues[0]?.message ?? "Check the value and try again." };
-    }
-    throw error;
+    return saveInputError(error, "Check the value and try again.");
   }
 }
 
@@ -113,7 +77,7 @@ export async function setSandboxPreviewAction(input: unknown): Promise<{ ok: tru
 export async function markCompleteAction(instanceId: string): Promise<{ ok: true } | { ok: false; message: string; errors?: { path: string; message: string }[] }> {
   try {
     const user = await requireUser();
-    await authorizeInstance(user, instanceId);
+    await authorizeFormInstance(user, instanceId);
     const result = await markComplete(instanceId, user.id);
     if (!result.ok) return { ok: false, message: "Complete the required fields first.", errors: result.errors };
     revalidatePath("/admin/forms");

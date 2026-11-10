@@ -27,7 +27,15 @@ const SELF_ROUTES = new Set([
   "src/app/app/reports/export/route.ts",
 ]);
 
-const GATES = ["authorize(", "adminUser(", "authorizeInstance(", "saveNotificationTemplate(", "assertCanViewAudit(", "cronAuthorized("];
+const GATES = [
+  "authorize(",
+  "adminUser(",
+  "authorizeInstance(",
+  "authorizeFormInstance(",
+  "saveNotificationTemplate(",
+  "assertCanViewAudit(",
+  "cronAuthorized(",
+];
 
 export type SurfaceGap = { file: string; name: string; reason: string };
 

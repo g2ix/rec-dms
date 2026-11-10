@@ -1,13 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormRenderer, patchData, readData, type FieldUi } from "@/components/forms/form-renderer";
 import { Button } from "@/components/ui/button";
+import { useAutosaveLifecycle } from "@/hooks/use-autosave-lifecycle";
+import {
+  createAutosaveQueue,
+  keepaliveSavePayload,
+  postKeepaliveSave,
+  type AutosaveQueue,
+  type AutosaveUi,
+} from "@/lib/forms/autosave";
 import { formatConflict, isConflict, type SaveConflict } from "@/lib/forms/conflict";
 import { isRoleKey, ROLE_KEYS, ROLE_KEY_LABEL, type RoleKey } from "@/lib/forms/roles";
 import type { FormSchema } from "@/lib/forms/schema";
 import { PREVIEW_BOUND_VALUES } from "@/lib/forms/bindings";
+import { flushRegisteredAutosaves } from "@/lib/forms/flush-registry";
 import {
   markCompleteAction,
   newSandboxAction,
@@ -50,74 +59,49 @@ export function SandboxForm({
   const revision = useRef(initialRevision);
   const statusRef = useRef(status);
   statusRef.current = status;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const editing = status === "DRAFT";
 
   function rememberRevision(value: number) {
     revision.current = value;
     setRevisionNumber(value);
   }
-  const pending = useRef(new Map<string, unknown>());
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const blocked = useRef(new Set<string>());
-  const saving = useRef(false);
-  const dataRef = useRef(data);
-  dataRef.current = data;
 
-  function schedule(path: string, value: unknown) {
-    if (blocked.current.has(path) || status !== "DRAFT") return;
-    pending.current.set(path, value);
-    const existing = timers.current.get(path);
-    if (existing) clearTimeout(existing);
-    timers.current.set(
-      path,
-      setTimeout(() => {
-        timers.current.delete(path);
-        void flush(path);
-      }, 800),
-    );
-  }
-
-  async function flush(path: string) {
-    if (saving.current || blocked.current.has(path) || !pending.current.has(path) || statusRef.current !== "DRAFT") return;
-    const value = pending.current.get(path);
-    pending.current.delete(path);
-    saving.current = true;
-    setUi((current) => ({ ...current, [path]: { state: "saving" } }));
-    const result = await saveFieldAction({
-      instanceId,
-      path,
-      value,
-      expectedRevision: revision.current,
+  const queue = useMemo<AutosaveQueue | null>(() => {
+    if (!editing) return null;
+    return createAutosaveQueue({
+      enabled: () => statusRef.current === "DRAFT",
+      getRevision: () => revision.current,
+      save: async ({ path, value, expectedRevision }) =>
+        saveFieldAction({ instanceId, path, value, expectedRevision }),
+      keepaliveSave: ({ fields, expectedRevision }) => {
+        postKeepaliveSave(instanceId, keepaliveSavePayload({ fields, expectedRevision }));
+      },
+      hooks: {
+        onUi: (path, next) => setUi((current) => ({ ...current, [path]: applyUi(next) })),
+        onRevision: rememberRevision,
+        onWritten: (writtenPaths, nextData, stillPending) => {
+          setData((current) => {
+            let next = current;
+            for (const written of writtenPaths) {
+              if (stillPending.has(written)) continue;
+              next = patchData(next, written, readData(nextData, written));
+            }
+            return next;
+          });
+        },
+      },
     });
-    saving.current = false;
-    if (result.ok) {
-      rememberRevision(result.revision);
-      setData((current) => {
-        let next = current;
-        for (const written of result.writtenPaths) {
-          if (pending.current.has(written)) continue;
-          next = patchData(next, written, readData(result.data, written));
-        }
-        return next;
-      });
-      setUi((current) => ({ ...current, [path]: { state: "saved" } }));
-    } else if (isConflict(result)) {
-      rememberRevision(result.revision);
-      blocked.current.add(path);
-      setUi((current) => ({
-        ...current,
-        [path]: { state: "conflict", message: formatConflict(result), conflict: result },
-      }));
-    } else {
-      setUi((current) => ({ ...current, [path]: { state: "idle", error: result.message } }));
-    }
-    const nextPath = pending.current.keys().next().value;
-    if (nextPath) void flush(nextPath);
-  }
+  }, [editing, instanceId]);
+
+  useEffect(() => () => queue?.dispose(), [queue]);
+  useAutosaveLifecycle(queue, editing);
 
   async function keepMine(path: string) {
     const conflict = ui[path]?.conflict;
-    if (!conflict) return;
-    blocked.current.delete(path);
+    if (!conflict || !queue) return;
+    queue.unblock(path);
     setUi((current) => ({ ...current, [path]: { state: "saving" } }));
     const result = await saveFieldAction({
       instanceId,
@@ -132,7 +116,7 @@ export function SandboxForm({
     }
     if (isConflict(result)) {
       rememberRevision(result.revision);
-      blocked.current.add(path);
+      queue.block(path);
       setUi((current) => ({
         ...current,
         [path]: { state: "conflict", message: formatConflict(result), conflict: result },
@@ -144,9 +128,9 @@ export function SandboxForm({
 
   function useTheirs(path: string) {
     const conflict = ui[path]?.conflict;
-    if (!conflict) return;
-    blocked.current.delete(path);
-    pending.current.delete(path);
+    if (!conflict || !queue) return;
+    queue.unblock(path);
+    queue.dropPending(path);
     setData((current) => patchData(current, path, conflict.value));
     setUi((current) => ({ ...current, [path]: { state: "idle" } }));
   }
@@ -168,6 +152,7 @@ export function SandboxForm({
 
   async function complete() {
     setBusy(true);
+    await flushRegisteredAutosaves();
     const result = await markCompleteAction(instanceId);
     setBusy(false);
     if (!result.ok) {
@@ -263,7 +248,7 @@ export function SandboxForm({
         onChange={(path, value) => {
           setData((current) => patchData(current, path, value));
           setUi((current) => ({ ...current, [path]: { state: "idle" } }));
-          schedule(path, value);
+          queue?.schedule(path, value);
         }}
         onUseTheirs={useTheirs}
         onKeepMine={(path) => void keepMine(path)}
@@ -285,4 +270,13 @@ export function SandboxForm({
       </div>
     </div>
   );
+}
+
+function applyUi(next: AutosaveUi): Ui {
+  return {
+    state: next.state,
+    message: next.message,
+    error: next.error,
+    conflict: next.conflict,
+  };
 }

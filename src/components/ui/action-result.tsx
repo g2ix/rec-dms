@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import type { ActionOutcome, ActionResult } from "@/lib/action-result";
+import { flushRegisteredAutosaves } from "@/lib/forms/flush-registry";
 
 const ShowResult = createContext<(result: ActionResult) => void>(() => {});
 
@@ -98,6 +99,7 @@ export function ActionForm({
     setError(null);
     startTransition(async () => {
       try {
+        await flushRegisteredAutosaves();
         const outcome = await action(data);
         if (outcome.ok) show(outcome.result);
         else setError(outcome.error);

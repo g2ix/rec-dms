@@ -1,5 +1,14 @@
 # Changelog
 
+## Autosave flush on leave (2026-11-10)
+
+Form field edits no longer wait only on the 800 ms debounce. `flushAll()` saves every pending field at once, in order, with the same conflict handling as a normal save. It runs when the form unmounts or the App Router route changes, before Return / Complete / Sign / Submit on the page, and when the tab hides (`visibilitychange` / `pagehide`) through `sendBeacon` or a keepalive `POST` to `/api/forms/[instanceId]/fields` (same authorization and validation as `saveFieldAction`). If a save is still pending or failed, the browser’s unsaved-changes warning appears. Assessment tables use the same queue; the sandbox form does too. Task comments still go with the Complete action (they are not debounced).
+
+### Deviation from the request
+
+- In-app link clicks that leave a dirty form are intercepted so `flushAll` can finish before navigation; a bare unmount alone cannot reliably await the saves.
+- A failed field is kept in the pending map so `flushAll` and `beforeunload` still see it.
+
 ## Admin screen permissions (2026-11-10)
 
 The remaining admin screens use `authorize()` the same way `/admin/users` does. An address in `BOOTSTRAP_ADMIN_EMAILS` still counts as a System Admin only while no active System Admin exists.

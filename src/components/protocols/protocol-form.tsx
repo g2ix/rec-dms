@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormRenderer, patchData, readData, type FieldUi } from "@/components/forms/form-renderer";
+import { useAutosaveLifecycle } from "@/hooks/use-autosave-lifecycle";
 import { displayInitials } from "@/lib/protocols/format";
+import {
+  createAutosaveQueue,
+  keepaliveSavePayload,
+  postKeepaliveSave,
+  type AutosaveQueue,
+  type AutosaveUi,
+} from "@/lib/forms/autosave";
 import { formatConflict, isConflict, type SaveConflict } from "@/lib/forms/conflict";
 import type { RoleKey } from "@/lib/forms/roles";
 import type { FormSchema } from "@/lib/forms/schema";
@@ -43,15 +51,44 @@ export function ProtocolForm({
   const [ui, setUi] = useState<Record<string, Ui>>({});
   const [viewers, setViewers] = useState<{ id: string; name: string }[]>([]);
   const revision = useRef(initialRevision);
-  const pending = useRef(new Map<string, unknown>());
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const blocked = useRef(new Set<string>());
-  const saving = useRef(false);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const editing = mode === "edit";
+
+  const queue = useMemo<AutosaveQueue | null>(() => {
+    if (!editing) return null;
+    return createAutosaveQueue({
+      getRevision: () => revision.current,
+      save: async ({ path, value, expectedRevision }) =>
+        saveFieldAction({ instanceId, path, value, expectedRevision }),
+      keepaliveSave: ({ fields, expectedRevision }) => {
+        postKeepaliveSave(instanceId, keepaliveSavePayload({ fields, expectedRevision }));
+      },
+      hooks: {
+        onUi: (path, next) => setUi((current) => ({ ...current, [path]: applyUi(next) })),
+        onRevision: (next) => {
+          revision.current = next;
+        },
+        onWritten: (writtenPaths, nextData, stillPending) => {
+          setData((current) => {
+            let next = current;
+            for (const written of writtenPaths) {
+              if (stillPending.has(written)) continue;
+              next = patchData(next, written, readData(nextData, written));
+            }
+            return next;
+          });
+        },
+        onSignaturesVoided: () => router.refresh(),
+      },
+    });
+  }, [editing, instanceId, router]);
+
+  useEffect(() => () => queue?.dispose(), [queue]);
+  useAutosaveLifecycle(queue, editing);
 
   useEffect(() => {
-    if (mode !== "edit") return;
+    if (!editing) return;
     let stop = false;
     async function beat() {
       if (stop) return;
@@ -64,60 +101,12 @@ export function ProtocolForm({
       stop = true;
       clearInterval(timer);
     };
-  }, [instanceId, mode]);
-
-  function schedule(path: string, value: unknown) {
-    if (mode !== "edit" || blocked.current.has(path)) return;
-    pending.current.set(path, value);
-    const existing = timers.current.get(path);
-    if (existing) clearTimeout(existing);
-    timers.current.set(
-      path,
-      setTimeout(() => {
-        timers.current.delete(path);
-        void flush(path);
-      }, 800),
-    );
-  }
-
-  async function flush(path: string) {
-    if (saving.current || blocked.current.has(path) || !pending.current.has(path)) return;
-    const value = pending.current.get(path);
-    pending.current.delete(path);
-    saving.current = true;
-    setUi((current) => ({ ...current, [path]: { state: "saving" } }));
-    const result = await saveFieldAction({ instanceId, path, value, expectedRevision: revision.current });
-    saving.current = false;
-    if (result.ok) {
-      revision.current = result.revision;
-      setData((current) => {
-        let next = current;
-        for (const written of result.writtenPaths) {
-          if (pending.current.has(written)) continue;
-          next = patchData(next, written, readData(result.data, written));
-        }
-        return next;
-      });
-      setUi((current) => ({ ...current, [path]: { state: "saved" } }));
-      if (result.signaturesVoided) router.refresh();
-    } else if (isConflict(result)) {
-      revision.current = result.revision;
-      blocked.current.add(path);
-      setUi((current) => ({
-        ...current,
-        [path]: { state: "conflict", message: formatConflict(result), conflict: result },
-      }));
-    } else {
-      setUi((current) => ({ ...current, [path]: { state: "idle", error: result.message } }));
-    }
-    const nextPath = pending.current.keys().next().value;
-    if (nextPath) void flush(nextPath);
-  }
+  }, [instanceId, editing]);
 
   async function keepMine(path: string) {
     const conflict = ui[path]?.conflict;
-    if (!conflict) return;
-    blocked.current.delete(path);
+    if (!conflict || !queue) return;
+    queue.unblock(path);
     setUi((current) => ({ ...current, [path]: { state: "saving" } }));
     const result = await saveFieldAction({
       instanceId,
@@ -132,7 +121,7 @@ export function ProtocolForm({
     }
     if (isConflict(result)) {
       revision.current = result.revision;
-      blocked.current.add(path);
+      queue.block(path);
       setUi((current) => ({
         ...current,
         [path]: { state: "conflict", message: formatConflict(result), conflict: result },
@@ -142,9 +131,9 @@ export function ProtocolForm({
 
   function useTheirs(path: string) {
     const conflict = ui[path]?.conflict;
-    if (!conflict) return;
-    blocked.current.delete(path);
-    pending.current.delete(path);
+    if (!conflict || !queue) return;
+    queue.unblock(path);
+    queue.dropPending(path);
     setData((current) => patchData(current, path, conflict.value));
     setUi((current) => ({ ...current, [path]: { state: "saved" } }));
   }
@@ -170,7 +159,7 @@ export function ProtocolForm({
         fieldState={ui}
         onChange={(path, value) => {
           setData((current) => patchData(current, path, value));
-          schedule(path, value);
+          queue?.schedule(path, value);
         }}
         onKeepMine={keepMine}
         onUseTheirs={useTheirs}
@@ -179,4 +168,13 @@ export function ProtocolForm({
       />
     </div>
   );
+}
+
+function applyUi(next: AutosaveUi): Ui {
+  return {
+    state: next.state,
+    message: next.message,
+    error: next.error,
+    conflict: next.conflict,
+  };
 }

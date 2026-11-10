@@ -7,6 +7,7 @@ import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { flushRegisteredAutosaves } from "@/lib/forms/flush-registry";
 import type { FormField } from "@/lib/forms/schema";
 import type { SignatureSlotView, SigningPrompt } from "@/lib/signatures/view";
 import { sendSigningCodeAction, signFieldAction } from "@/server/signatures/actions";
@@ -82,6 +83,7 @@ function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: Signi
   function sign() {
     setError(null);
     startTransition(async () => {
+      await flushRegisteredAutosaves();
       const result = await signFieldAction({
         instanceId: signing.instanceId,
         fieldPath: slot.fieldPath,
