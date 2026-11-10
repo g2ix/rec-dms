@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { approveUserAction, rejectUserAction } from "@/server/auth/actions";
-import { isBootstrapAdmin } from "@/server/auth/bootstrap";
+import { authorize } from "@/server/authz";
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/session";
 
@@ -9,7 +9,11 @@ export const metadata = { title: "Pending users" };
 
 export default async function PendingUsersPage() {
   const actor = await requireUser();
-  if (!(await isBootstrapAdmin(actor.id))) redirect("/app");
+  try {
+    await authorize(actor, "users.manage");
+  } catch {
+    redirect("/app");
+  }
   const users = await prisma.user.findMany({
     where: { status: "PENDING_APPROVAL" },
     include: { emails: true },

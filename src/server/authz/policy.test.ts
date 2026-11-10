@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { decideProtocolAction, type MembershipFact } from "@/server/authz/policy";
+import { actsAsSystemAdmin, canManageUsers, decideProtocolAction, type MembershipFact } from "@/server/authz/policy";
+
+describe("user administration", () => {
+  const facts = (keys: string[], bootstrap = false, systemAdminExists = false) => ({
+    roleKeys: new Set(keys),
+    bootstrap,
+    systemAdminExists,
+  });
+
+  it("allows REC Staff and System Admin to manage users", () => {
+    expect(canManageUsers(facts(["REC_STAFF"], false, true))).toBe(true);
+    expect(canManageUsers(facts(["SYSTEM_ADMIN"], false, true))).toBe(true);
+    expect(canManageUsers(facts(["REC_CHAIR", "PANEL_CHAIR"], false, true))).toBe(false);
+    expect(canManageUsers(facts([]))).toBe(false);
+  });
+
+  it("treats a bootstrap admin as System Admin only while none exists", () => {
+    expect(actsAsSystemAdmin(facts([], true, false))).toBe(true);
+    expect(canManageUsers(facts([], true, false))).toBe(true);
+    expect(actsAsSystemAdmin(facts([], true, true))).toBe(false);
+    expect(canManageUsers(facts([], true, true))).toBe(false);
+  });
+
+  it("does not make REC Staff a System Admin", () => {
+    expect(actsAsSystemAdmin(facts(["REC_STAFF"]))).toBe(false);
+  });
+});
 
 const leader: MembershipFact = { role: "PROPONENT", isLeader: true, status: "ACTIVE" };
 const proponent: MembershipFact = { role: "PROPONENT", isLeader: false, status: "ACTIVE" };

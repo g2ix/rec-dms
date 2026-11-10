@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminMergeForm } from "@/components/account/merge-forms";
-import { isBootstrapAdmin } from "@/server/auth/bootstrap";
-import { prisma } from "@/server/db";
+import { UserStatusBadge } from "@/components/admin/user-status-badge";
+import { authorize } from "@/server/authz";
 import { requireUser } from "@/server/session";
+import { listUsersWithRoles } from "@/server/users/roles";
 
 export const metadata = { title: "Users" };
 
@@ -13,38 +14,25 @@ export default async function AdminUsersPage({
   searchParams: Promise<{ q?: string; merged?: string }>;
 }) {
   const actor = await requireUser();
-  if (!(await isBootstrapAdmin(actor.id))) redirect("/app");
+  try {
+    await authorize(actor, "users.manage");
+  } catch {
+    redirect("/app");
+  }
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
-  const users = await prisma.user.findMany({
-    where: {
-      status: { not: "MERGED" },
-      ...(q
-        ? {
-            OR: [
-              { displayName: { contains: q, mode: "insensitive" } },
-              { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
-            ],
-          }
-        : {}),
-    },
-    include: { emails: { where: { isContact: true } } },
-    orderBy: { displayName: "asc" },
-    take: 50,
-  });
+  const users = await listUsersWithRoles(q);
 
   return (
     <article className="rec-stack">
       <h1 className="title">Users</h1>
       <p className="body rec-muted">
-        REC Staff can merge two accounts here when someone has separate faculty and student identities. Conflicting roles on the same protocol stop the merge and name the protocol.
+        Open a person to grant or revoke a role. REC Staff can also merge two accounts when someone has separate faculty and student identities. Conflicting roles on the same protocol stop the merge and name the protocol.
       </p>
       <p className="body-sm">
         <Link href="/admin/users/pending">Pending approval</Link>
         {" · "}
-        <Link href="/admin/forms">Forms</Link>
-        {" · "}
-        <Link href="/admin/audit">Audit log</Link>
+        <Link href="/admin/panels">Panels</Link>
       </p>
       {query.merged ? <p className="rec-banner">The accounts were merged. The second account can no longer sign in.</p> : null}
       <form className="rec-actions" action="/admin/users">
@@ -56,10 +44,43 @@ export default async function AdminUsersPage({
           <span>Search</span>
         </button>
       </form>
+      {users.length === 0 ? (
+        <p className="body">No accounts match that search.</p>
+      ) : (
+        <div className="rec-table-wrap">
+          <table className="rec-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Status</th>
+                <th scope="col">Roles</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.displayName}</td>
+                  <td>{user.email ?? "—"}</td>
+                  <td>
+                    <UserStatusBadge status={user.status} />
+                  </td>
+                  <td>{user.roles.length > 0 ? user.roles.join(", ") : "No committee role"}</td>
+                  <td>
+                    <Link href={`/admin/users/${user.id}`}>Manage roles</Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <h2 className="heading">Merge two accounts</h2>
       <AdminMergeForm
         users={users.map((user) => ({
           id: user.id,
-          label: `${user.displayName} — ${user.emails[0]?.email ?? user.email ?? "no email"}`,
+          label: `${user.displayName} — ${user.email ?? "no email"}`,
         }))}
       />
     </article>

@@ -10,7 +10,8 @@ import { codeSchema, emailOnlySchema, signInSchema, signUpSchema } from "@/lib/a
 import { prisma } from "@/server/db";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { actionError, isNextRedirect, type ActionState } from "@/server/action-state";
-import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
+import { authorize } from "@/server/authz";
+import { assertMayMergeAccounts } from "@/server/users/roles";
 import { issueEmailCode, verifyEmailCode } from "@/server/auth/codes";
 import { writeLinkIntent } from "@/server/auth/link-intent";
 import { removeSignInMethod, setContactEmail, setPassword, startEmailLink } from "@/server/auth/linking";
@@ -287,7 +288,7 @@ export async function completeMergeAction(_prev: ActionState, formData: FormData
 
 export async function approveUserAction(formData: FormData) {
   const actor = await requireUser();
-  await assertBootstrapAdmin(actor.id);
+  await authorize(actor, "users.manage");
   const userId = String(formData.get("userId") ?? "");
   await decidePendingUser({ actorUserId: actor.id, userId, decision: "approve" });
   redirect("/admin/users/pending");
@@ -295,7 +296,7 @@ export async function approveUserAction(formData: FormData) {
 
 export async function rejectUserAction(formData: FormData) {
   const actor = await requireUser();
-  await assertBootstrapAdmin(actor.id);
+  await authorize(actor, "users.manage");
   const userId = String(formData.get("userId") ?? "");
   await decidePendingUser({ actorUserId: actor.id, userId, decision: "reject" });
   redirect("/admin/users/pending");
@@ -304,12 +305,13 @@ export async function rejectUserAction(formData: FormData) {
 export async function adminMergeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const actor = await requireUser();
-    await assertBootstrapAdmin(actor.id);
+    await authorize(actor, "users.manage");
     const first = String(formData.get("firstUserId") ?? "");
     const second = String(formData.get("secondUserId") ?? "");
     const keep = String(formData.get("keep") ?? "first");
     const primaryUserId = keep === "second" ? second : first;
     const secondaryUserId = primaryUserId === first ? second : first;
+    await assertMayMergeAccounts(actor.id, [primaryUserId, secondaryUserId]);
     await mergeAsAdmin(actor.id, primaryUserId, secondaryUserId);
     redirect("/admin/users?merged=1");
   } catch (error) {

@@ -22,6 +22,21 @@ function isConflicted(membership: MembershipFact | null): boolean {
   return membership.role === "PROPONENT" || membership.role === "ADVISER";
 }
 
+export type UserAdminFacts = {
+  roleKeys: ReadonlySet<string>;
+  bootstrap: boolean;
+  systemAdminExists: boolean;
+};
+
+/** The bootstrap list stands in for a System Admin only until the first one exists. */
+export function actsAsSystemAdmin(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("SYSTEM_ADMIN") || (facts.bootstrap && !facts.systemAdminExists);
+}
+
+export function canManageUsers(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
+}
+
 /**
  * Protocol access from a membership row. The active-view cookie is not an input.
  * A proponent or adviser cannot review, chair, or verify the fee on that protocol.

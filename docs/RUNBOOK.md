@@ -4,9 +4,26 @@ These are the operator tasks. Process rules (who reviews, how many days, which f
 
 ## Add a role to a person
 
-1. Sign in as a bootstrap administrator.
-2. Open Users, find the account, and grant the role (REC Staff, REC Chair, Panel Chair, or System Admin).
-3. The grant is audited. The person must set up an authenticator on the next sign-in. Account → Authenticator shows the key and asks for one code.
+1. Sign in as REC Staff or a System Admin. Until the first System Admin exists, an address in `BOOTSTRAP_ADMIN_EMAILS` also works. It stops working for this screen once a System Admin exists.
+2. Open `/admin/users`, find the account, and choose Manage roles.
+3. Choose the role and Grant role. Only a System Admin can grant or revoke System Admin. The account must be active.
+4. The grant is audited as `user.role_granted`. The person must set up an authenticator on the next sign-in. Account → Authenticator shows the key and asks for one code.
+
+To remove a role, enter the reason on that role and choose Revoke role. The reason is kept in the audit event `user.role_revoked`. The last System Admin cannot be revoked.
+
+If the role list is empty, run `pnpm db:seed` on that environment. It creates the roles and is safe to run again.
+
+## Add or change a Panel Chair
+
+A panel has one chair. Panel Chair is granted per panel.
+
+1. Sign in as REC Staff or a System Admin and open `/admin/panels`.
+2. On the panel, choose Assign a chair, or Change the chair if one is already set.
+3. Search for the person if needed, then choose them from the list. The account must be active. If the panel has a chair, enter the reason.
+4. Save. The old chair's role ends and the new chair's role starts together, with one `user.role_revoked` and one `user.role_granted` event.
+5. New tasks for that panel go to the new chair. Tasks already open stay with the old chair. REC Staff reassign those from the task.
+
+The person must set up an authenticator on the next sign-in. A panel with a chair refuses a second chair on the Manage roles screen. Use the Panels page instead.
 
 ## Change a workflow step
 

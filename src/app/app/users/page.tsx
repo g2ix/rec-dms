@@ -15,8 +15,9 @@ export default async function UsersPage() {
       <article className="rec-stack">
         <h1 className="title">Users</h1>
         <p className="body rec-muted">
-          Accounts without a usc.edu.ph email wait here. An administrator approves them on the{" "}
-          <Link href="/admin/users/pending">pending users</Link> screen.
+          Accounts without a usc.edu.ph email wait here. REC Staff or a System Admin approves them on the{" "}
+          <Link href="/admin/users/pending">pending users</Link> screen. Roles are on the{" "}
+          <Link href="/admin/users">users</Link> screen, and Panel Chairs on the <Link href="/admin/panels">panels</Link> screen.
         </p>
         {rows.length === 0 ? <p className="body">No accounts are waiting.</p> : null}
         {rows.length > 0 ? (

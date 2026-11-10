@@ -6,6 +6,7 @@ import { defaultFileNameSetting } from "../../../src/lib/docs/names";
 import { validateSchema } from "../../../src/lib/forms/schema";
 import { validateGraph } from "../../../src/lib/workflow/validate";
 import { uscForms } from "./forms";
+import { installRoles } from "./roles";
 import { initialSubmission, resubmission } from "./workflows";
 
 const DEMO_PASSWORD = "Usc-ethics-review-2026-protocol";
@@ -13,6 +14,7 @@ const HASH = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 export async function installUscRec(prisma: PrismaClient): Promise<void> {
   const ownerId = await owner(prisma);
+  await installRoles(prisma);
   await settings(prisma);
   const codes = new Set<string>();
   for (const form of uscForms) {

@@ -3,8 +3,9 @@ import { assertBootstrapAdmin } from "@/server/auth/bootstrap";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { prismaMembershipReader, type ProtocolMembershipReader } from "@/server/authz/membership";
-import { decideProtocolAction } from "@/server/authz/policy";
+import { canManageUsers, decideProtocolAction } from "@/server/authz/policy";
 import { isCommitteeStaff } from "@/server/authz/staff";
+import { userAdminFacts } from "@/server/authz/user-admin";
 
 const FORM_ACTIONS = new Set([
   "forms.view",
@@ -61,6 +62,10 @@ export async function authorize(
     throw new AppError("FORBIDDEN", forbiddenMessage(action), 403);
   }
 
+  if (action === "users.manage") {
+    if (canManageUsers(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can manage users.", 403);
+  }
   if (action === "retention.review") {
     if (await isCommitteeStaff(user.id)) return;
     throw new AppError("FORBIDDEN", "Only REC Staff can review retention.", 403);

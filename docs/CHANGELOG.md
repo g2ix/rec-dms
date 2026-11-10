@@ -1,5 +1,25 @@
 # Changelog
 
+## User roles and panels (2026-11-09)
+
+REC Staff and System Admins can now open `/admin/users` and `/admin/users/pending`, through `authorize(user, "users.manage")`. An address in `BOOTSTRAP_ADMIN_EMAILS` counts as a System Admin on these screens only while no active System Admin exists. Approving, rejecting, and merging accounts use the same check.
+
+The user list shows each person's roles. Manage roles at `/admin/users/[id]` lists current roles, grants a role, and revokes one with a required reason. A role held per panel asks for the panel. Each change writes `user.role_granted` or `user.role_revoked` in the same transaction. Role changes run one at a time.
+
+`/admin/panels` shows each panel's name, disciplines, Panel Chair, and members, with a link to `/admin/panels/[id]/chair` to change the chair. A change ends the old grant and starts the new one together. Open tasks stay with the old chair until REC Staff reassign them.
+
+`pnpm db:seed` now creates the roles in `docs/SPEC.md`. Before this, only the demo seed created role rows, so each environment needs the seed run once.
+
+### Deviation from the request
+
+- Only a System Admin can revoke System Admin, and the last active System Admin cannot be revoked. The request limited only granting. Without this, REC Staff could remove every System Admin.
+- Merging an account that holds System Admin needs a System Admin, because a merge moves roles onto the kept account.
+- A panel has one chair. Granting Panel Chair on a panel that already has one is refused and points to the Panels page. With two chairs the engine leaves tasks unassigned.
+- The revoke reason is stored in the audit event. `user_roles` has no column for it, and no migration was needed.
+- Primary Reviewer and Independent Consultant are seeded as global roles, although `docs/SPEC.md` lists them per protocol. Workflow steps offer reviewers from standing grants, and the choice per protocol is made on the step.
+- Panel members are people holding a role tied to that panel, other than chair. Panel Chair is the only per-panel role in the seed, so the list is empty until another role is made per-panel.
+- `/admin/panels` is linked from Users rather than the sidebar. The sidebar is per view and would show it to Chairs who cannot open it. The Forms and Audit log links on `/admin/users` were removed because those screens are still limited to bootstrap administrators.
+
 ## Workflow task comments (2026-11-09)
 
 A comment entered when completing a workflow task now appears on the protocol page and the Forms page, newest first, with the step, the outcome, who wrote it, their role, and the date. While a protocol is returned, the protocol page shows the latest return reason in a banner at the top. The banner goes away when the protocol leaves the returned status.
