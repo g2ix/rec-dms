@@ -127,7 +127,17 @@ export function missingRequiredSignatures(
  * The field's fillers must include a role the person holds, and the person must be
  * the member that slot names.
  */
-const OFFICE_ROLES = new Set(["REC_STAFF", "REC_CHAIR", "PANEL_CHAIR", "MEMBER_SECRETARY", "REC_MEMBER", "SYSTEM_ADMIN"]);
+/** Committee offices sign any slot their role fills. The per-panel Vice-Chair and Secretary sign in the chair's or secretary's place. */
+const OFFICE_ROLES = new Set([
+  "REC_STAFF",
+  "REC_CHAIR",
+  "PANEL_CHAIR",
+  "PANEL_VICE_CHAIR",
+  "PANEL_SECRETARY",
+  "MEMBER_SECRETARY",
+  "REC_MEMBER",
+  "SYSTEM_ADMIN",
+]);
 
 export function canSignSlot(
   field: FormField,

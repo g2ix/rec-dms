@@ -6,6 +6,7 @@ import { defaultFileNameSetting } from "../../../src/lib/docs/names";
 import { validateSchema } from "../../../src/lib/forms/schema";
 import { validateGraph } from "../../../src/lib/workflow/validate";
 import { uscForms } from "./forms";
+import { importDemoPanels, installProcess2026 } from "./install-2026-11";
 import { installRoles } from "./roles";
 import { initialSubmission, resubmission } from "./workflows";
 
@@ -39,6 +40,8 @@ export async function installUscRec(prisma: PrismaClient): Promise<void> {
     graph: resubmission,
     codes,
   });
+  // The November 2026 forms, workflows and settings, published now to start on 1 Jan 2027.
+  await installProcess2026(prisma, ownerId);
   if (process.env.SEED_DEMO === "true") await demo(prisma, ownerId);
 }
 
@@ -145,8 +148,9 @@ async function publishForm(
     });
     return;
   }
+  // Versions scheduled for a later date (the 2026 set) are never retired here.
   const previous = await prisma.formDefinition.findMany({
-    where: { code: form.code, status: "PUBLISHED", NOT: { version: form.version } },
+    where: { code: form.code, status: "PUBLISHED", effectiveFrom: null, NOT: { version: form.version } },
     select: { id: true },
   });
   for (const row of previous) {
@@ -186,8 +190,9 @@ async function publishWorkflow(
       data: { key: input.key, name: input.name, submissionType: input.submissionType },
     });
   }
+  // The version in effect now. A version scheduled for a later date is left alone.
   const published = await prisma.workflowVersion.findFirst({
-    where: { definitionId: definition.id, status: "PUBLISHED" },
+    where: { definitionId: definition.id, status: "PUBLISHED", effectiveFrom: null },
   });
   if (published && canonical(published.graph) === canonical(input.graph)) return;
   const latest = await prisma.workflowVersion.findFirst({
@@ -220,7 +225,6 @@ async function demo(prisma: PrismaClient, grantedById: string): Promise<void> {
     ["proponent", "REC", "Proponent", null],
     ["adviser", "REC", "Adviser", "ADVISER"],
     ["staff", "REC", "Staff", "REC_STAFF"],
-    ["chair", "Panel", "Chair", "PANEL_CHAIR"],
     ["rec-chair", "REC", "Chair", "REC_CHAIR"],
     ["secretary", "Member", "Secretary", "MEMBER_SECRETARY"],
     ["reviewer", "Primary", "Reviewer", "PRIMARY_REVIEWER"],
@@ -229,8 +233,10 @@ async function demo(prisma: PrismaClient, grantedById: string): Promise<void> {
   const ids: Record<string, string> = {};
   for (const [key, firstName, familyName, role] of people) {
     const email = `${key}.demo@usc.edu.ph`;
-    ids[key] = await demoUser(prisma, { email, firstName, familyName, role, panelId: role === "PANEL_CHAIR" ? panel?.id ?? null : null, grantedById });
+    ids[key] = await demoUser(prisma, { email, firstName, familyName, role, panelId: null, grantedById });
   }
+  // Panel chairs, vice-chairs, secretaries and members come from the REC members workbook (M14).
+  await importDemoPanels(ids.staff!);
   const discipline = await prisma.discipline.findUnique({ where: { name: "Management" } });
   await demoProtocol(prisma, {
     title: "Expedited sample protocol",

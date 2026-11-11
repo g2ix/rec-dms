@@ -55,7 +55,16 @@
     "USC",
     "Vitest",
     "wordprocessingml",
-    "xyflow"
+    "xyflow",
+    "conforme",
+    "Conformé",
+    "IERC",
+    "Unionbank",
+    "Metrobank",
+    "Cronbach",
+    "FPIC",
+    "anonymization",
+    "barangay"
   ],
   "ignorePaths": [
     "node_modules/**",

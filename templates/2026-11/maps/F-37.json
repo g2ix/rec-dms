@@ -1,0 +1,110 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code",
+    "covers": [
+      "copied_note"
+    ]
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "cb_type_Full": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "Full",
+    "covers": [
+      "review_type",
+      "reviewed_by"
+    ]
+  },
+  "cb_type_Expedited": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "Expedited"
+  },
+  "sig_staff": {
+    "helper": "signature",
+    "path": "prepared_by",
+    "width": 140,
+    "height": 40
+  },
+  "sig_secretary": {
+    "helper": "signature",
+    "path": "secretary_review",
+    "width": 140,
+    "height": 40
+  },
+  "review_date": {
+    "helper": "date",
+    "path": "review_date"
+  },
+  "praf": {
+    "helper": "assessmentRows",
+    "path": "praf",
+    "columns": [
+      "code",
+      "label",
+      "comments",
+      "recommendations"
+    ],
+    "onlyFilled": [
+      "comments",
+      "recommendations"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "recommended_action": {
+    "helper": "choice",
+    "path": "recommended_action"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "icf": {
+    "helper": "assessmentRows",
+    "path": "icf",
+    "columns": [
+      "code",
+      "label",
+      "comments",
+      "recommendations"
+    ],
+    "onlyFilled": [
+      "comments",
+      "recommendations"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "icf_action": {
+    "helper": "choice",
+    "path": "icf_action"
+  },
+  "icf_justification": {
+    "helper": "text",
+    "path": "icf_justification"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_endorsement",
+    "width": 150,
+    "height": 44
+  },
+  "chair_signed_on": {
+    "helper": "date",
+    "path": "chair_endorsement"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

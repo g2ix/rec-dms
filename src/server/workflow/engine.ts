@@ -355,7 +355,8 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
   await saveCaptures(tx, instance.id, step, input);
 
   if (outcome && step.feeVerifiedOutcomes?.includes(outcome)) {
-    const block = await feeBlock(tx, protocol.id, instance.protocolVersionId);
+    const billsOnly = graph.steps.some((item) => item.actions?.some((action) => action.kind === "ISSUE_BILL"));
+    const block = await feeBlock(tx, protocol.id, instance.protocolVersionId, { billsOnly });
     if (block) {
       const reason = input.feeOverrideReason?.trim() ?? "";
       const staff = userId ? (await roleKeysFor(tx, userId)).has("REC_STAFF") : false;

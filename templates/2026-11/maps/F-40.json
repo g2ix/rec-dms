@@ -1,0 +1,103 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "release_date": {
+    "helper": "date",
+    "path": "certificate.releaseDate"
+  },
+  "valid_from": {
+    "helper": "date",
+    "path": "certificate.releaseDate"
+  },
+  "valid_until": {
+    "helper": "date",
+    "path": "certificate.validUntil"
+  },
+  "continuing_due": {
+    "helper": "date",
+    "path": "certificate.continuingReviewDue"
+  },
+  "panel_number": {
+    "helper": "text",
+    "path": "panel_number"
+  },
+  "funds": {
+    "helper": "text",
+    "path": "funds"
+  },
+  "study_site": {
+    "helper": "text",
+    "path": "study_site"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_signature",
+    "width": 160,
+    "height": 48
+  },
+  "signer_name": {
+    "helper": "text",
+    "path": "rec.signerName"
+  },
+  "review_type": {
+    "helper": "text",
+    "path": "review_type"
+  },
+  "meeting_date": {
+    "helper": "date",
+    "path": "meeting_date"
+  },
+  "progress_due": {
+    "helper": "date",
+    "path": "certificate.progressReportDue"
+  },
+  "conforme_1": {
+    "helper": "signature",
+    "path": "conforme",
+    "slot": 0,
+    "width": 120,
+    "height": 36
+  },
+  "conforme_2": {
+    "helper": "signature",
+    "path": "conforme",
+    "slot": 1,
+    "width": 120,
+    "height": 36
+  },
+  "conforme_3": {
+    "helper": "signature",
+    "path": "conforme",
+    "slot": 2,
+    "width": 120,
+    "height": 36
+  },
+  "conforme_4": {
+    "helper": "signature",
+    "path": "conforme",
+    "slot": 3,
+    "width": 120,
+    "height": 36
+  },
+  "conforme_date": {
+    "helper": "date",
+    "path": "conforme"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

@@ -1,5 +1,76 @@
 # Changelog
 
+## M14 — USC REC seed, November 2026 (2026-11-11)
+
+`pnpm db:seed` publishes the November 2026 process (`docs/PROCESS-UPDATE-2026-11.md`) beside the 2025 one. Every new form version, both workflow versions and the settings that change behaviour start on 1 Jan 2027 (Asia/Manila), the date the REC gave on 10 Nov. A protocol created before that date, including one already in flight, keeps the 2025 versions to the end, resubmissions included. All of it is seed data under `prisma/seed/usc-rec/` (`forms-2026-11.ts`, `points-2026-11.ts`, `workflows-2026-11.ts`, `install-2026-11.ts`). If the REC moves the start, change `PROCESS_START` and the printed dates in `forms-2026-11.ts`.
+
+**Templates.** The thirteen Word files from `docs/forms/2026-11/` are in `docs/forms/source/` under their full names. F-31, F-37, F-38, F-39 and F-41 now print on the official files, and F-40 Certification of Approval and F-42 Certification of Exemption from Review are new forms with placeholder maps. `scripts/prepare-templates-2026-11.ts` writes `templates/2026-11/`, the seed stores each template beside its form version, and `pnpm templates:check` checks the 2025 and 2026 sets against their own versions. See `docs/TEMPLATES.md` → November 2026 set.
+
+**Forms.** Every form has a new version. F-26, F-31, F-35, F-36, F-37, F-38, F-40 and F-42 print 01/01/27; F-27, F-28, F-30, F-39 and F-41 print 08/01/25, as their Word files do. F-35 and F-36 follow version 10-00: 36 protocol points (page and line), and an ICF checklist with the gateway question and parts A to D. Every point needs a comment and a recommendation, and every point has a **Needs revision** tick. The recommended action, justification, reviewer's printed name, date and signature are required. F-37 copies every point. The reviewers' words stay closed, and the Panel Chair (or the Vice-Chair or REC Chair who stands in) writes an overriding comment and recommendation beside them, then the recommended action and justification for each part. F-37 is signed by REC Staff, by the Panel Secretary on full review, and by the chair. F-38 carries the open points only and is signed by every researcher and the adviser. Each reviewer remarks on the points they raised and ticks **Still needs revision**. F-40 and F-42 are signed by the deciding chair, and every researcher signs the F-40 Conformé. F-29 is not in the 2026 set or the 2026 graphs. F-26 stays staff-completed.
+
+**Settings.** From 1 Jan 2027: code pattern `{YYYY}-{###}-{LEADER_FAMILY}{ET_AL}`, version label `{N}-{DDMMMYYYY}`, and meeting days Panel 1 first Friday, Panel 2 second Friday, Panel 3 third Friday, each with the 14-day cutoff. Until then `meetings.schedule` holds the 2025 rule (second Friday, 14 days), which M13 had removed from code. Seeded now, because only the 2026 versions read them: nine client types and the fee schedule of the 9 Dec 2025 memo, effective 1 Jan 2026, with 3rd-to-Nth review, amendment and continuing review at 50% of the base and graduate students free; the 70/20/10 distribution; the payment instructions, title and "Certified correct" line (REC Staff) of the billing template; client-type suggestions from the leader's profile; and certificate periods of one year, a progress report at six months, and continuing review 30 days before expiry. Existing settings are not overwritten.
+
+**Initial submission.** The proponent submits F-27, F-28, F-30, F-35, F-36, the manuscript and the cover letter, with no fee receipt. REC Staff screen within 3 working days, and the code is assigned. The deciding chair (`FIRST_AVAILABLE` Panel Chair → Panel Vice-Chair → REC Chair) fills F-31 within 2 working days, plus F-41 when exempt, with a note to reviewers and a review due date. They choose Exempt, Exempt with recommendations, Expedited or Full, and assign one Scientist (F-35) and one Non-scientist (F-36).
+- Exempt with recommendations reopens version 1 for the proponent (`REOPEN_VERSION`), then the chair checks again: Qualified, Qualified with recommendations, or Not qualified (back to the type of review).
+- Exempt: bill → staff verify payment and prepare F-42 → the deciding chair signs F-42 → release within 3 working days → Exempted.
+- Expedited and full: the bill is issued on the type of review and the review does not wait for it. The designation is deemed accepted after 72 hours, and a decline opens a re-designation of that slot. The assessment takes 10 working days, and the chair reviews F-37 within 2 working days.
+- An expedited protocol the chair would disapprove becomes full review (`setFields` with a condition) and goes to the meeting with the same reviewers. Full review: staff record the meeting date and decision, then REC Staff and the Panel Secretary sign F-37.
+- The chair endorses F-37 and signs F-39; when approved, staff prepare F-40 and the chair signs it. Release takes 5 working days and waits for the bill, which REC Staff may override with a reason.
+- Release sends F-40 and keeps F-39 when approved. Otherwise it sends F-39 and F-37, with the chair's words in place of overridden ones (staff keep both). After approval, every researcher signs the Conformé and staff file it.
+
+**Resubmission.** The proponent uploads the revised manuscript and completes F-38 for the open points. Researchers and the adviser sign. Staff screen within 3 working days. Round 3 and later are billed with `NTH_REVIEW`. The same reviewers remark within 10 working days, and the deciding chair decides. After major modifications the meeting decides; after minor it does not. Release sends F-40 and keeps F-39 and F-38 when approved. Otherwise it sends F-39 and F-38 without the reviewers' names and signatures.
+
+**Panels.** With `SEED_DEMO=true` the seed imports `docs/forms/2026-11/REC members.xlsx` through the `/admin/panels` importer. The demo Panel Chair account is gone: panel roles come from the workbook. Staging and production import the workbook on `/admin/panels`, and the seed holds no real names.
+
+**Engine and tool changes M14 needed.** These are generic, with no name, amount or day count:
+- `OFFICE_ROLES` in `src/lib/signatures/target.ts` includes Panel Vice-Chair and Panel Secretary. Without it neither could sign F-37, F-39 or F-40 in the chair's or secretary's place.
+- `feeBlock` takes `billsOnly`. A workflow with an `ISSUE_BILL` action checks only the current round's bill, so a round with no bill (the second review, or a protocol staff could not price) owes nothing. Before, it fell back to the 2025 receipt check, which nobody can satisfy or override, and blocked the release.
+- A release package binds the `certificate.*` dates for every released form, so F-40 and F-42 print their dates although they are signed forms, not template-only certificates.
+- The workflow simulation honours a `setFields` condition and gives transitions the outcomes chosen so far (`decisions.*`). Before, it always applied a conditional field and stopped at any transition that reads an earlier decision.
+- `replaceInCell` and `replaceAcrossRuns` in `src/lib/docs/ooxml.ts` tag text that Word split across runs. `scripts/prepare-templates.ts` exports its tagging, and runs only when called directly.
+- `pnpm db:seed` runs with `--conditions=react-server`, so the seed can use the storage and panel-import modules.
+
+Tests: `src/server/workflow/zz-usc-rec-2026.cycle.test.ts` has five cycles:
+- Exempt with recommendations: version stays 1, and F-42 is issued only after payment.
+- Expedited approved: F-40 is sent and F-39 kept.
+- Expedited disapproved goes to full review.
+- Full review with a Panel Chair conflict: the Vice-Chair decides and signs F-39, and the letter names the Vice-Chair.
+- Resubmission round 3: billed at 50% (₱800 on ₱1,600), and F-38 sent without the reviewers' names.
+
+`usc-rec.seed.test.ts` checks the 2026 forms and graphs and walks every review type in the simulation. It also runs the seed twice and confirms nothing changes the second time, and that a protocol created first stays on its 2025 workflow and forms. The 2025 cycle test now refreshes only the form versions in effect.
+
+### Confirm items that used a default
+
+None of the "Still to confirm" items had an answer, so each one below uses its default. The defaults are also written in `docs/PROCESS-UPDATE-2026-11.md`, and each is a setting, a form version or a graph change.
+
+1. F-26: staff complete it.
+2. Reviewer slots: panel members, vice-chairs and secretaries by `isScientist`; no Independent Consultant and no third reviewer.
+3. F-37 sent to the researcher: the chair's words where the chair overrode (`showOriginal: false`).
+4. "3rd review" is round 3, the protocol version number.
+5. 72 hours are calendar hours.
+6. The adviser does not sign the F-40 Conformé.
+7. Expedited disapproved → full review keeps the same reviewers.
+8. Existing codes are kept; the new pattern applies from 1 Jan 2027.
+9. The resubmission decision uses the same chair fallback.
+
+The milestone prompt's own defaults that the REC had already answered on 10 Nov follow the answer:
+- F-37: the chair does not edit the reviewers' words. The chair's comment overrides them, as M13 item 14 built it.
+- Billing: as the default said, with staff allowed to release unpaid with a reason (`feeOverride`).
+
+### Deviation from the request
+
+- The prompt numbers the Confirm items differently from `PROCESS-UPDATE-2026-11.md` ("Confirm 3" for the F-37 edit, "Confirm 4" for billing, "Confirm 8" for the escalation reviewers). This entry uses the file's numbering.
+- The tick column keeps the id `needs_action`, labelled **Needs revision**. The form renderer and the prefill strategies find the flag by that id; renaming it would lose the chair's highlight on screen.
+- The Word templates of the 2026 versions live in `templates/2026-11/` and are stored on each form version. The 2025 templates in `templates/` are not overwritten, because a 2025 version falls back to `templates/{code}.docx` and in-flight protocols must keep printing the 2025 layout.
+- Stored version names follow the printed number where it is free (F-26, F-31 and F-42 are 10-00; F-40 is 09-01). Otherwise they take the next revision of the 2025 name: F-27, F-28, F-30, F-39 and F-41 print 09-00 and are stored as 09-02, and F-35 to F-38 print 10-00 and are stored as 10-02.
+- F-29 stays published for protocols created before 1 Jan 2027. Retiring it now would break the 2025 graph those protocols use. No 2026 version or graph uses it.
+- F-41 is filled on the type-of-review step but is not required there, because a step's forms are required for every outcome. The exemption recheck step requires it.
+- Both F-38 reviewer blocks (protocol part, ICF part) are optional. Both reviewers hold the same role on the protocol, so the form cannot require one block of one reviewer only. The remarks on each reviewer's own points are required.
+- Slot forms also set `perAssignee`, so the step checks the slot reviewer's own copy. M13's slot test used optional forms and did not reach this.
+- An expedited bill is not re-priced when the protocol moves to full review. Whether the full-review rate then applies is a question for the REC; the seed does not issue a second bill.
+- The F-40 and F-42 details (type of review, meeting date, funds, study site, panel number) are filled by REC Staff on the step before the chair signs. There is no binding yet that copies them from F-27 or the panel.
+- The cycle tests stub PDF conversion, and run on protocols dated on the start date. The bills in those tests come from a copy of the memo schedule dated today, which the tests remove afterwards, because other tests add their own schedules to the shared database.
+
 ## M13 — Process flexibility (2026-11-11)
 
 The engine gains the kinds of behaviour the November 2026 process needs. Each one is configured from a workflow graph, a form definition, or a setting. No REC name, amount, day count, form code, or signer is in the new code. The USC REC seed is unchanged; M14 uses these capabilities.

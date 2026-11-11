@@ -19,7 +19,7 @@ F-26, F-27, F-28, F-29, F-30, F-35, and F-36 are tagged inside the secretariat's
 
 F-31, F-37, F-38, F-39, and F-41 have no separate Word file. They are pages in `docs/forms/source/Updated USC REC Forms.pdf`. Their templates are rebuilt from the F-26 header and Times New Roman tables transcribed from that PDF. Page breaks will not match the PDF.
 
-The Certificate of Approval is not in the set. When a release is Approved and `templates/COA.docx` is missing, the release task gets a warning and the letter is still generated.
+The 2025 set has no Certificate of Approval. When a 2025 release is Approved and `templates/COA.docx` is missing, the release task gets a warning and the letter is still generated. The November 2026 set has F-40 (below).
 
 ## Known tag choices
 
@@ -29,6 +29,20 @@ The Certificate of Approval is not in the set. When a release is Approved and `t
 - F-29 has more narrative boxes than fields. The later method fields share the last ethics box.
 - F-36 prints the REC Chair's name on the consent contact line. The source file still says Panel Chair.
 - F-30 leftover budget rows fill the remaining named lines, then one details list per section. The ethics review fee is added into MOOE and the grand total.
+
+## November 2026 set (M14)
+
+The official Word files of the November 2026 process are in `docs/forms/source/` under their full names (`USC REC F-26 - Document Receipt Form.docx` … `USC REC F-42 - Certification of Exemption from Review.docx`). The short-named files there stay for the 2025 templates.
+
+- `scripts/prepare-templates-2026-11.ts` tags them into `templates/2026-11/{code}.docx` and `templates/2026-11/maps/{code}.json`. Run it with `node --experimental-transform-types --import ./scripts/register-ts.mjs scripts/prepare-templates-2026-11.ts`, optionally followed by form codes.
+- `pnpm db:seed` stores each template beside its 2026 form version (the same mechanism as replacing a template on the form screen), so a 2025 version keeps printing with its 2025 file. The seed needs object storage for this.
+- `pnpm templates:check` checks both sets, each against its own form versions.
+- F-31, F-37, F-38, F-39 and F-41 now print on the official files. The rebuilt 2025 templates stay for the 2025 versions.
+- F-37 and F-38 print one loop row per point that has text, with points ticked **Needs revision** highlighted in yellow. The fixed point rows and the section headings of the Word file are replaced by that loop. The chair's overriding comment prints in place of the reviewers' words in the copy sent to the researcher.
+- F-38 prints comments and recommendations together in the comments column; the recommendations column stays empty.
+- F-41 prints the five types of research and the three data collection methods in the one row the Word file gives each group: their boxes and comments sit side by side.
+- F-40 and F-42 are forms, so the chair and the researchers can sign them. The release date, the validity period, the progress report date and the continuing review date come from the `certificates.*` settings when the decision is released. The Conformé shows the first four researchers' signatures; every signer is listed in the footer.
+- F-39 keeps the printed instructions for each decision and fills the submission deadline and, when disapproved, the justification.
 
 ## PDF conversion
 

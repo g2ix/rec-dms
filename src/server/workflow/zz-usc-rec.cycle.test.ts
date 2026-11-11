@@ -25,7 +25,8 @@ async function grant(userId: string, key: string, panelId?: string | null) {
 
 async function publishForms(userId: string) {
   for (const form of uscForms) {
-    const rows = await prisma.formDefinition.findMany({ where: { code: form.code, status: "PUBLISHED" } });
+    // Only the versions in effect now: the November 2026 versions are scheduled and keep their own schema.
+    const rows = await prisma.formDefinition.findMany({ where: { code: form.code, status: "PUBLISHED", effectiveFrom: null } });
     if (rows.length === 0) {
       const created = await createDefinition({ ...form, userId });
       await publishDefinition(created.id, userId);

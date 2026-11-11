@@ -850,7 +850,7 @@ const rawForms: {
   },
 ];
 
-function normalizeField(raw: Record<string, unknown>): Record<string, unknown> {
+export function normalizeField(raw: Record<string, unknown>): Record<string, unknown> {
   const validation: Record<string, unknown> = {};
   if (raw.required === true) validation.required = true;
   if (raw.requiredIf != null) validation.requiredIf = raw.requiredIf;

@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate": "node scripts/with-env.mjs prisma migrate deploy",
-    "db:seed": "node scripts/with-env.mjs node --experimental-transform-types --import ./scripts/register-ts.mjs prisma/seed.ts",
+    "db:seed": "node scripts/with-env.mjs node --conditions=react-server --experimental-transform-types --import ./scripts/register-ts.mjs prisma/seed.ts",
     "db:seed:load": "node scripts/with-env.mjs node --conditions=react-server --experimental-transform-types --import ./scripts/register-ts.mjs scripts/seed-load.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
     "mailpit": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mailpit.ps1",

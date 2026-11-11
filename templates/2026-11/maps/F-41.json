@@ -1,0 +1,423 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "cb_p11_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p11.answer",
+    "equals": "YES",
+    "covers": [
+      "criteria"
+    ]
+  },
+  "cb_p11_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p11.answer",
+    "equals": "NO"
+  },
+  "p11_comments": {
+    "helper": "text",
+    "path": "criteria.p11.comments"
+  },
+  "cb_p12_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p12.answer",
+    "equals": "YES"
+  },
+  "cb_p12_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p12.answer",
+    "equals": "NO"
+  },
+  "p12_comments": {
+    "helper": "text",
+    "path": "criteria.p12.comments"
+  },
+  "cb_p13_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p13.answer",
+    "equals": "YES"
+  },
+  "cb_p13_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p13.answer",
+    "equals": "NO"
+  },
+  "p13_comments": {
+    "helper": "text",
+    "path": "criteria.p13.comments"
+  },
+  "cb_p14_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p14.answer",
+    "equals": "YES"
+  },
+  "cb_p14_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p14.answer",
+    "equals": "NO"
+  },
+  "p14_comments": {
+    "helper": "text",
+    "path": "criteria.p14.comments"
+  },
+  "cb_p151_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p151.answer",
+    "equals": "YES"
+  },
+  "cb_p151_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p151.answer",
+    "equals": "NO"
+  },
+  "p151_comments": {
+    "helper": "text",
+    "path": "criteria.p151.comments"
+  },
+  "cb_p152_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p152.answer",
+    "equals": "YES"
+  },
+  "cb_p152_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p152.answer",
+    "equals": "NO"
+  },
+  "p152_comments": {
+    "helper": "text",
+    "path": "criteria.p152.comments"
+  },
+  "cb_p153_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p153.answer",
+    "equals": "YES"
+  },
+  "cb_p153_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p153.answer",
+    "equals": "NO"
+  },
+  "p153_comments": {
+    "helper": "text",
+    "path": "criteria.p153.comments"
+  },
+  "cb_p154_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p154.answer",
+    "equals": "YES"
+  },
+  "cb_p154_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p154.answer",
+    "equals": "NO"
+  },
+  "p154_comments": {
+    "helper": "text",
+    "path": "criteria.p154.comments"
+  },
+  "cb_p155_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p155.answer",
+    "equals": "YES"
+  },
+  "cb_p155_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p155.answer",
+    "equals": "NO"
+  },
+  "p155_comments": {
+    "helper": "text",
+    "path": "criteria.p155.comments"
+  },
+  "cb_p161_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p161.answer",
+    "equals": "YES"
+  },
+  "cb_p161_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p161.answer",
+    "equals": "NO"
+  },
+  "p161_comments": {
+    "helper": "text",
+    "path": "criteria.p161.comments"
+  },
+  "cb_p162_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p162.answer",
+    "equals": "YES"
+  },
+  "cb_p162_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p162.answer",
+    "equals": "NO"
+  },
+  "p162_comments": {
+    "helper": "text",
+    "path": "criteria.p162.comments"
+  },
+  "cb_p163_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p163.answer",
+    "equals": "YES"
+  },
+  "cb_p163_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p163.answer",
+    "equals": "NO"
+  },
+  "p163_comments": {
+    "helper": "text",
+    "path": "criteria.p163.comments"
+  },
+  "cb_p17_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p17.answer",
+    "equals": "YES"
+  },
+  "cb_p17_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p17.answer",
+    "equals": "NO"
+  },
+  "p17_comments": {
+    "helper": "text",
+    "path": "criteria.p17.comments"
+  },
+  "cb_p18_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p18.answer",
+    "equals": "YES"
+  },
+  "cb_p18_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p18.answer",
+    "equals": "NO"
+  },
+  "p18_comments": {
+    "helper": "text",
+    "path": "criteria.p18.comments"
+  },
+  "cb_p19_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p19.answer",
+    "equals": "YES"
+  },
+  "cb_p19_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p19.answer",
+    "equals": "NO"
+  },
+  "p19_comments": {
+    "helper": "text",
+    "path": "criteria.p19.comments"
+  },
+  "cb_p111_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p111.answer",
+    "equals": "YES"
+  },
+  "cb_p111_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p111.answer",
+    "equals": "NO"
+  },
+  "p111_comments": {
+    "helper": "text",
+    "path": "criteria.p111.comments"
+  },
+  "cb_p112_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p112.answer",
+    "equals": "YES"
+  },
+  "cb_p112_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p112.answer",
+    "equals": "NO"
+  },
+  "p112_comments": {
+    "helper": "text",
+    "path": "criteria.p112.comments"
+  },
+  "cb_p113_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p113.answer",
+    "equals": "YES"
+  },
+  "cb_p113_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p113.answer",
+    "equals": "NO"
+  },
+  "p113_comments": {
+    "helper": "text",
+    "path": "criteria.p113.comments"
+  },
+  "cb_p114_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p114.answer",
+    "equals": "YES"
+  },
+  "cb_p114_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p114.answer",
+    "equals": "NO"
+  },
+  "p114_comments": {
+    "helper": "text",
+    "path": "criteria.p114.comments"
+  },
+  "cb_p115_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p115.answer",
+    "equals": "YES"
+  },
+  "cb_p115_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p115.answer",
+    "equals": "NO"
+  },
+  "p115_comments": {
+    "helper": "text",
+    "path": "criteria.p115.comments"
+  },
+  "cb_p116_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p116.answer",
+    "equals": "YES"
+  },
+  "cb_p116_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p116.answer",
+    "equals": "NO"
+  },
+  "p116_comments": {
+    "helper": "text",
+    "path": "criteria.p116.comments"
+  },
+  "cb_p117_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p117.answer",
+    "equals": "YES"
+  },
+  "cb_p117_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p117.answer",
+    "equals": "NO"
+  },
+  "p117_comments": {
+    "helper": "text",
+    "path": "criteria.p117.comments"
+  },
+  "cb_p118_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p118.answer",
+    "equals": "YES"
+  },
+  "cb_p118_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p118.answer",
+    "equals": "NO"
+  },
+  "p118_comments": {
+    "helper": "text",
+    "path": "criteria.p118.comments"
+  },
+  "cb_p119_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p119.answer",
+    "equals": "YES"
+  },
+  "cb_p119_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p119.answer",
+    "equals": "NO"
+  },
+  "p119_comments": {
+    "helper": "text",
+    "path": "criteria.p119.comments"
+  },
+  "cb_p1110_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p1110.answer",
+    "equals": "YES"
+  },
+  "cb_p1110_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p1110.answer",
+    "equals": "NO"
+  },
+  "p1110_comments": {
+    "helper": "text",
+    "path": "criteria.p1110.comments"
+  },
+  "cb_p1111_YES": {
+    "helper": "checkbox",
+    "path": "criteria.p1111.answer",
+    "equals": "YES"
+  },
+  "cb_p1111_NO": {
+    "helper": "checkbox",
+    "path": "criteria.p1111.answer",
+    "equals": "NO"
+  },
+  "p1111_comments": {
+    "helper": "text",
+    "path": "criteria.p1111.comments"
+  },
+  "cb_action_QUALIFIED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "QUALIFIED",
+    "covers": [
+      "recommended_action"
+    ]
+  },
+  "cb_action_NOT_QUALIFIED": {
+    "helper": "checkbox",
+    "path": "recommended_action",
+    "equals": "NOT_QUALIFIED"
+  },
+  "summary": {
+    "helper": "text",
+    "path": "summary"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_signature",
+    "width": 160,
+    "height": 48
+  },
+  "signed_on": {
+    "helper": "date",
+    "path": "chair_signature"
+  },
+  "signer_name": {
+    "helper": "text",
+    "path": "rec.signerName"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

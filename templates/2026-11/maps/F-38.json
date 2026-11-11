@@ -1,0 +1,109 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "sig_researcher": {
+    "helper": "signature",
+    "path": "researcher_signature",
+    "width": 140,
+    "height": 40
+  },
+  "accomplished_on": {
+    "helper": "date",
+    "path": "researcher_signature"
+  },
+  "sig_adviser": {
+    "helper": "signature",
+    "path": "adviser_signature",
+    "width": 140,
+    "height": 40
+  },
+  "sig_icf_reviewer": {
+    "helper": "signature",
+    "path": "icf_reviewer_signature",
+    "width": 150,
+    "height": 44
+  },
+  "icf_reviewer_name": {
+    "helper": "text",
+    "path": "icf_reviewer_name"
+  },
+  "icf_review_date": {
+    "helper": "date",
+    "path": "icf_review_date"
+  },
+  "icf": {
+    "helper": "assessmentRows",
+    "path": "icf",
+    "columns": [
+      "code",
+      "label",
+      "panel_comments",
+      "actions_taken",
+      "panel_remarks"
+    ],
+    "onlyFilled": [
+      "needs_action",
+      "panel_comments"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "icf_action": {
+    "helper": "choice",
+    "path": "icf_action"
+  },
+  "icf_justification": {
+    "helper": "text",
+    "path": "icf_justification"
+  },
+  "sig_praf_reviewer": {
+    "helper": "signature",
+    "path": "reviewer_signature",
+    "width": 150,
+    "height": 44
+  },
+  "reviewer_name": {
+    "helper": "text",
+    "path": "reviewer_name"
+  },
+  "review_date": {
+    "helper": "date",
+    "path": "review_date"
+  },
+  "praf": {
+    "helper": "assessmentRows",
+    "path": "praf",
+    "columns": [
+      "code",
+      "label",
+      "panel_comments",
+      "actions_taken",
+      "panel_remarks"
+    ],
+    "onlyFilled": [
+      "needs_action",
+      "panel_comments"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "recommended_action": {
+    "helper": "choice",
+    "path": "recommended_action"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

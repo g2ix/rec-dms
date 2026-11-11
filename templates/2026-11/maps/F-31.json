@@ -1,0 +1,170 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "cb_sub_INITIAL": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "INITIAL",
+    "covers": [
+      "submission_type"
+    ]
+  },
+  "cb_sub_CONTINUING": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "CONTINUING"
+  },
+  "cb_sub_AMENDMENT": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "AMENDMENT"
+  },
+  "cb_sub_DEVIATION": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "DEVIATION"
+  },
+  "cb_sub_FINAL_REPORT": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "FINAL_REPORT"
+  },
+  "cb_sub_TERMINATION": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "TERMINATION"
+  },
+  "cb_sub_APPEAL": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "APPEAL"
+  },
+  "cb_sub_UAP_AE": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "UAP_AE"
+  },
+  "cb_sub_OTHER": {
+    "helper": "checkbox",
+    "path": "submission_type",
+    "equals": "OTHER"
+  },
+  "cb_risk_BELOW_MINIMAL": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "BELOW_MINIMAL",
+    "covers": [
+      "risk"
+    ]
+  },
+  "cb_risk_MINIMAL": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "MINIMAL"
+  },
+  "cb_risk_GREATER": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "GREATER"
+  },
+  "cb_risk_NONE": {
+    "helper": "checkbox",
+    "path": "risk",
+    "equals": "NONE"
+  },
+  "cb_review_EXPEDITED": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "EXPEDITED",
+    "covers": [
+      "review_type"
+    ]
+  },
+  "cb_review_FULL": {
+    "helper": "checkbox",
+    "path": "review_type",
+    "equals": "FULL"
+  },
+  "cb_exempt_YES": {
+    "helper": "checkbox",
+    "path": "exempt",
+    "equals": "YES",
+    "covers": [
+      "exempt"
+    ]
+  },
+  "cb_exempt_NO": {
+    "helper": "checkbox",
+    "path": "exempt",
+    "equals": "NO"
+  },
+  "cb_consent_YES": {
+    "helper": "checkbox",
+    "path": "consent_needed",
+    "equals": "YES",
+    "covers": [
+      "consent_needed"
+    ]
+  },
+  "cb_consent_NO": {
+    "helper": "checkbox",
+    "path": "consent_needed",
+    "equals": "NO"
+  },
+  "cb_waiver_YES": {
+    "helper": "checkbox",
+    "path": "consent_waiver",
+    "equals": "YES",
+    "covers": [
+      "consent_waiver"
+    ]
+  },
+  "cb_waiver_NO": {
+    "helper": "checkbox",
+    "path": "consent_waiver",
+    "equals": "NO"
+  },
+  "submission_other": {
+    "helper": "text",
+    "path": "submission_other"
+  },
+  "justification": {
+    "helper": "text",
+    "path": "justification"
+  },
+  "scientist_reviewer": {
+    "helper": "text",
+    "path": "scientist_reviewer"
+  },
+  "non_scientist_reviewer": {
+    "helper": "text",
+    "path": "non_scientist_reviewer"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "accomplished_by",
+    "width": 160,
+    "height": 48
+  },
+  "signed_on": {
+    "helper": "date",
+    "path": "accomplished_by"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

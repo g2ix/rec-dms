@@ -123,7 +123,12 @@ export async function generateDecisionDocuments(payload: unknown): Promise<void>
   const userId = await actorId(protocolId, instanceId, stepKey);
   const signerFrom = Array.isArray(payload.signerFrom) ? payload.signerFrom.filter((item): item is string => typeof item === "string") : [];
   const signer = await decisionSigner(instanceId, steps, signerFrom);
-  const extraBound: Record<string, unknown> = signer ? { "rec.signerName": signer, "rec.chairName": signer } : {};
+  // Certificate dates are bound for every released form, so a certificate kept as a signed form
+  // (one the researchers sign back) prints the same dates as one rendered from a template alone.
+  const extraBound: Record<string, unknown> = {
+    ...(step?.release ? await certificateBound(workflow.protocolVersionId) : {}),
+    ...(signer ? { "rec.signerName": signer, "rec.chairName": signer } : {}),
+  };
   const decision = await decisionOf(instanceId, workflow.protocolVersionId, steps);
 
   if (step?.release) {

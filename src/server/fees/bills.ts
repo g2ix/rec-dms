@@ -132,16 +132,23 @@ export async function currentBill(db: Db, protocolId: string, protocolVersionId:
  * The fee check on a fee-gated outcome. Returns null when it passes, or what is outstanding.
  * A protocol with no bill for this round falls back to the receipt check of earlier graphs.
  */
+/**
+ * What still blocks a fee-checked outcome. A workflow that issues bills (`billsOnly`) checks only
+ * this round's bill: a round with no bill, such as an unbilled second review, owes nothing. Other
+ * workflows fall back to the fee receipt check.
+ */
 export async function feeBlock(
   tx: Tx,
   protocolId: string,
   protocolVersionId: string,
+  options: { billsOnly?: boolean } = {},
 ): Promise<{ billId: string | null; outstanding: number; message: string } | null> {
   const bill = await currentBill(tx, protocolId, protocolVersionId);
   if (bill) {
     if (billSettled(bill.status)) return null;
     return { billId: bill.id, outstanding: outstanding(bill), message: "The bill for this review is not paid in full." };
   }
+  if (options.billsOnly) return null;
   const fee = await tx.feeVerification.findUnique({ where: { protocolVersionId } });
   if (fee?.status === "VERIFIED") return null;
   return { billId: null, outstanding: 0, message: "Verify the fee receipt before accepting the submission." };

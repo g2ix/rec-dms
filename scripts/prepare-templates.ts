@@ -211,8 +211,9 @@ function fillUnderscoreSignature(xml: string, imageTag: string, dateTag: string)
   return next;
 }
 
-function tagOfficial(code: string): { zip: PizZip; map: PlaceholderMap } {
-  const zip = load(SOURCES[code] ?? "");
+/** Tags one official Word file. `sourceName` picks another file in docs/forms/source/ with the same layout. */
+export function tagOfficial(code: string, sourceName = SOURCES[code] ?? ""): { zip: PizZip; map: PlaceholderMap } {
+  const zip = load(sourceName);
   let xml = readXml(zip, "word/document.xml");
   const map: PlaceholderMap = {
     "protocol.code": { helper: "text", path: "protocol.code" },
@@ -895,11 +896,16 @@ function publish(code: string, zip: PizZip, map: PlaceholderMap): void {
   console.log(`${code} ok`);
 }
 
-mkdirSync(mapDir, { recursive: true });
-for (const code of Object.keys(SOURCES)) {
-  const built = tagOfficial(code);
-  publish(code, built.zip, built.map);
+export { appendFooterLine, fillAfterLabel, findRow, fillEmptyRow, setCellContaining, stampFooters, readXml, writeXml };
+
+// Run only as `pnpm templates:prepare`; the November 2026 script imports the tagging above.
+if (process.argv[1]?.replaceAll("\\", "/").endsWith("scripts/prepare-templates.ts")) {
+  mkdirSync(mapDir, { recursive: true });
+  for (const code of Object.keys(SOURCES)) {
+    const built = tagOfficial(code);
+    publish(code, built.zip, built.map);
+  }
+  const base = load(SOURCES["F-26"] ?? "");
+  for (const built of buildReconstructed(base)) publish(built.code, built.zip, built.map);
+  console.log("templates ready");
 }
-const base = load(SOURCES["F-26"] ?? "");
-for (const built of buildReconstructed(base)) publish(built.code, built.zip, built.map);
-console.log("templates ready");

@@ -1,3 +1,4 @@
+import { logicIsTrue } from "@/lib/forms/logic";
 import { addDuration } from "@/lib/workflow/calendar";
 import { releaseItemKey, ruleChain, slotsOf, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
 import { pickTransition, type LogicData } from "@/lib/workflow/transitions";
@@ -31,7 +32,7 @@ export function simulateGraph(
   let cursor = graph.startStep;
   let now = start;
   const pending = [...choices];
-  const state = { reviewType: facts.reviewType ?? null };
+  const state: SimulationState = { reviewType: facts.reviewType ?? null, decisions: {} };
   for (let guard = 0; guard < 40; guard += 1) {
     const step = graph.steps.find((item) => item.key === cursor);
     if (!step) return { stops, error: `The step “${cursor}” is not in the graph.` };
@@ -43,7 +44,7 @@ export function simulateGraph(
     }
     if (step.type === "AUTO") {
       stops.push({ stepKey: step.key, name: step.name, dueAt: dueAt?.toISOString() ?? null, outcome: null, notes });
-      applyValues(step, null, state);
+      applyValues(step, null, state, facts);
       const next = pickTransition(graph, step.key, dataFor(step.key, null, state, facts));
       if (!next) return { stops, error: `“${step.name}” has no matching transition.` };
       cursor = next.to;
@@ -58,7 +59,8 @@ export function simulateGraph(
     }
     if (!choice?.outcome && outcome) notes.push(`No choice given: the deadline passes and the system records ${outcome}.`);
     stops.push({ stepKey: step.key, name: step.name, dueAt: dueAt?.toISOString() ?? null, outcome, notes });
-    applyValues(step, outcome, state);
+    if (outcome) state.decisions[step.key] = outcome;
+    applyValues(step, outcome, state, facts);
     const next = pickTransition(graph, step.key, dataFor(step.key, outcome, state, facts));
     if (!next) return { stops, error: `“${step.name}” has no matching transition.` };
     now = dueAt ?? now;
@@ -75,9 +77,15 @@ export function waitingForChoice(graph: WorkflowGraph, stop: SimulationStop | un
   return (step.outcomes?.length ?? 0) > 0 ? step : null;
 }
 
-function applyValues(step: Step, outcome: string | null, state: { reviewType: string | null }) {
+/** Review type and each step's chosen outcome so far, as the engine reads them on a transition. */
+type SimulationState = { reviewType: string | null; decisions: Record<string, string | null> };
+
+function applyValues(step: Step, outcome: string | null, state: SimulationState, facts: SimulationFacts) {
+  // Conditions are read before any field of this step changes, as the engine does.
+  const data = dataFor(step.key, outcome, state, facts);
   for (const field of step.setFields ?? []) {
     if (field.path !== "protocol.reviewType") continue;
+    if (field.when != null && !logicIsTrue(field.when, data)) continue;
     const value = field.from === "outcome" ? outcome : field.from === "value" ? (field.value ?? null) : null;
     if (value === "EXEMPT" || value === "EXPEDITED" || value === "FULL") state.reviewType = value;
   }
@@ -119,7 +127,7 @@ function stepNotes(graph: WorkflowGraph, step: Step): string[] {
   return notes;
 }
 
-function dataFor(stepKey: string, outcome: string | null, state: { reviewType: string | null }, facts: SimulationFacts): LogicData {
+function dataFor(stepKey: string, outcome: string | null, state: SimulationState, facts: SimulationFacts): LogicData {
   return {
     outcome,
     protocol: {
@@ -134,6 +142,7 @@ function dataFor(stepKey: string, outcome: string | null, state: { reviewType: s
     },
     forms: {},
     step: { key: stepKey },
+    decisions: { ...state.decisions },
     parent: { decision: facts.parentDecision ?? null, decisions: {} },
   };
 }

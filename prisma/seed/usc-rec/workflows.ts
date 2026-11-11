@@ -558,7 +558,7 @@ const resubmissionGraph: WorkflowGraph = {
   ],
 };
 
-function withTaskNotices(graph: WorkflowGraph): WorkflowGraph {
+export function withTaskNotices(graph: WorkflowGraph): WorkflowGraph {
   return {
     ...graph,
     steps: graph.steps.map((step) => {

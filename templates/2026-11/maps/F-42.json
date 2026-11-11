@@ -1,0 +1,59 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code"
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title"
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel"
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers"
+  },
+  "release_date": {
+    "helper": "date",
+    "path": "certificate.releaseDate"
+  },
+  "valid_from": {
+    "helper": "date",
+    "path": "certificate.releaseDate"
+  },
+  "valid_until": {
+    "helper": "date",
+    "path": "certificate.validUntil"
+  },
+  "continuing_due": {
+    "helper": "date",
+    "path": "certificate.continuingReviewDue"
+  },
+  "panel_number": {
+    "helper": "text",
+    "path": "panel_number"
+  },
+  "funds": {
+    "helper": "text",
+    "path": "funds"
+  },
+  "study_site": {
+    "helper": "text",
+    "path": "study_site"
+  },
+  "sig_chair": {
+    "helper": "signature",
+    "path": "chair_signature",
+    "width": 160,
+    "height": 48
+  },
+  "signer_name": {
+    "helper": "text",
+    "path": "rec.signerName"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

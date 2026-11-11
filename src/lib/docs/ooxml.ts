@@ -220,3 +220,73 @@ export function borderedTable(rows: string[]): string {
     .join("");
   return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>${borders}</w:tblBorders></w:tblPr>${rows.join("")}</w:tbl>`;
 }
+
+/** Replaces the first `from` inside one text node of a table cell, keeping the cell's other text and formatting. */
+export function replaceInCell(xml: string, table: number, row: number, cell: number, from: string, to: string): string {
+  const range = cellRange(xml, table, row, cell);
+  const inner = xml.slice(range.innerStart, range.innerEnd);
+  const needle = escapeXml(from);
+  const node = /(<w:t(?: [^>]*)?>)([\s\S]*?)(<\/w:t>)/g;
+  let match: RegExpExecArray | null;
+  while ((match = node.exec(inner))) {
+    const at = match[2]!.indexOf(needle);
+    if (at < 0) continue;
+    const text = match[2]!.slice(0, at) + escapeXml(to) + match[2]!.slice(at + needle.length);
+    const rebuilt = `<w:t xml:space="preserve">${text}</w:t>`;
+    const next = inner.slice(0, match.index) + rebuilt + inner.slice(match.index + match[0].length);
+    return xml.slice(0, range.innerStart) + next + xml.slice(range.innerEnd);
+  }
+  throw new Error(`“${from}” was not found in table ${table}, row ${row}, cell ${cell}.`);
+}
+
+/**
+ * Replaces every `from` in the document text, even where Word split it across runs. The
+ * replacement goes into the run where the match starts; the rest of the match is removed from
+ * the following runs, which keep their own formatting.
+ */
+export function replaceAcrossRuns(xml: string, from: string, to: string): string {
+  const needle = escapeXml(from);
+  let out = xml;
+  let replaced = 0;
+  let searchFrom = 0;
+  for (;;) {
+    const nodes = [...out.matchAll(/(<w:t(?: [^>]*)?>)([\s\S]*?)(<\/w:t>)/g)];
+    const owner: number[] = [];
+    let text = "";
+    nodes.forEach((node, index) => {
+      text += node[2]!;
+      for (let k = 0; k < node[2]!.length; k += 1) owner.push(index);
+    });
+    const at = text.indexOf(needle, searchFrom);
+    if (at < 0) break;
+    const end = at + needle.length;
+    const starts: number[] = [];
+    let offset = 0;
+    for (const node of nodes) {
+      starts.push(offset);
+      offset += node[2]!.length;
+    }
+    const first = owner[at]!;
+    const last = owner[end - 1]!;
+    const contents = nodes.map((node) => node[2]!);
+    for (let index = first; index <= last; index += 1) {
+      const body = contents[index]!;
+      const from0 = Math.max(at - starts[index]!, 0);
+      const to0 = Math.min(end - starts[index]!, body.length);
+      contents[index] = body.slice(0, from0) + (index === first ? escapeXml(to) : "") + body.slice(to0);
+    }
+    let rebuilt = "";
+    let cursor = 0;
+    nodes.forEach((node, index) => {
+      rebuilt += out.slice(cursor, node.index);
+      rebuilt += index >= first && index <= last ? `<w:t xml:space="preserve">${contents[index]}</w:t>` : node[0];
+      cursor = node.index! + node[0].length;
+    });
+    out = rebuilt + out.slice(cursor);
+    searchFrom = at + escapeXml(to).length;
+    replaced += 1;
+    if (replaced > 200) throw new Error(`Too many matches of “${from}”.`);
+  }
+  if (replaced === 0) throw new Error(`“${from}” was not found.`);
+  return out;
+}

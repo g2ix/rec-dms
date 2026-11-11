@@ -126,18 +126,30 @@ Post-approval (F-45, F-46, F-48 to F-51, F-53, F-55), archiving (inactive 30 wor
 
 ## Still to confirm with the REC
 
+None of these had an answer when M14 was run (11 Nov 2026). M14 uses the default after each one. Each default is a setting, a form version or a workflow version, so an answer is a layer 1–3 change.
+
 1. F-26: does the researcher fill it, or does staff still complete it from the uploads?
+   **Default used:** staff complete F-26 at screening, with suggestions from the uploads (the 6 Nov decision).
 2. Can an Independent Consultant fill the scientist or non-scientist slot? Can the chair add a third reviewer?
-3. F-37 copies sent to the researcher: only the chair's comment where the chair overrode, or both? (Default: only the chair's comment; staff see both.)
+   **Default used:** no to both. The Scientist slot takes a panel member, vice-chair or secretary whose panel grant has `isScientist: true`, and the Non-scientist slot one with `isScientist: false`. There is no third slot.
+3. F-37 copies sent to the researcher: only the chair's comment where the chair overrode, or both?
+   **Default used:** only the chair's comment where the chair overrode (`showOriginal: false`). Staff keep the full copy with both.
 4. "3rd review": is it the third review round of the same protocol (version 3)?
+   **Default used:** yes. The `NTH_REVIEW` rule starts at round 3, and the round is the protocol version number.
 5. Is the 72-hour acceptance counted in calendar hours or working days?
+   **Default used:** 72 calendar hours.
 6. Approved: the F-40 Word file has a Conformé line for the researcher(s). Does the adviser sign too?
+   **Default used:** no. Every researcher signs the Conformé, and the adviser does not.
 7. Expedited disapproved → full review: does it keep the same reviewers?
+   **Default used:** yes. The protocol goes to the meeting with the same reviewers and the same F-37.
 8. Existing protocol codes (`USC-REC-2026-0001`): keep them, or reissue in the new format?
+   **Default used:** keep them. Codes already issued never change (M13). The new pattern applies to codes issued from 1 Jan 2027.
 9. Resubmission decision: Panel Chair, with the same conflict-of-interest fallback?
+   **Default used:** yes. Panel Chair → Panel Vice-Chair → REC Chair (`FIRST_AVAILABLE`).
 
 ## Change log
 
 - 2026-11-10: this file, from the documents above.
 - 2026-11-10: fix tasks 5–10 run before M13. Task 7 (F-29 email) is affected because F-29 is no longer used; task 9 (F-36 "If NO") should match the new F-36 10-00 wording (page and line, Unable to assess / Yes / No); task 8 ("Needs action" flag) is the flag M13 item 8 reuses.
 - 2026-11-10: REC answered billing timing, reviewer slots, F-37 override and the 1 Jan 2027 start (see "Answered by the REC").
+- 2026-11-11: M14 seeds the November 2026 forms, settings and workflows, all scheduled for 1 Jan 2027. The open items above use their stated defaults (layers 1–3). See `docs/CHANGELOG.md` → M14.

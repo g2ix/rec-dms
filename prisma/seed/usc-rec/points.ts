@@ -1,5 +1,7 @@
 /** Assessment point text copied from the USC REC forms. Codes keep the printed numbering. */
 
+export type AssessmentPoint = { code: string; label: string; help?: string; visibleIf?: unknown; requiredIf?: unknown };
+
 export const F35_POINTS: { code: string; label: string; help?: string }[] = [
   { code: "1.01", label: "Is/Are the main research question(s) reasonable?", help: "SCIENTIFIC VALIDITY" },
   { code: "1.02", label: "Are the study objectives specific, measurable, attainable, and reasonable based on the research instrument(s) presented?" },
