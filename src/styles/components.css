@@ -303,8 +303,15 @@ html.theme-fade * {
   transition: border-color var(--dur-fast) var(--ease-standard);
 }
 .rec-textarea { min-height: 96px; resize: vertical; }
+/* Placeholders are hints, not answers: faint and italic so an empty field never reads as filled. */
 .rec-input::placeholder,
-.rec-textarea::placeholder { color: var(--ink-muted); }
+.rec-textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.55;
+  font-style: italic;
+}
+.rec-input:focus::placeholder,
+.rec-textarea:focus::placeholder { color: transparent; }
 .rec-input:focus,
 .rec-textarea:focus,
 .rec-select:focus {
