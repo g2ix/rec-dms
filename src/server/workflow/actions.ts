@@ -9,13 +9,14 @@ import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 import {
+  cancelScheduledWorkflow,
   createWorkflow,
   draftFromPublished,
   publishWorkflow,
   saveDraftGraph,
   validationIssues,
 } from "@/server/workflow/definitions";
-import { claimTask, completeTask, reassignTask, requestExtension } from "@/server/workflow/engine";
+import { claimTask, completeTask, declareConflict, migrateInstance, reassignTask, requestExtension, setMigrationAllowed } from "@/server/workflow/engine";
 import { removeHoliday, saveHoliday } from "@/server/workflow/holidays";
 import { protocolResult, taskResult } from "@/server/workflow/result";
 
@@ -61,16 +62,29 @@ export async function validateDraftAction(versionId: string): Promise<{ messages
   return { messages: issues.map((issue) => issue.message) };
 }
 
-export async function publishVersionAction(versionId: string): Promise<void> {
+export async function publishVersionAction(versionId: string, effectiveFrom: string | null = null): Promise<void> {
   const user = await requireUser();
   await authorize(user, "workflow.edit");
   const id = z.string().uuid().parse(versionId);
+  const day = effectiveFrom && /^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) ? new Date(`${effectiveFrom}T00:00:00+08:00`) : null;
   try {
-    await publishWorkflow(id, user.id);
+    await publishWorkflow(id, user.id, day);
   } catch (error) {
     redirect(`/admin/workflows/${id}?error=${encodeURIComponent(messageOf(error, "This draft cannot be published."))}`);
   }
   redirect(`/admin/workflows/${id}?published=1`);
+}
+
+export async function cancelScheduledWorkflowAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  await authorize(user, "workflow.edit");
+  const versionId = z.string().uuid().parse(formData.get("versionId"));
+  try {
+    await cancelScheduledWorkflow(versionId, user.id);
+  } catch (error) {
+    redirect(`/admin/workflows/${versionId}?error=${encodeURIComponent(messageOf(error, "The schedule could not be cancelled."))}`);
+  }
+  redirect(`/admin/workflows/${versionId}`);
 }
 
 export async function publishWorkflowAction(formData: FormData): Promise<void> {
@@ -93,12 +107,23 @@ export async function completeTaskAction(formData: FormData): Promise<ActionOutc
     const protocolId = z.string().uuid().parse(formData.get("protocolId"));
     await authorize(user, "task.complete", { type: "task", id: taskId });
     const reviewers = formData.getAll("reviewerUserId").map(String).filter((id) => z.string().uuid().safeParse(id).success);
+    const reviewerSlots: Record<string, string> = {};
+    for (const [name, value] of formData.entries()) {
+      if (!name.startsWith("reviewerSlot:")) continue;
+      const id = String(value);
+      if (z.string().uuid().safeParse(id).success) reviewerSlots[name.slice("reviewerSlot:".length)] = id;
+    }
+    const text = (name: string) => String(formData.get(name) ?? "").trim() || null;
     await completeTask(taskId, user.id, {
-      outcome: String(formData.get("outcome") ?? "").trim() || null,
-      comment: String(formData.get("comment") ?? "").trim() || null,
+      outcome: text("outcome"),
+      comment: text("comment"),
       reviewerUserIds: reviewers,
-      newDueAt: String(formData.get("newDueAt") ?? "").trim() || null,
-      meetingDate: String(formData.get("meetingDate") ?? "").trim() || null,
+      reviewerSlots,
+      newDueAt: text("newDueAt"),
+      meetingDate: text("meetingDate"),
+      noteToReviewers: text("noteToReviewers"),
+      reviewDueDate: text("reviewDueDate"),
+      feeOverrideReason: text("feeOverrideReason"),
     });
     revalidatePath(`/app/protocols/${protocolId}`);
     revalidatePath(`/app/protocols/${protocolId}/forms`);
@@ -107,6 +132,25 @@ export async function completeTaskAction(formData: FormData): Promise<ActionOutc
     return { ok: true, result: await taskResult(taskId, protocolId, user.id) };
   } catch (error) {
     return actionFailure(error, "The task could not be completed.");
+  }
+}
+
+export async function declareConflictAction(formData: FormData): Promise<ActionOutcome> {
+  try {
+    const user = await requireUser();
+    const taskId = z.string().uuid().parse(formData.get("taskId"));
+    const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+    await authorize(user, "task.complete", { type: "task", id: taskId });
+    await declareConflict(taskId, user.id, String(formData.get("reason") ?? ""));
+    revalidatePath(`/app/protocols/${protocolId}`);
+    revalidatePath("/app/tasks");
+    revalidatePath(REVIEWS_PATH);
+    return {
+      ok: true,
+      result: await protocolResult({ title: "Conflict of interest recorded.", protocolId, viewerId: user.id, target: "protocol", kind: "SIDE" }),
+    };
+  } catch (error) {
+    return actionFailure(error, "The conflict of interest could not be recorded.");
   }
 }
 
@@ -175,4 +219,34 @@ export async function removeHolidayAction(formData: FormData): Promise<void> {
   await authorize(user, "holiday.edit");
   await removeHoliday(z.string().uuid().parse(formData.get("id")), user.id);
   revalidatePath("/admin/holidays");
+}
+
+export async function setMigrationAllowedAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  await authorize(user, "workflow.migrate");
+  const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+  await setMigrationAllowed(protocolId, formData.get("allowed") === "on", user.id);
+  revalidatePath(`/app/protocols/${protocolId}`);
+}
+
+export async function migrateInstanceAction(formData: FormData): Promise<ActionOutcome> {
+  try {
+    const user = await requireUser();
+    await authorize(user, "workflow.migrate");
+    const protocolId = z.string().uuid().parse(formData.get("protocolId"));
+    await migrateInstance({
+      protocolId,
+      targetVersionId: z.string().uuid().parse(formData.get("targetVersionId")),
+      stepKey: z.string().trim().min(1, "Choose the step to resume at.").parse(formData.get("stepKey")),
+      actorUserId: user.id,
+      note: String(formData.get("note") ?? ""),
+    });
+    revalidatePath(`/app/protocols/${protocolId}`);
+    return {
+      ok: true,
+      result: await protocolResult({ title: "Moved to the chosen workflow version.", protocolId, viewerId: user.id, target: "protocol" }),
+    };
+  } catch (error) {
+    return actionFailure(error, "The protocol could not be moved.");
+  }
 }

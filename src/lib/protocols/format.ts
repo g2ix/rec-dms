@@ -2,8 +2,22 @@ import { formatInTimeZone } from "date-fns-tz";
 import { validateInstance } from "@/lib/forms/validate";
 import type { FormSchema } from "@/lib/forms/schema";
 
-export function versionLabel(number: number, at: Date, timeZone: string): string {
-  return `${number}/${formatInTimeZone(at, timeZone, "ddMMMyyyy")}`;
+export const DEFAULT_VERSION_LABEL = "{N}/{DDMMMYYYY}";
+
+const LABEL_TOKENS: Record<string, string> = {
+  DDMMMYYYY: "ddMMMyyyy",
+  YYYY: "yyyy",
+  MMM: "MMM",
+  MM: "MM",
+  DD: "dd",
+};
+
+/** Version label from the `protocol.versionLabel` pattern. Tokens: {N}, {DDMMMYYYY}, {YYYY}, {MMM}, {MM}, {DD}. */
+export function versionLabel(number: number, at: Date, timeZone: string, pattern: string = DEFAULT_VERSION_LABEL): string {
+  const usable = pattern.includes("{N}") ? pattern : DEFAULT_VERSION_LABEL;
+  return usable.replace(/\{(N|DDMMMYYYY|YYYY|MMM|MM|DD)\}/g, (_match, token: string) =>
+    token === "N" ? String(number) : formatInTimeZone(at, timeZone, LABEL_TOKENS[token] ?? token),
+  );
 }
 
 /** REC asks that a protocol title not be written in all capitals. */

@@ -105,6 +105,11 @@ const columnSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * This column overrides another on the same row, such as a chair comment over a reviewer
+     * comment. The original is never changed. Release copies can print the override in its place.
+     */
+    overrides: z.string().min(1).optional(),
     /** This column can be edited only on rows the same person commented on in an earlier form. */
     authoredFrom: z
       .object({
@@ -381,6 +386,11 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
         });
       }
     }
+    if (column.overrides) {
+      if (column.overrides === column.id || !columns.some((item) => item.id === column.overrides)) {
+        issues.push({ path: `${path}.columns.${index}.overrides`, message: `“${column.overrides}” is not another column on this table.` });
+      }
+    }
     if (column.visibleToRoles && column.visibleToRoles.length === 0) {
       issues.push({ path: `${path}.columns.${index}.visibleToRoles`, message: "List at least one role, or omit visibleToRoles." });
     }
@@ -399,4 +409,21 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
   });
 
   return issues;
+}
+
+/** For a table field, maps each overridden column to the column that overrides it. */
+export function overrideMap(field: FormField | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const column of field?.columns ?? []) if (column.overrides) out[column.overrides] = column.id;
+  return out;
+}
+
+/** The text that counts for a cell: the overriding column when it is filled, else the original. */
+export function effectiveCell(cells: Record<string, unknown>, column: string, overrides: Record<string, string>): unknown {
+  const over = overrides[column];
+  if (over) {
+    const value = cells[over];
+    if (typeof value === "string" ? value.trim() !== "" : value != null && value !== false) return value;
+  }
+  return cells[column];
 }

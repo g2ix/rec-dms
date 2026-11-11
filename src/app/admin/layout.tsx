@@ -14,6 +14,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ? "Notifications"
       : pathname.startsWith("/admin/holidays")
         ? "Holidays"
+      : pathname.startsWith("/admin/fees")
+        ? "Fees"
+      : pathname.startsWith("/admin/settings")
+        ? "Settings"
         : pathname.startsWith("/admin/audit")
     ? "Audit log"
     : pathname.includes("/try")

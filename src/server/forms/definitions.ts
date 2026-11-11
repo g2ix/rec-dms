@@ -175,24 +175,53 @@ export async function updateDefinition(input: {
   }
 }
 
-export async function publishDefinition(id: string, userId: string) {
+/**
+ * Publishes a draft. With a future `effectiveFrom` it is scheduled: protocols created before that
+ * date keep the version in effect now, and protocols created on or after it use this one.
+ */
+export async function publishDefinition(id: string, userId: string, effectiveFrom: Date | null = null) {
   const current = await getDefinition(id);
   if (current.status !== "DRAFT") {
     throw new AppError("LOCKED", "Only a draft can be published.", 409);
   }
   requireValidSchema(current.schema);
+  const now = new Date();
+  const scheduled = effectiveFrom && effectiveFrom.getTime() > now.getTime() ? effectiveFrom : null;
   const meta = await auditRequestMeta({ code: current.code, version: current.version });
   return prisma.$transaction(async (tx) => {
     const updated = await tx.formDefinition.update({
       where: { id: current.id },
-      data: { status: "PUBLISHED", publishedAt: new Date() },
+      data: { status: "PUBLISHED", publishedAt: now, effectiveFrom: scheduled, effectiveAnnouncedAt: null },
     });
     await audit.record(tx, {
       actorUserId: userId,
       action: AuditAction.definitionPublished,
       entityType: "form_definition",
       entityId: updated.id,
-      diff: diffOf({ status: "DRAFT" }, { status: "PUBLISHED" }),
+      diff: diffOf({ status: "DRAFT" }, { status: "PUBLISHED", effectiveFrom: scheduled?.toISOString() ?? null }),
+      meta,
+    });
+    return updated;
+  });
+}
+
+/** Cancels a scheduled form version before its date. It returns to a draft. */
+export async function cancelScheduledDefinition(id: string, userId: string) {
+  const current = await getDefinition(id);
+  if (current.status !== "PUBLISHED" || !current.effectiveFrom || current.effectiveFrom.getTime() <= Date.now()) {
+    throw new AppError("LOCKED", "Only a version scheduled for a later date can be cancelled.", 409);
+  }
+  const used = await prisma.formInstance.count({ where: { formDefinitionId: id, ownerType: "PROTOCOL_VERSION" } });
+  if (used > 0) throw new AppError("LOCKED", "A protocol already uses this version.", 409);
+  const meta = await auditRequestMeta({ code: current.code, version: current.version });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.formDefinition.update({ where: { id }, data: { status: "DRAFT", publishedAt: null, effectiveFrom: null } });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.formScheduleCancelled,
+      entityType: "form_definition",
+      entityId: id,
+      diff: diffOf({ status: "PUBLISHED", effectiveFrom: current.effectiveFrom?.toISOString() ?? null }, { status: "DRAFT" }),
       meta,
     });
     return updated;

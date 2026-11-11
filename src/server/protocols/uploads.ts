@@ -1,4 +1,5 @@
 import "server-only";
+import { markProofUploaded } from "@/server/fees/bills";
 import { createHash } from "node:crypto";
 import type { FileKind } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
@@ -28,6 +29,13 @@ function assertKind(kind: string): FileKind {
   return kind as FileKind;
 }
 
+async function billVersion(protocolId: string, billId: string) {
+  const bill = await prisma.bill.findUnique({ where: { id: billId } });
+  if (!bill || bill.protocolId !== protocolId) throw new AppError("NOT_FOUND", "That bill was not found.", 404);
+  if (bill.status === "VERIFIED" || bill.status === "WAIVED") throw new AppError("INVALID", "That bill is already settled.", 409);
+  return prisma.protocolVersion.findUniqueOrThrow({ where: { id: bill.versionId } });
+}
+
 async function workingVersion(protocolId: string) {
   const version = await prisma.protocolVersion.findFirst({ where: { protocolId, state: "WORKING" } });
   if (!version) throw new AppError("LOCKED", "This version is submitted. Start a revision before uploading.", 409);
@@ -40,15 +48,17 @@ export async function prepareUpload(input: {
   kind: string;
   originalName: string;
   mime: string;
+  /** Proof of payment against an open bill. Allowed while the version is frozen. */
+  billId?: string | null;
 }) {
-  const kind = assertKind(input.kind);
+  const kind = assertKind(input.billId ? "FEE_RECEIPT" : input.kind);
   const mime = input.mime.trim().toLowerCase();
   if (!mimeAllowed(kind, mime)) {
     throw new AppError("INVALID", "Upload a PDF. A fee receipt may also be a JPEG, PNG, or WebP image.", 400);
   }
   const originalName = input.originalName.trim().slice(0, 180);
   if (!originalName) throw new AppError("INVALID", "Choose a file.", 400);
-  const version = await workingVersion(input.protocolId);
+  const version = input.billId ? await billVersion(input.protocolId, input.billId) : await workingVersion(input.protocolId);
   const suggestedName = kind === "MANUSCRIPT" ? suggestedManuscriptName(version.label) : null;
   const storageKey = `protocols/${input.protocolId}/versions/${version.id}/${kind.toLowerCase()}/${crypto.randomUUID()}`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -61,6 +71,7 @@ export async function prepareUpload(input: {
       suggestedName,
       mime,
       uploadedById: input.userId,
+      billId: input.billId ?? null,
       expiresAt,
     },
   });
@@ -78,7 +89,7 @@ export async function confirmUpload(input: { intentId: string; userId: string })
     throw new AppError("EXPIRED", "That upload expired. Choose the file again.", 400);
   }
   const version = await prisma.protocolVersion.findUnique({ where: { id: intent.protocolVersionId } });
-  if (!version || version.state !== "WORKING") {
+  if (!version || (version.state !== "WORKING" && !intent.billId)) {
     throw new AppError("LOCKED", "This version is submitted and cannot take new files.", 409);
   }
   let bytes: Uint8Array;
@@ -120,9 +131,12 @@ export async function confirmUpload(input: { intentId: string; userId: string })
         sha256,
         uploadedById: input.userId,
         scanStatus: "PENDING",
+        billId: intent.billId,
       },
     });
-    if (intent.kind === "FEE_RECEIPT") {
+    if (intent.billId) {
+      await markProofUploaded(tx, intent.billId, input.userId, file.id, meta);
+    } else if (intent.kind === "FEE_RECEIPT") {
       await tx.feeVerification.upsert({
         where: { protocolVersionId: version.id },
         create: { protocolVersionId: version.id, status: "PENDING" },
@@ -169,6 +183,7 @@ export async function downloadFile(input: { fileId: string; userId: string }) {
     throw new AppError("INFECTED", "This file was blocked because the virus scan found a threat.", 403);
   }
   const staff = await isCommitteeStaff(input.userId);
+  if (file.audience === "STAFF" && !staff) throw new AppError("NOT_FOUND", "That file was not found.", 404);
   if (file.scanStatus === "PENDING" && !staff) {
     throw new AppError(
       "PENDING_SCAN",

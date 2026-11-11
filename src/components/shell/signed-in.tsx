@@ -6,6 +6,7 @@ import { resolveRoleView } from "@/server/auth/view";
 import {
   canEditForms,
   canEditHolidays,
+  canManageFees,
   canEditSettings,
   canEditWorkflow,
   canManageUsers,
@@ -26,6 +27,7 @@ function navCapabilitiesFromFacts(facts: Awaited<ReturnType<typeof userAdminFact
     editSettings: canEditSettings(facts),
     editHolidays: canEditHolidays(facts),
     reviewRetention: canReviewRetention(facts),
+    manageFees: canManageFees(facts),
   };
 }
 

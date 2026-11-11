@@ -2,6 +2,8 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { addDuration } from "@/lib/workflow/calendar";
 import { manilaDay } from "@/lib/workflow/calendar";
+import { effectiveCell } from "@/lib/forms/schema";
+import { formDefinitionForVersion } from "@/server/effective";
 
 type Tx = Prisma.TransactionClient;
 
@@ -152,12 +154,13 @@ async function copyTableColumn(tx: Tx, params: Record<string, unknown>, ctx: Ctx
   const table = record(data[targetField]);
   const sourceTable = record(record(source.data)[sourceField]);
   const flagColumn = text(params.flagColumn);
+  const overrides = await overridesOf(tx, source.formDefinitionId, sourceField);
   for (const [rowId, sourceRow] of Object.entries(sourceTable)) {
     const from = record(sourceRow);
     if (flagColumn && from[flagColumn] !== true) continue;
     const row = record(table[rowId]);
     for (const pair of pairList(params.columns)) {
-      const incoming = from[pair.from];
+      const incoming = effectiveCell(from, pair.from, overrides);
       if (typeof incoming !== "string" || !incoming.trim()) continue;
       const current = row[pair.to];
       if (typeof current !== "string" || !current.trim()) row[pair.to] = incoming;
@@ -200,12 +203,13 @@ async function prepareActionSummary(tx: Tx, params: Record<string, unknown>, ctx
     const source = await sharedInstance(tx, ctx.protocolVersionId, fallbackForm);
     if (!source) continue;
     const sourceTable = record(record(source.data)[field]);
+    const overrides = await overridesOf(tx, source.formDefinitionId, field);
     const next = record(table);
     for (const [rowId, sourceRow] of Object.entries(sourceTable)) {
       const from = record(sourceRow);
       if (from[flagColumn] !== true) continue;
       const row = record(next[rowId]);
-      const parts = [from.comments, from.recommendations]
+      const parts = [effectiveCell(from, "comments", overrides), effectiveCell(from, "recommendations", overrides)]
         .filter((value): value is string => typeof value === "string" && value.trim() !== "")
         .map((value) => value.trim());
       if (parts.length > 0 && (typeof row.panel_comments !== "string" || !row.panel_comments.trim())) {
@@ -316,11 +320,22 @@ async function sharedInstance(tx: Tx, protocolVersionId: string, code: string) {
   return rows.find((row) => row.filledByMemberId == null) ?? null;
 }
 
+/** Overriding columns on a table field, read from the form definition (column.overrides). */
+async function overridesOf(tx: Tx, formDefinitionId: string, fieldId: string): Promise<Record<string, string>> {
+  const definition = await tx.formDefinition.findUnique({ where: { id: formDefinitionId }, select: { schema: true } });
+  const sections = (definition?.schema as { sections?: { fields?: { id?: string; columns?: { id?: string; overrides?: string }[] }[] }[] } | null)?.sections ?? [];
+  const out: Record<string, string> = {};
+  for (const section of sections) {
+    for (const field of section.fields ?? []) {
+      if (field.id !== fieldId) continue;
+      for (const column of field.columns ?? []) if (column.id && column.overrides) out[column.overrides] = column.id;
+    }
+  }
+  return out;
+}
+
 async function instancesOf(tx: Tx, protocolVersionId: string, code: string) {
-  const definition = await tx.formDefinition.findFirst({
-    where: { code, status: "PUBLISHED" },
-    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-  });
+  const definition = await formDefinitionForVersion(tx, code, protocolVersionId);
   if (!definition) return [];
   return tx.formInstance.findMany({
     where: { formDefinitionId: definition.id, ownerType: "PROTOCOL_VERSION", ownerId: protocolVersionId },

@@ -22,12 +22,16 @@ export default async function MeetingsPage() {
     <article className="rec-stack">
       <h1 className="title">Meetings</h1>
       <p className="body rec-muted">
-        Protocols waiting for a meeting outcome, grouped by the second Friday. A full review submitted fewer than 14 days before that Friday moves to the next meeting.
+        Protocols waiting for a meeting outcome, grouped by each panel&rsquo;s meeting day from the meeting schedule setting. A full review whose documents were complete after the cutoff moves to the next meeting.
       </p>
       {groups.length === 0 ? <p className="body">No protocol is waiting for a meeting outcome.</p> : null}
       {groups.map((group) => (
-        <section key={group.meeting} className="rec-stack">
-          <h2 className="heading">{formatManila(fromZonedTime(`${group.meeting}T12:00:00`, "Asia/Manila"), "EEEE, d MMMM yyyy")}</h2>
+        <section key={`${group.meeting ?? "none"}-${group.panelCode ?? ""}`} className="rec-stack">
+          <h2 className="heading">
+            {group.meeting ? formatManila(fromZonedTime(`${group.meeting}T12:00:00`, "Asia/Manila"), "EEEE, d MMMM yyyy") : "No meeting day set"}
+            {group.panelName ? ` · ${group.panelName}` : ""}
+          </h2>
+          {group.rule ? <p className="body-sm rec-muted">{group.rule}</p> : null}
           <div className="rec-table-wrap">
             <table className="rec-table">
               <thead>
@@ -47,7 +51,7 @@ export default async function MeetingsPage() {
                     </td>
                     <td>{row.reviewType || "—"}</td>
                     <td>{row.completeDay ?? "—"}</td>
-                    <td>{row.missedCutoff ? <StatusBadge tone="warning" label="After the 14-day cutoff" /> : "In time"}</td>
+                    <td>{row.missedCutoff ? <StatusBadge tone="warning" label={`After the ${row.cutoffDays ?? ""}-day cutoff`} /> : "In time"}</td>
                   </tr>
                 ))}
               </tbody>

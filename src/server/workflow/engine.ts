@@ -8,7 +8,9 @@ import { validateInstance } from "@/lib/forms/validate";
 import { missingRequiredSignatures } from "@/lib/signatures/target";
 import { manilaDayEnd } from "@/lib/time";
 import { addDuration, manilaDay } from "@/lib/workflow/calendar";
-import { parseGraph, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
+import { logicIsTrue } from "@/lib/forms/logic";
+import { renderProtocolCode, sequenceFromCode, hasSequenceToken } from "@/lib/protocols/code";
+import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
 import { pickTransition, stepIsComplete, type LogicData } from "@/lib/workflow/transitions";
 import { audit } from "@/server/audit";
 import { prisma, useAppSchema as pinAppSchema } from "@/server/db";
@@ -19,17 +21,43 @@ import { signatureMarks, toRoster } from "@/server/signatures/sign";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { loadAuthoredRows } from "@/server/forms/authored";
 import { prefillForm } from "@/server/workflow/prefill";
-import { readAssignments, readRule, resolveSlots, roleKeysFor, userMatchesRule, type AssigneeSlot } from "@/server/workflow/who";
+import {
+  claimable,
+  eligibleForSlot,
+  firstAvailable,
+  readAssignments,
+  readRule,
+  readSlotAssignments,
+  resolveSlots,
+  roleKeysFor,
+  slotOf,
+  userMatchesRule,
+  writeAssignments,
+  type AssigneeSlot,
+  type SlotAssignment,
+} from "@/server/workflow/who";
+import { formDefinitionForVersion, referenceDate, settingValue, workflowVersionFor } from "@/server/effective";
+import { feeBlock, issueBillTx } from "@/server/fees/bills";
+import { reopenVersionTx } from "@/server/protocols/reopen";
 
 type Tx = Prisma.TransactionClient;
 type Meta = Prisma.InputJsonObject;
 
 const TX = { timeout: 20_000, maxWait: 10_000 } as const;
 export const INITIAL_WORKFLOW_KEY = "INITIAL_SUBMISSION";
+/** Side-task key the engine uses for re-designating one declined reviewer slot. */
+export const REDESIGNATE_SIDE_KEY = "__redesignate";
 export type CompleteInput = {
   outcome?: string | null;
   comment?: string | null;
   reviewerUserIds?: string[];
+  /** Slot key to user id, for steps that assign reviewers by slot. */
+  reviewerSlots?: Record<string, string>;
+  noteToReviewers?: string | null;
+  /** yyyy-MM-dd. */
+  reviewDueDate?: string | null;
+  /** REC Staff reason for choosing a fee-checked outcome while the bill is open. */
+  feeOverrideReason?: string | null;
   /** yyyy-MM-dd in Asia/Manila. Used when a side task approves a new due date. */
   newDueAt?: string | null;
   /** yyyy-MM-dd. Required when the step records a meeting date. */
@@ -90,9 +118,7 @@ export async function startInstanceTx(
   });
   if (existing) return existing;
 
-  const published = await tx.workflowVersion.findFirst({
-    where: { status: "PUBLISHED", definition: { key: input.definitionKey } },
-  });
+  const published = await workflowVersionFor(tx, input.definitionKey, await referenceDate(tx, input.protocolId));
   if (!published) {
     throw new AppError("WORKFLOW_UNPUBLISHED", `No published workflow “${input.definitionKey}” is available.`, 409);
   }
@@ -137,10 +163,7 @@ export async function maybeStartInitialTx(
   actorUserId: string,
   meta: Meta,
 ) {
-  const published = await tx.workflowVersion.findFirst({
-    where: { status: "PUBLISHED", definition: { key: INITIAL_WORKFLOW_KEY } },
-    select: { id: true },
-  });
+  const published = await workflowVersionFor(tx, INITIAL_WORKFLOW_KEY, await referenceDate(tx, protocolId));
   if (!published) return null;
   return startInstanceTx(tx, {
     definitionKey: INITIAL_WORKFLOW_KEY,
@@ -158,10 +181,7 @@ export async function maybeStartResubmissionTx(
   actorUserId: string,
   meta: Meta,
 ) {
-  const published = await tx.workflowVersion.findFirst({
-    where: { status: "PUBLISHED", definition: { key: "RESUBMISSION" } },
-    select: { id: true },
-  });
+  const published = await workflowVersionFor(tx, "RESUBMISSION", await referenceDate(tx, protocolId));
   if (!published) return null;
   const parent = await tx.workflowInstance.findFirst({
     where: { protocolId },
@@ -236,14 +256,18 @@ export async function completeLeaderSubmissionTx(
   return { versionId: frozen?.id ?? version?.id ?? protocolVersionId, label: frozen?.label ?? version?.label ?? "" };
 }
 
-export async function completeTask(taskId: string, userId: string, input: CompleteInput = {}): Promise<TaskResult> {
+export async function completeTask(taskId: string, userId: string | null, input: CompleteInput = {}): Promise<TaskResult> {
   return prisma.$transaction(async (tx) => {
     await pinAppSchema(tx);
     return completeTaskTx(tx, taskId, userId, input, {});
   }, TX);
 }
 
-export async function completeTaskTx(tx: Tx, taskId: string, userId: string, input: CompleteInput, meta: Meta): Promise<TaskResult> {
+/**
+ * Completes a task. `userId` null is the system, used when a deadline passes on a step with
+ * `onTimeout`; it may only choose that outcome.
+ */
+export async function completeTaskTx(tx: Tx, taskId: string, userId: string | null, input: CompleteInput, meta: Meta): Promise<TaskResult> {
   await pinAppSchema(tx);
   await tx.$queryRaw`SELECT id FROM tasks WHERE id = ${taskId} FOR UPDATE`;
   const task = await tx.task.findUnique({ where: { id: taskId } });
@@ -259,45 +283,100 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
   await tx.$queryRaw`SELECT id FROM workflow_instances WHERE id = ${instance.id} FOR UPDATE`;
   const version = await tx.workflowVersion.findUniqueOrThrow({ where: { id: instance.versionId } });
   const graph = graphOf(version.graph);
-  if (task.kind === "SIDE") return completeSideTask(tx, task, instance, graph, userId, input, meta);
+  if (task.kind === "SIDE") {
+    if (!userId) throw new AppError("INVALID", "A request needs a person to answer it.", 409);
+    return completeSideTask(tx, task, instance, graph, userId, input, meta);
+  }
   const step = stepOf(graph, task.stepKey ?? "");
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
   const assignments = readAssignments(instance.assignments);
-  await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? step.assignee ?? null, userId, protocol, assignments);
-
   const outcome = input.outcome?.trim() || null;
+  if (userId) {
+    await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? step.assignee ?? null, userId, protocol, assignments);
+  } else if (!step.onTimeout || outcome !== step.onTimeout.outcome) {
+    throw new AppError("INVALID", "Only a timed-out step can be completed by the system.", 409);
+  }
+
   if (step.type === "DECISION" || ((step.outcomes?.length ?? 0) > 0 && step.type !== "WAIT_PROPONENT")) {
     const keys = new Set((step.outcomes ?? []).map((item) => item.key));
     if (!outcome || !keys.has(outcome)) throw new AppError("INVALID", "Choose one of the outcomes for this step.", 400);
   }
+  const chosen = step.outcomes?.find((item) => item.key === outcome);
+  if (chosen?.requiresComment && !input.comment?.trim()) {
+    throw new AppError("INVALID", `Give a reason for “${chosen.label}”.`, 400);
+  }
+  if (userId && step.decline && outcome === step.decline.outcome) {
+    return declineTaskTx(tx, { task, instance, graph, step, protocol, userId, reason: input.comment?.trim() ?? "", meta });
+  }
   const comment = meetingComment(step, input);
-  const preview = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
+  const preview = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId);
   const previewNext = pickTransition(graph, step.key, preview);
   const previewTarget = previewNext ? graph.steps.find((item) => item.key === previewNext.to) : undefined;
   const needsReviewers =
     previewTarget?.assignee?.kind === "ASSIGNED_IN_STEP" && previewTarget.assignee.stepKey === step.key;
-  if (step.assignReviewers && (needsReviewers || (input.reviewerUserIds?.length ?? 0) > 0)) {
+  const slotted = slotsOf(step);
+  if (step.assignReviewers && slotted.length > 0 && (needsReviewers || Object.keys(input.reviewerSlots ?? {}).length > 0)) {
+    const chosenSlots = input.reviewerSlots ?? {};
+    const rows: SlotAssignment[] = [];
+    for (const slot of slotted) {
+      const id = chosenSlots[slot.key]?.trim();
+      if (!id) throw new AppError("INVALID", `Choose the ${slot.label}.`, 400);
+      if (!(await eligibleForSlot(tx, id, slot.eligible))) {
+        throw new AppError("INVALID", `That person cannot fill the ${slot.label} slot.`, 400);
+      }
+      rows.push({ userId: id, slot: slot.key });
+    }
+    const ids = rows.map((row) => row.userId);
+    if (new Set(ids).size !== ids.length) throw new AppError("INVALID", "Choose a different reviewer for each slot.", 400);
+    await assertReviewers(tx, protocol.id, ids, []);
+    const all = readSlotAssignments(instance.assignments);
+    all[step.key] = rows;
+    await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(writeAssignments(all)) } });
+    assignments[step.key] = ids;
+    for (const row of rows) {
+      const roles = slotted.find((item) => item.key === row.slot)?.eligible?.roles ?? [];
+      await ensureReviewerMember(tx, protocol.id, row.userId, roles);
+    }
+  } else if (step.assignReviewers && slotted.length === 0 && (needsReviewers || (input.reviewerUserIds?.length ?? 0) > 0)) {
     const ids = input.reviewerUserIds ?? [];
+    const min = step.assignReviewers.min ?? 1;
+    const roles = step.assignReviewers.roles ?? [];
     const max = step.assignReviewers.max;
-    if (ids.length < step.assignReviewers.min || (max != null && ids.length > max)) {
-      const span = max != null ? `${step.assignReviewers.min} to ${max}` : `at least ${step.assignReviewers.min}`;
+    if (ids.length < min || (max != null && ids.length > max)) {
+      const span = max != null ? `${min} to ${max}` : `at least ${min}`;
       throw new AppError("INVALID", `Choose ${span} reviewers.`, 400);
     }
     if (new Set(ids).size !== ids.length) throw new AppError("INVALID", "Choose each reviewer once.", 400);
-    await assertReviewers(tx, protocol.id, ids, step.assignReviewers.roles);
+    await assertReviewers(tx, protocol.id, ids, roles);
     assignments[step.key] = ids;
     await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(assignments) } });
-    for (const reviewerId of ids) await ensureReviewerMember(tx, protocol.id, reviewerId, step.assignReviewers.roles);
+    for (const reviewerId of ids) await ensureReviewerMember(tx, protocol.id, reviewerId, roles);
   }
+  await saveCaptures(tx, instance.id, step, input);
 
   if (outcome && step.feeVerifiedOutcomes?.includes(outcome)) {
-    const fee = await tx.feeVerification.findUnique({ where: { protocolVersionId: instance.protocolVersionId } });
-    if (fee?.status !== "VERIFIED") {
-      throw new AppError("INCOMPLETE", "Verify the fee receipt before accepting the submission.", 400);
+    const block = await feeBlock(tx, protocol.id, instance.protocolVersionId);
+    if (block) {
+      const reason = input.feeOverrideReason?.trim() ?? "";
+      const staff = userId ? (await roleKeysFor(tx, userId)).has("REC_STAFF") : false;
+      if (!step.feeOverride || !staff || !block.billId) {
+        throw new AppError("INCOMPLETE", step.feeOverride && block.billId ? `${block.message} Only REC Staff can release it, with a reason.` : block.message, 400);
+      }
+      if (!reason) throw new AppError("INVALID", "Type the reason for releasing with the bill open.", 400);
+      await audit.record(tx, {
+        actorUserId: userId,
+        actingRole: "REC_STAFF",
+        action: AuditAction.feeReleaseOverride,
+        entityType: "bill",
+        entityId: block.billId,
+        protocolId: protocol.id,
+        diff: { stepKey: step.key, outcome, outstanding: block.outstanding, reason },
+        meta,
+      });
     }
   }
 
-  await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId);
+  if (userId) await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId, readSlotAssignments(instance.assignments));
   const completedAt = new Date();
   await tx.task.update({
     where: { id: task.id },
@@ -312,32 +391,39 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string, inp
   });
   await audit.record(tx, {
     actorUserId: userId,
-    action: AuditAction.taskCompleted,
+    action: userId ? AuditAction.taskCompleted : AuditAction.taskTimedOut,
     entityType: "task",
     entityId: task.id,
     protocolId: protocol.id,
-    diff: { stepKey: step.key, outcome, status: "COMPLETED" },
+    diff: { stepKey: step.key, outcome, status: "COMPLETED", ...(userId ? {} : { assigneeUserId: task.assigneeUserId }) },
     meta,
   });
 
   const siblings = await tx.task.findMany({ where: { instanceId: instance.id, stepKey: step.key, kind: "MAIN" } });
   if (!stepIsComplete(step, siblings)) return resultOf(task.id, outcome, instance, false);
+  const redesignating = await tx.task.count({
+    where: { instanceId: instance.id, stepKey: step.key, kind: "SIDE", sideKey: REDESIGNATE_SIDE_KEY, status: { in: ["OPEN", "CLAIMED"] } },
+  });
+  if (redesignating > 0) return resultOf(task.id, outcome, instance, false);
 
   await tx.task.updateMany({
     where: { instanceId: instance.id, stepKey: step.key, status: { in: ["OPEN", "CLAIMED"] } },
     data: { status: "CANCELLED" },
   });
-  await runActions(tx, step, "onExit", {
+  const exitContext = {
     protocolId: protocol.id,
     protocolVersionId: instance.protocolVersionId,
     userId,
     meta,
     instanceId: instance.id,
-  });
-  await applySetFields(tx, step, outcome, await formData(tx, instance.protocolVersionId), protocol.id);
-  await queueCompleted(tx, step, protocol, assignments, userId);
+  };
+  await runActions(tx, step, "onExit", exitContext, "other");
+  await applySetFields(tx, step, outcome, await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId), protocol.id);
+  // A bill is priced from the review type this step may just have set.
+  await runActions(tx, step, "onExit", exitContext, "bill");
+  if (userId) await queueCompleted(tx, step, protocol, assignments, userId);
 
-  const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
+  const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId);
   const next = pickTransition(graph, step.key, logic);
   if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
   await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
@@ -415,6 +501,7 @@ export async function reassignTaskTx(
       title: task.title,
       status: "CLAIMED",
       dueAt: task.dueAt,
+      slot: task.slot,
     },
   });
   await audit.record(tx, {
@@ -471,14 +558,7 @@ export async function cancelInstance(instanceId: string, actorUserId: string): P
 
 async function completeSideTask(
   tx: Tx,
-  task: {
-    id: string;
-    instanceId: string | null;
-    stepKey: string | null;
-    sideKey: string | null;
-    assigneeUserId: string | null;
-    candidateRule: Prisma.JsonValue;
-  },
+  task: SideTaskRow,
   instance: InstanceRow,
   graph: WorkflowGraph,
   userId: string,
@@ -486,6 +566,7 @@ async function completeSideTask(
   meta: Meta,
 ): Promise<TaskResult> {
   const step = stepOf(graph, task.stepKey ?? "");
+  if (task.sideKey === REDESIGNATE_SIDE_KEY) return redesignateTx(tx, { task, instance, graph, step, userId, input, meta });
   const side = step.sideTasks?.find((item) => item.key === task.sideKey);
   if (!side) throw new AppError("INVALID", "That request is no longer part of this step.", 409);
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
@@ -681,8 +762,9 @@ async function enterStep(
   };
   await runActions(tx, step, "onEnter", context, "other");
   if (step.type === "AUTO") {
-    await applySetFields(tx, step, outcome, await formData(tx, instance.protocolVersionId), protocol.id);
-    const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome);
+    await applySetFields(tx, step, outcome, await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId), protocol.id);
+    await runActions(tx, step, "onEnter", context, "bill");
+    const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId);
     const next = pickTransition(graph, step.key, logic);
     if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
     await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
@@ -714,16 +796,20 @@ async function enterStep(
     return;
   }
 
-  const assignments = readAssignments((await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } })).assignments);
+  const stored = (await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } })).assignments;
+  const assignments = readAssignments(stored);
+  const slotted = readSlotAssignments(stored);
   if (step.assignee?.kind === "ASSIGNED_IN_STEP" && step.assignee.source === "parent" && instance.parentInstanceId) {
     const parent = await tx.workflowInstance.findUnique({ where: { id: instance.parentInstanceId } });
-    assignments[step.assignee.stepKey] = readAssignments(parent?.assignments)[step.assignee.stepKey] ?? [];
-    await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(assignments) } });
+    const fromParent = readSlotAssignments(parent?.assignments)[step.assignee.stepKey] ?? [];
+    slotted[step.assignee.stepKey] = fromParent;
+    assignments[step.assignee.stepKey] = fromParent.map((row) => row.userId);
+    await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(writeAssignments(slotted)) } });
   }
   const rule = step.assignee ?? (step.type === "WAIT_PROPONENT" ? { kind: "PROTOCOL_LEADER" as const } : null);
   if (!rule) throw new AppError("INVALID", `“${step.name}” has no assignee.`, 409);
-  const slots = await resolveSlots(tx, rule, protocol, assignments);
-  if (slots.some((slot) => slot.userId == null) && rule.kind !== "ROLE" && rule.kind !== "PANEL_ROLE_OF_PROTOCOL") {
+  const slots = await resolveSlots(tx, rule, protocol, assignments, slotted);
+  if (slots.some((slot) => slot.userId == null) && !claimable(rule)) {
     if (slots.every((slot) => slot.userId == null)) {
       throw new AppError("NO_ASSIGNEE", `“${step.name}” has nobody to assign.`, 409);
     }
@@ -732,7 +818,7 @@ async function enterStep(
   const now = new Date();
   const dueAt = step.deadline ? addDuration(now, step.deadline.amount, step.deadline.unit, holidays) : null;
   const tasks = [];
-  for (const slot of slots.filter((item) => item.userId != null || item.rule.kind === "ROLE" || item.rule.kind === "PANEL_ROLE_OF_PROTOCOL")) {
+  for (const slot of slots.filter((item) => item.userId != null || claimable(item.rule))) {
     const created = await tx.task.create({
       data: {
         instanceId: instance.id,
@@ -742,14 +828,16 @@ async function enterStep(
         title: step.name,
         status: "OPEN",
         dueAt,
+        slot: slot.slot ?? null,
       },
     });
     tasks.push(created);
-    await queueAssigned(tx, step, slot, protocol, assignments, created.id);
+    await queueAssigned(tx, step, slot, protocol, assignments, created.id, instance.id);
   }
   if (tasks.length === 0) throw new AppError("NO_ASSIGNEE", `“${step.name}” has nobody to assign.`, 409);
   await openForms(tx, step, instance.protocolVersionId, slots);
   await runActions(tx, step, "onEnter", context, "prefill");
+  await runActions(tx, step, "onEnter", context, "bill");
   await tx.workflowInstance.update({ where: { id: instance.id }, data: { currentStepKeys: [step.key] } });
 }
 
@@ -783,6 +871,8 @@ async function assertReviewers(tx: Tx, protocolId: string, userIds: string[], al
   if (members.length > 0) {
     throw new AppError("COI", "A proponent or adviser on this protocol cannot be assigned as a reviewer.", 409);
   }
+  const conflicted = await tx.conflictDeclaration.findFirst({ where: { protocolId, userId: { in: userIds } }, select: { id: true } });
+  if (conflicted) throw new AppError("COI", "Someone you chose declared a conflict of interest on this protocol.", 409);
   for (const userId of userIds) {
     if (allowedRoles.length === 0) continue;
     const keys = await roleKeysFor(tx, userId);
@@ -820,17 +910,23 @@ function reviewRole(keys: string[], allowed: string[]): ProtocolMemberRole {
   return "REVIEWER";
 }
 
-async function assertStepReady(tx: Tx, protocolVersionId: string, protocolId: string, step: Step, userId: string) {
+async function assertStepReady(
+  tx: Tx,
+  protocolVersionId: string,
+  protocolId: string,
+  step: Step,
+  userId: string,
+  slots: Record<string, SlotAssignment[]> = {},
+) {
   const member = await tx.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
     select: { id: true, userId: true },
   });
+  const mySlot = step.assignee?.kind === "ASSIGNED_IN_STEP" ? slotOf(slots, step.assignee.stepKey, userId) : null;
   for (const form of step.forms ?? []) {
     if (!form.required || form.mode === "VIEW") continue;
-    const definition = await tx.formDefinition.findFirst({
-      where: { code: form.code, status: "PUBLISHED" },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    });
+    if (form.slot && form.slot !== mySlot) continue;
+    const definition = await formDefinitionForVersion(tx, form.code, protocolVersionId);
     if (!definition) throw new AppError("INCOMPLETE", `Form ${form.code} is not published.`, 400);
     const instances = await tx.formInstance.findMany({
       where: {
@@ -879,14 +975,12 @@ async function assertStepReady(tx: Tx, protocolVersionId: string, protocolId: st
 
 async function openForms(tx: Tx, step: Step, protocolVersionId: string, slots: AssigneeSlot[]) {
   for (const form of step.forms ?? []) {
-    const definition = await tx.formDefinition.findFirst({
-      where: { code: form.code, status: "PUBLISHED" },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    });
+    const definition = await formDefinitionForVersion(tx, form.code, protocolVersionId);
     if (!definition) continue;
-    if (form.perAssignee) {
+    if (form.perAssignee || form.slot) {
       for (const slot of slots) {
         if (!slot.userId) continue;
+        if (form.slot && slot.slot !== form.slot) continue;
         const version = await tx.protocolVersion.findUnique({ where: { id: protocolVersionId }, select: { protocolId: true } });
         if (!version) continue;
         const member = await tx.protocolMember.findFirst({
@@ -934,18 +1028,25 @@ async function runActions(
   step: Step,
   hook: "onEnter" | "onExit",
   ctx: { protocolId: string; protocolVersionId: string; userId: string | null; meta: Meta; instanceId: string },
-  which: "all" | "prefill" | "other" = "all",
+  which: "all" | "prefill" | "other" | "bill" = "all",
 ) {
   for (const action of step.actions ?? []) {
     const when = action.hook ?? "onEnter";
     if (when !== hook) continue;
     if (which === "prefill" && action.kind !== "PREFILL") continue;
-    if (which === "other" && action.kind === "PREFILL") continue;
+    if (which === "other" && (action.kind === "PREFILL" || action.kind === "ISSUE_BILL")) continue;
+    if (which === "bill" && action.kind !== "ISSUE_BILL") continue;
     if (action.kind === "SNAPSHOT_VERSION") {
       if (!ctx.userId) continue;
       await freezeWorkingVersion(tx, { protocolId: ctx.protocolId, userId: ctx.userId, meta: ctx.meta });
     } else if (action.kind === "ASSIGN_PROTOCOL_CODE") {
-      await assignProtocolCode(tx, ctx.protocolId);
+      await assignProtocolCode(tx, ctx.protocolId, ctx.userId, ctx.meta);
+    } else if (action.kind === "REOPEN_VERSION") {
+      const forms = Array.isArray(action.params?.forms) ? action.params.forms.filter((item): item is string => typeof item === "string") : [];
+      await reopenVersionTx(tx, { protocolId: ctx.protocolId, protocolVersionId: ctx.protocolVersionId, forms, actorUserId: ctx.userId, meta: ctx.meta });
+    } else if (action.kind === "ISSUE_BILL") {
+      const basis = typeof action.params?.basis === "string" ? action.params.basis : "reviewType";
+      await issueBillTx(tx, { protocolId: ctx.protocolId, protocolVersionId: ctx.protocolVersionId, basis, actorUserId: ctx.userId, meta: ctx.meta });
     } else if (action.kind === "GENERATE_DOCUMENTS" || action.kind === "NOTIFY") {
       await tx.job.create({
         data: {
@@ -971,28 +1072,58 @@ async function runActions(
   }
 }
 
-async function assignProtocolCode(tx: Tx, protocolId: string) {
-  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: protocolId }, select: { code: true } });
+/** Legacy default used only while no `protocol.codePattern` setting exists. */
+const FALLBACK_CODE_PATTERN = "USC-REC-{YYYY}-{####}";
+
+/**
+ * Issues the next code from the `protocol.codePattern` setting. The sequence is per year and kept
+ * in `code_counters`; on first use in a year it starts after the highest code already issued
+ * under the current pattern. Codes already issued never change.
+ */
+async function assignProtocolCode(tx: Tx, protocolId: string, actorUserId: string | null, meta: Meta) {
+  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: protocolId }, include: { leader: true } });
   if (protocol.code) return;
-  const setting = await tx.setting.findUnique({ where: { key: "protocol.codePattern" } });
-  const pattern = typeof setting?.value === "string" && setting.value.includes("{YYYY}") ? setting.value : "USC-REC-{YYYY}-{####}";
+  const setting = await settingValue(tx, "protocol.codePattern");
+  const pattern = typeof setting === "string" && hasSequenceToken(setting) ? setting : FALLBACK_CODE_PATTERN;
   const year = manilaDay(new Date()).slice(0, 4);
-  const prefix = pattern.replace("{YYYY}", year).replace("{####}", "");
-  const rows = await tx.protocol.findMany({ where: { code: { startsWith: prefix } }, select: { code: true } });
-  let max = 0;
+  const researcherCount = await tx.protocolMember.count({ where: { protocolId, role: "PROPONENT", status: "ACTIVE" } });
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(2142041, 13)`;
+  const counter = await tx.codeCounter.findUnique({ where: { year: Number(year) } });
+  let last = counter?.last ?? 0;
+  // Codes issued under the current pattern by any other route (an import, an earlier pattern
+  // with the same shape) still count, so the next number is above both.
+  const rows = await tx.protocol.findMany({ where: { code: { contains: year } }, select: { code: true } });
   for (const row of rows) {
-    const tail = Number(row.code?.slice(prefix.length));
-    if (Number.isInteger(tail) && tail > max) max = tail;
+    const value = row.code ? sequenceFromCode(pattern, year, row.code) : null;
+    if (value != null && value > last) last = value;
   }
-  const code = pattern.replace("{YYYY}", year).replace("{####}", String(max + 1).padStart(4, "0"));
+  let code = "";
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    last += 1;
+    code = renderProtocolCode(pattern, { year, sequence: last, leaderFamily: protocol.leader.familyName, researcherCount });
+    const taken = await tx.protocol.findUnique({ where: { code }, select: { id: true } });
+    if (!taken) break;
+  }
+  await tx.codeCounter.upsert({ where: { year: Number(year) }, create: { year: Number(year), last }, update: { last } });
   await tx.protocol.update({ where: { id: protocolId }, data: { code } });
+  await audit.record(tx, {
+    actorUserId,
+    action: AuditAction.codeAssigned,
+    entityType: "protocol",
+    entityId: protocolId,
+    protocolId,
+    diff: { code, pattern },
+    meta,
+  });
 }
 
-async function applySetFields(tx: Tx, step: Step, outcome: string | null, forms: Record<string, unknown>, protocolId: string) {
+async function applySetFields(tx: Tx, step: Step, outcome: string | null, logic: LogicData, protocolId: string) {
   if (!step.setFields?.length) return;
+  const forms = logic.forms;
   const data: { reviewType?: "EXEMPT" | "EXPEDITED" | "FULL" | null; status?: string; panelId?: string | null } = {};
   for (const field of step.setFields) {
-    const raw = field.from === "outcome" ? outcome : readFormValue(forms, field.field);
+    if (field.when != null && !logicIsTrue(field.when, logic)) continue;
+    const raw = field.from === "outcome" ? outcome : field.from === "value" ? (field.value ?? null) : readFormValue(forms, field.field);
     if (field.path === "protocol.reviewType") {
       data.reviewType = raw === "EXEMPT" || raw === "EXPEDITED" || raw === "FULL" ? raw : null;
     } else if (field.path === "protocol.status" && typeof raw === "string") {
@@ -1027,8 +1158,10 @@ async function logicData(
   protocol: { id: string; reviewType: string | null; panelId: string | null; status: string; code: string | null; title: string },
   stepKey: string,
   outcome: string | null,
+  parentInstanceId: string | null = null,
 ): Promise<LogicData> {
   const fresh = await tx.protocol.findUniqueOrThrow({ where: { id: protocol.id } });
+  const version = await tx.protocolVersion.findUnique({ where: { id: protocolVersionId }, select: { number: true } });
   const completed = await tx.task.findMany({
     where: { instance: { protocolVersionId }, status: "COMPLETED", kind: "MAIN", outcome: { not: null } },
     orderBy: { completedAt: "asc" },
@@ -1048,6 +1181,8 @@ async function logicData(
       status: fresh.status,
       code: fresh.code,
       title: fresh.title,
+      round: version?.number ?? 1,
+      clientTypeKey: fresh.clientTypeKey,
       hasAdviser: Boolean(
         await tx.protocolMember.findFirst({
           where: { protocolId: fresh.id, role: "ADVISER", status: "ACTIVE", userId: { not: null } },
@@ -1058,7 +1193,30 @@ async function logicData(
     forms: await formData(tx, protocolVersionId),
     step: { key: stepKey },
     decisions,
+    parent: await parentFacts(tx, parentInstanceId),
   };
+}
+
+/** `parent.decision` is the last outcome chosen on a DECISION step of the earlier instance, such as a resubmission parent. */
+async function parentFacts(tx: Tx, parentInstanceId: string | null): Promise<{ decision: string | null; decisions: Record<string, string | null> }> {
+  if (!parentInstanceId) return { decision: null, decisions: {} };
+  const parent = await tx.workflowInstance.findUnique({ where: { id: parentInstanceId }, include: { version: true } });
+  if (!parent) return { decision: null, decisions: {} };
+  const parsed = parseGraph(parent.version.graph);
+  const decisionSteps = new Set(parsed.ok ? parsed.graph.steps.filter((item) => item.type === "DECISION").map((item) => item.key) : []);
+  const tasks = await tx.task.findMany({
+    where: { instanceId: parentInstanceId, status: "COMPLETED", kind: "MAIN", outcome: { not: null } },
+    orderBy: { completedAt: "asc" },
+    select: { stepKey: true, outcome: true },
+  });
+  const decisions: Record<string, string | null> = {};
+  let decision: string | null = null;
+  for (const task of tasks) {
+    if (!task.stepKey) continue;
+    decisions[task.stepKey] = task.outcome;
+    if (decisionSteps.has(task.stepKey)) decision = task.outcome;
+  }
+  return { decision, decisions };
 }
 
 async function actorRoleKeys(tx: Tx, protocolId: string, userId: string): Promise<RoleKey[]> {
@@ -1084,17 +1242,63 @@ async function queueAssigned(
   protocol: { id: string; panelId: string | null; leaderUserId: string },
   assignments: Record<string, string[]>,
   taskId: string,
+  instanceId: string,
 ) {
   if (!step.notify?.onAssigned) return;
   const userIds = await notifyUserIds(tx, step, slot, protocol, assignments);
   if (userIds.length === 0) return;
+  const variables = await reviewerCaptureVariables(tx, instanceId, step);
   await tx.job.create({
     data: {
       kind: "NOTIFY",
-      payload: toJson({ templateKey: step.notify.onAssigned, userIds, protocolId: protocol.id, taskId, stepKey: step.key }),
+      payload: toJson({ templateKey: step.notify.onAssigned, userIds, protocolId: protocol.id, taskId, stepKey: step.key, variables }),
       runAt: new Date(),
     },
   });
+}
+
+/** The note and due date the chair recorded on the step that chose these reviewers. */
+export async function reviewerCaptures(
+  tx: Tx | typeof prisma,
+  instanceId: string,
+  step: Step,
+): Promise<{ noteToReviewers: string | null; reviewDueDate: string | null }> {
+  if (step.assignee?.kind !== "ASSIGNED_IN_STEP") return { noteToReviewers: null, reviewDueDate: null };
+  const instance = await tx.workflowInstance.findUnique({ where: { id: instanceId }, select: { captures: true, parentInstanceId: true } });
+  const source = step.assignee.source === "parent" && instance?.parentInstanceId
+    ? await tx.workflowInstance.findUnique({ where: { id: instance.parentInstanceId }, select: { captures: true } })
+    : instance;
+  const all = source?.captures && typeof source.captures === "object" && !Array.isArray(source.captures) ? (source.captures as Record<string, unknown>) : {};
+  const entry = all[step.assignee.stepKey];
+  const record = entry && typeof entry === "object" && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
+  return {
+    noteToReviewers: typeof record.noteToReviewers === "string" && record.noteToReviewers.trim() ? record.noteToReviewers : null,
+    reviewDueDate: typeof record.reviewDueDate === "string" && record.reviewDueDate ? record.reviewDueDate : null,
+  };
+}
+
+async function reviewerCaptureVariables(tx: Tx, instanceId: string, step: Step): Promise<Record<string, string>> {
+  const captured = await reviewerCaptures(tx, instanceId, step);
+  return {
+    noteToReviewers: captured.noteToReviewers ? `Note from the chair: ${captured.noteToReviewers}` : "",
+    reviewDueDate: captured.reviewDueDate ? `Review due: ${captured.reviewDueDate}` : "",
+  };
+}
+
+async function saveCaptures(tx: Tx, instanceId: string, step: Step, input: CompleteInput) {
+  const wanted = step.capture;
+  if (!wanted?.noteToReviewers && !wanted?.reviewDueDate) return;
+  const entry: Record<string, string> = {};
+  if (wanted.noteToReviewers && input.noteToReviewers?.trim()) entry.noteToReviewers = input.noteToReviewers.trim();
+  if (wanted.reviewDueDate && input.reviewDueDate?.trim()) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.reviewDueDate.trim())) throw new AppError("INVALID", "Enter the review due date.", 400);
+    entry.reviewDueDate = input.reviewDueDate.trim();
+  }
+  if (Object.keys(entry).length === 0) return;
+  const instance = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instanceId }, select: { captures: true } });
+  const all = instance.captures && typeof instance.captures === "object" && !Array.isArray(instance.captures) ? { ...(instance.captures as Record<string, unknown>) } : {};
+  all[step.key] = entry;
+  await tx.workflowInstance.update({ where: { id: instanceId }, data: { captures: toJson(all) } });
 }
 
 async function queueTransitionNotice(tx: Tx, templateKey: string | undefined, protocolId: string, leaderUserId: string) {
@@ -1143,6 +1347,9 @@ async function notifyUserIds(
   assignments: Record<string, string[]>,
 ): Promise<string[]> {
   if (slot.userId) return [slot.userId];
+  if (slot.rule.kind === "FIRST_AVAILABLE") {
+    return (await firstAvailable(tx, slot.rule, protocol, assignments))?.userIds ?? [];
+  }
   if (slot.rule.kind === "ROLE" || slot.rule.kind === "PANEL_ROLE_OF_PROTOCOL") {
     const slots = await resolveSlots(tx, slot.rule, protocol, assignments);
     if (slots[0]?.userId) return [slots[0].userId];
@@ -1186,4 +1393,390 @@ function resultOf(
 export async function publishedFormCodes(tx: Tx = prisma): Promise<Set<string>> {
   const rows = await tx.formDefinition.findMany({ where: { status: "PUBLISHED" }, select: { code: true } });
   return new Set(rows.map((row) => row.code));
+}
+
+type SideTaskRow = {
+  id: string;
+  instanceId: string | null;
+  stepKey: string | null;
+  sideKey: string | null;
+  slot: string | null;
+  assigneeUserId: string | null;
+  candidateRule: Prisma.JsonValue;
+  dueAt: Date | null;
+};
+
+type ProtocolRow = { id: string; panelId: string | null; leaderUserId: string };
+
+/**
+ * A reviewer declines a designation. Their task is closed as DECLINED, and a re-designation task
+ * opens for the step's `decline.redesignateBy`. The other reviewers' tasks are not touched.
+ */
+async function declineTaskTx(
+  tx: Tx,
+  input: {
+    task: SideTaskRow;
+    instance: InstanceRow;
+    graph: WorkflowGraph;
+    step: Step;
+    protocol: ProtocolRow;
+    userId: string;
+    reason: string;
+    meta: Meta;
+    conflict?: boolean;
+  },
+): Promise<TaskResult> {
+  const { task, instance, step, protocol } = input;
+  const decline = step.decline;
+  if (!decline) throw new AppError("INVALID", "This step does not accept a decline.", 409);
+  if (!input.reason.trim()) throw new AppError("INVALID", "Give the reason for declining.", 400);
+  await tx.task.update({
+    where: { id: task.id },
+    data: {
+      status: "DECLINED",
+      outcome: decline.outcome,
+      comment: input.reason.trim(),
+      assigneeUserId: task.assigneeUserId ?? input.userId,
+      completedAt: new Date(),
+      completedById: input.userId,
+    },
+  });
+  await audit.record(tx, {
+    actorUserId: input.userId,
+    action: AuditAction.taskDeclined,
+    entityType: "task",
+    entityId: task.id,
+    protocolId: protocol.id,
+    diff: { stepKey: step.key, slot: task.slot, outcome: decline.outcome, reason: input.reason.trim(), conflict: Boolean(input.conflict) },
+    meta: input.meta,
+  });
+  const assignments = readAssignments(instance.assignments);
+  const slots = await resolveSlots(tx, decline.redesignateBy, protocol, assignments);
+  const slot = slots.find((item) => item.userId) ?? slots[0];
+  if (!slot || (!slot.userId && !claimable(slot.rule))) {
+    throw new AppError("NO_ASSIGNEE", "Nobody is set to re-designate the reviewer.", 409);
+  }
+  const created = await tx.task.create({
+    data: {
+      instanceId: instance.id,
+      stepKey: step.key,
+      kind: "SIDE",
+      sideKey: REDESIGNATE_SIDE_KEY,
+      slot: task.slot,
+      assigneeUserId: slot.userId,
+      candidateRule: toJson(slot.rule),
+      title: decline.name ?? "Re-designate the reviewer",
+      status: "OPEN",
+    },
+  });
+  const notify = slot.userId ? [slot.userId] : await notifyUserIds(tx, step, slot, protocol, assignments);
+  if (notify.length > 0) {
+    await tx.job.create({
+      data: {
+        kind: "NOTIFY",
+        payload: toJson({
+          templateKey: "review.redesignate",
+          userIds: notify,
+          protocolId: protocol.id,
+          taskId: created.id,
+          stepKey: step.key,
+          variables: { reason: input.reason.trim() },
+        }),
+        runAt: new Date(),
+      },
+    });
+  }
+  return resultOf(task.id, decline.outcome, instance, false);
+}
+
+/** The chair picks a new reviewer for the declined slot. Only that slot changes. */
+async function redesignateTx(
+  tx: Tx,
+  input: { task: SideTaskRow; instance: InstanceRow; graph: WorkflowGraph; step: Step; userId: string; input: CompleteInput; meta: Meta },
+): Promise<TaskResult> {
+  const { task, instance, graph, step, userId } = input;
+  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
+  const assignments = readAssignments(instance.assignments);
+  await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? step.decline?.redesignateBy ?? null, userId, protocol, assignments);
+  if (step.assignee?.kind !== "ASSIGNED_IN_STEP") throw new AppError("INVALID", "This step has no reviewers to replace.", 409);
+  const sourceKey = step.assignee.stepKey;
+  const declined = await tx.task.findFirst({
+    where: { instanceId: instance.id, stepKey: step.key, kind: "MAIN", status: "DECLINED", slot: task.slot },
+    orderBy: { completedAt: "desc" },
+  });
+  const oldUserId = declined?.assigneeUserId ?? null;
+  const replacement = (task.slot ? input.input.reviewerSlots?.[task.slot] : undefined) ?? input.input.reviewerUserIds?.[0] ?? "";
+  if (!replacement) throw new AppError("INVALID", "Choose the new reviewer.", 400);
+  const all = readSlotAssignments(instance.assignments);
+  const rows = all[sourceKey] ?? [];
+  if (rows.some((row) => row.userId === replacement)) throw new AppError("INVALID", "That person is already a reviewer on this protocol.", 400);
+  if (replacement === oldUserId) throw new AppError("INVALID", "Choose someone other than the reviewer who declined.", 400);
+  const source = graph.steps.find((item) => item.key === sourceKey);
+  const slotDef = slotsOf(source).find((item) => item.key === task.slot);
+  if (slotDef && !(await eligibleForSlot(tx, replacement, slotDef.eligible))) {
+    throw new AppError("INVALID", `That person cannot fill the ${slotDef.label} slot.`, 400);
+  }
+  const roles = slotDef?.eligible?.roles ?? source?.assignReviewers?.roles ?? [];
+  await assertReviewers(tx, protocol.id, [replacement], slotDef ? [] : roles);
+  let replaced = false;
+  const next = rows.map((row) => {
+    if (!replaced && ((task.slot && row.slot === task.slot) || (!task.slot && row.userId === oldUserId))) {
+      replaced = true;
+      return { userId: replacement, slot: row.slot };
+    }
+    return row;
+  });
+  if (!replaced) next.push({ userId: replacement, slot: task.slot });
+  all[sourceKey] = next;
+  await tx.workflowInstance.update({ where: { id: instance.id }, data: { assignments: toJson(writeAssignments(all)) } });
+  await ensureReviewerMember(tx, protocol.id, replacement, roles);
+  await tx.task.update({
+    where: { id: task.id },
+    data: {
+      status: "COMPLETED",
+      outcome: "REDESIGNATED",
+      comment: input.input.comment?.trim() || null,
+      assigneeUserId: task.assigneeUserId ?? userId,
+      completedAt: new Date(),
+      completedById: userId,
+    },
+  });
+  await audit.record(tx, {
+    actorUserId: userId,
+    action: AuditAction.reviewerRedesignated,
+    entityType: "task",
+    entityId: task.id,
+    protocolId: protocol.id,
+    diff: { stepKey: step.key, slot: task.slot, fromUserId: oldUserId, toUserId: replacement },
+    meta: input.meta,
+  });
+  const holidays = await holidaySet(tx);
+  const dueAt = step.deadline ? addDuration(new Date(), step.deadline.amount, step.deadline.unit, holidays) : null;
+  const created = await tx.task.create({
+    data: {
+      instanceId: instance.id,
+      stepKey: step.key,
+      assigneeUserId: replacement,
+      candidateRule: toJson(step.assignee),
+      title: step.name,
+      status: "OPEN",
+      dueAt,
+      slot: task.slot,
+    },
+  });
+  const freshAssignments = readAssignments(writeAssignments(all));
+  const slotRow: AssigneeSlot = { userId: replacement, rule: step.assignee, slot: task.slot };
+  await queueAssigned(tx, step, slotRow, protocol, freshAssignments, created.id, instance.id);
+  await openForms(tx, step, instance.protocolVersionId, [slotRow]);
+  return resultOf(task.id, "REDESIGNATED", instance, false);
+}
+
+/**
+ * Declare a conflict of interest on an open task. On a FIRST_AVAILABLE step the task moves to the
+ * next person in the chain; on a reviewer step with `decline` it works like a decline. REC Staff
+ * are told either way.
+ */
+export async function declareConflict(taskId: string, userId: string, reason: string): Promise<TaskResult> {
+  return prisma.$transaction(async (tx) => {
+    await pinAppSchema(tx);
+    return declareConflictTx(tx, taskId, userId, reason, {});
+  }, TX);
+}
+
+export async function declareConflictTx(tx: Tx, taskId: string, userId: string, reason: string, meta: Meta): Promise<TaskResult> {
+  const text = reason.trim();
+  if (!text) throw new AppError("INVALID", "Give the reason for the conflict of interest.", 400);
+  await tx.$queryRaw`SELECT id FROM tasks WHERE id = ${taskId} FOR UPDATE`;
+  const task = await tx.task.findUnique({ where: { id: taskId } });
+  if (!task?.instanceId || !task.stepKey || task.kind !== "MAIN") throw new AppError("NOT_FOUND", "That task was not found.", 404);
+  if (task.status !== "OPEN" && task.status !== "CLAIMED") throw new AppError("INVALID", "That task is no longer open.", 409);
+  const instance = await tx.workflowInstance.findUniqueOrThrow({ where: { id: task.instanceId } });
+  const version = await tx.workflowVersion.findUniqueOrThrow({ where: { id: instance.versionId } });
+  const graph = graphOf(version.graph);
+  const step = stepOf(graph, task.stepKey);
+  if (!stepAllowsConflict(step)) throw new AppError("INVALID", "A conflict of interest cannot be declared on this step.", 409);
+  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
+  const assignments = readAssignments(instance.assignments);
+  await assertCanAct(tx, task.assigneeUserId, readRule(task.candidateRule) ?? step.assignee ?? null, userId, protocol, assignments);
+  const declaration = await tx.conflictDeclaration.create({
+    data: { protocolId: protocol.id, userId, reason: text, stepKey: step.key },
+  });
+  await audit.record(tx, {
+    actorUserId: userId,
+    action: AuditAction.conflictDeclared,
+    entityType: "conflict_declaration",
+    entityId: declaration.id,
+    protocolId: protocol.id,
+    diff: { stepKey: step.key, taskId: task.id, reason: text },
+    meta,
+  });
+  const staff = await tx.userRole.findMany({ where: { revokedAt: null, role: { key: "REC_STAFF" } }, select: { userId: true } });
+  const staffIds = [...new Set(staff.map((row) => row.userId))];
+  if (staffIds.length > 0) {
+    await tx.job.create({
+      data: {
+        kind: "NOTIFY",
+        payload: toJson({ templateKey: "conflict.declared", userIds: staffIds, protocolId: protocol.id, taskId: task.id, variables: { reason: text } }),
+        runAt: new Date(),
+      },
+    });
+  }
+  if (step.assignee?.kind === "FIRST_AVAILABLE") {
+    const slots = await resolveSlots(tx, step.assignee, protocol, assignments);
+    const slot = slots[0];
+    const available = await firstAvailable(tx, step.assignee, protocol, assignments);
+    if (!slot || !available) throw new AppError("NO_ASSIGNEE", "Nobody else in the chain is available for this step.", 409);
+    await tx.task.update({ where: { id: task.id }, data: { status: "REASSIGNED" } });
+    const created = await tx.task.create({
+      data: {
+        instanceId: instance.id,
+        stepKey: step.key,
+        assigneeUserId: slot.userId,
+        candidateRule: toJson(step.assignee),
+        title: task.title,
+        status: "OPEN",
+        dueAt: task.dueAt,
+        slot: task.slot,
+      },
+    });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.taskReassigned,
+      entityType: "task",
+      entityId: created.id,
+      protocolId: protocol.id,
+      diff: { fromTaskId: task.id, fromUserId: task.assigneeUserId ?? userId, toUserId: slot.userId, reason: "Conflict of interest" },
+      meta,
+    });
+    await queueAssigned(tx, step, slot, protocol, assignments, created.id, instance.id);
+    return resultOf(task.id, null, instance, false);
+  }
+  if (step.decline) {
+    return declineTaskTx(tx, { task, instance, graph, step, protocol, userId, reason: text, meta, conflict: true });
+  }
+  return resultOf(task.id, null, instance, false);
+}
+
+/**
+ * SLA scan: completes open tasks whose deadline passed on a step with `onTimeout`, as the system.
+ * Audited as task.timed_out.
+ */
+export async function timeoutOverdueTasks(now = new Date()): Promise<number> {
+  const tasks = await prisma.task.findMany({
+    where: { kind: "MAIN", status: { in: ["OPEN", "CLAIMED"] }, dueAt: { lte: now }, instance: { status: "RUNNING" } },
+    include: { instance: { include: { version: true } } },
+    orderBy: { dueAt: "asc" },
+  });
+  let count = 0;
+  for (const task of tasks) {
+    if (!task.instance || !task.stepKey) continue;
+    const parsed = parseGraph(task.instance.version.graph);
+    if (!parsed.ok) continue;
+    const step = parsed.graph.steps.find((item) => item.key === task.stepKey);
+    if (!step?.onTimeout || step.type === "WAIT_PROPONENT") continue;
+    await completeTask(task.id, null, { outcome: step.onTimeout.outcome });
+    count += 1;
+  }
+  return count;
+}
+
+/**
+ * Admin tool: move a running protocol to another published version of the same workflow and
+ * resume at a chosen step. Completed history stays; open tasks are closed with a note. Only
+ * while the protocol's workflowMigrationEnabled switch is on. Audited as workflow.migrated.
+ */
+export async function migrateInstance(input: {
+  protocolId: string;
+  targetVersionId: string;
+  stepKey: string;
+  actorUserId: string;
+  note?: string | null;
+}): Promise<TaskResult | null> {
+  return prisma.$transaction(async (tx) => {
+    await pinAppSchema(tx);
+    const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: input.protocolId } });
+    if (!protocol.workflowMigrationEnabled) throw new AppError("LOCKED", "Moving this protocol to another workflow version is switched off.", 409);
+    const instance = await tx.workflowInstance.findFirst({
+      where: { protocolId: input.protocolId, status: "RUNNING" },
+      orderBy: { startedAt: "desc" },
+      include: { version: true },
+    });
+    if (!instance) throw new AppError("NOT_FOUND", "This protocol has no running workflow.", 404);
+    await tx.$queryRaw`SELECT id FROM workflow_instances WHERE id = ${instance.id} FOR UPDATE`;
+    const target = await tx.workflowVersion.findUnique({ where: { id: input.targetVersionId } });
+    if (!target || target.definitionId !== instance.version.definitionId || target.status !== "PUBLISHED") {
+      throw new AppError("INVALID", "Choose a published version of the same workflow.", 400);
+    }
+    const graph = graphOf(target.graph);
+    stepOf(graph, input.stepKey);
+    const note = input.note?.trim() || `Moved to workflow version ${target.number}.`;
+    const open = await tx.task.findMany({ where: { instanceId: instance.id, status: { in: ["OPEN", "CLAIMED"] } }, select: { id: true } });
+    await tx.task.updateMany({
+      where: { id: { in: open.map((task) => task.id) } },
+      data: { status: "CANCELLED", comment: note },
+    });
+    await tx.workflowInstance.update({ where: { id: instance.id }, data: { versionId: target.id, currentStepKeys: [] } });
+    await audit.record(tx, {
+      actorUserId: input.actorUserId,
+      action: AuditAction.workflowMigrated,
+      entityType: "workflow_instance",
+      entityId: instance.id,
+      protocolId: protocol.id,
+      diff: { fromVersion: instance.version.number, toVersion: target.number, stepKey: input.stepKey, closedTasks: open.length, note },
+      meta: {},
+    });
+    const fresh = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
+    await enterStep(tx, fresh, graph, input.stepKey, input.actorUserId, {}, null, []);
+    const after = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
+    return resultOf("", null, after, false);
+  }, TX);
+}
+
+export async function setMigrationAllowed(protocolId: string, allowed: boolean, actorUserId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await pinAppSchema(tx);
+    const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: protocolId } });
+    await tx.protocol.update({ where: { id: protocolId }, data: { workflowMigrationEnabled: allowed } });
+    await audit.record(tx, {
+      actorUserId,
+      action: AuditAction.workflowMigrationToggled,
+      entityType: "protocol",
+      entityId: protocolId,
+      protocolId,
+      diff: { before: protocol.workflowMigrationEnabled, after: allowed },
+      meta: {},
+    });
+  }, TX);
+}
+
+/** What the migration screen shows: the running version, the other published versions, and which step keys each keeps. */
+export async function migrationPlan(protocolId: string) {
+  const instance = await prisma.workflowInstance.findFirst({
+    where: { protocolId, status: "RUNNING" },
+    orderBy: { startedAt: "desc" },
+    include: { version: { include: { definition: true } } },
+  });
+  if (!instance) return null;
+  const current = parseGraph(instance.version.graph);
+  const currentSteps = current.ok ? current.graph.steps : [];
+  const versions = await prisma.workflowVersion.findMany({
+    where: { definitionId: instance.version.definitionId, status: "PUBLISHED", id: { not: instance.versionId } },
+    orderBy: { number: "desc" },
+  });
+  return {
+    instanceId: instance.id,
+    definitionName: instance.version.definition.name,
+    versionNumber: instance.version.number,
+    currentStepKeys: instance.currentStepKeys,
+    targets: versions.map((version) => {
+      const parsed = parseGraph(version.graph);
+      const steps = parsed.ok ? parsed.graph.steps : [];
+      return {
+        id: version.id,
+        number: version.number,
+        steps: steps.map((step) => ({ key: step.key, name: step.name, type: step.type })),
+        mapping: currentSteps.map((step) => ({ key: step.key, name: step.name, kept: steps.some((item) => item.key === step.key) })),
+      };
+    }),
+  };
 }

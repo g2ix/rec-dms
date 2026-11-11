@@ -130,29 +130,66 @@ export async function validationIssues(versionId: string) {
   return validateGraph(version.graph, await publishedFormCodes());
 }
 
-export async function publishWorkflow(versionId: string, userId: string) {
+/**
+ * Publishes a draft. Without a date the earlier published versions are archived and new
+ * protocols use this one at once. With a future `effectiveFrom` it is scheduled: the version in
+ * effect now stays published, protocols created before the date keep it, and protocols created
+ * on or after the date use this one.
+ */
+export async function publishWorkflow(versionId: string, userId: string, effectiveFrom: Date | null = null) {
   const version = await getWorkflowVersion(versionId);
   if (version.status !== "DRAFT") throw new AppError("LOCKED", "Only a draft can be published.", 409);
   const issues = await validationIssues(versionId);
   if (issues.length > 0) throw new AppError("INVALID", issues[0]?.message ?? "This workflow is not valid.", 400);
+  const now = new Date();
+  const scheduled = effectiveFrom && effectiveFrom.getTime() > now.getTime() ? effectiveFrom : null;
   const meta = await auditRequestMeta({});
   return prisma.$transaction(async (tx) => {
-    await tx.workflowVersion.updateMany({
-      where: { definitionId: version.definitionId, status: "PUBLISHED" },
-      data: { status: "ARCHIVED" },
-    });
+    if (!scheduled) {
+      await tx.workflowVersion.updateMany({
+        where: { definitionId: version.definitionId, status: "PUBLISHED", OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }] },
+        data: { status: "ARCHIVED" },
+      });
+    }
     const published = await tx.workflowVersion.update({
       where: { id: versionId },
-      data: { status: "PUBLISHED", publishedAt: new Date(), publishedById: userId },
+      data: { status: "PUBLISHED", publishedAt: now, publishedById: userId, effectiveFrom: scheduled, effectiveAnnouncedAt: null },
     });
     await audit.record(tx, {
       actorUserId: userId,
       action: AuditAction.workflowPublished,
       entityType: "workflow_version",
       entityId: versionId,
-      diff: diffOf({ status: "DRAFT" }, { status: "PUBLISHED", number: published.number }),
+      diff: diffOf({ status: "DRAFT" }, { status: "PUBLISHED", number: published.number, effectiveFrom: scheduled?.toISOString() ?? null }),
       meta,
     });
     return published;
+  });
+}
+
+/** Cancels a scheduled workflow version before its date. It returns to a draft. */
+export async function cancelScheduledWorkflow(versionId: string, userId: string) {
+  const version = await getWorkflowVersion(versionId);
+  if (version.status !== "PUBLISHED" || !version.effectiveFrom || version.effectiveFrom.getTime() <= Date.now()) {
+    throw new AppError("LOCKED", "Only a version scheduled for a later date can be cancelled.", 409);
+  }
+  const used = await prisma.workflowInstance.count({ where: { versionId } });
+  if (used > 0) throw new AppError("LOCKED", "A protocol already runs on this version.", 409);
+  const otherDraft = await prisma.workflowVersion.findFirst({ where: { definitionId: version.definitionId, status: "DRAFT" } });
+  const meta = await auditRequestMeta({});
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.workflowVersion.update({
+      where: { id: versionId },
+      data: { status: otherDraft ? "ARCHIVED" : "DRAFT", publishedAt: null, effectiveFrom: null },
+    });
+    await audit.record(tx, {
+      actorUserId: userId,
+      action: AuditAction.workflowScheduleCancelled,
+      entityType: "workflow_version",
+      entityId: versionId,
+      diff: diffOf({ status: "PUBLISHED", effectiveFrom: version.effectiveFrom?.toISOString() ?? null }, { status: updated.status }),
+      meta,
+    });
+    return updated;
   });
 }

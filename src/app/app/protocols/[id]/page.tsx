@@ -1,4 +1,6 @@
 import { AuditTimeline } from "@/components/audit/audit-timeline";
+import { FeesSection } from "@/components/protocols/fees-section";
+import { WorkflowMigration } from "@/components/workflow/workflow-migration";
 import { ProtocolFlow } from "@/components/workflow/protocol-flow";
 import { ReturnBanner } from "@/components/workflow/task-comments";
 import { ActionForm } from "@/components/ui/action-result";
@@ -52,6 +54,8 @@ export default async function ProtocolOverviewPage({
         </ul>
       </section>
       <ProtocolFlow protocolId={id} userId={user.id} comments={taskComments.comments} />
+      <FeesSection protocolId={id} userId={user.id} />
+      <WorkflowMigration protocolId={id} userId={user.id} />
       {leader && header.working && !workflowRunning ? (
         <ActionForm action={submitVersionAction} className="rec-stack" submitLabel="Submit version" busyLabel="Submitting…">
           <input type="hidden" name="protocolId" value={id} />

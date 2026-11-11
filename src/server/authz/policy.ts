@@ -60,6 +60,11 @@ export function canEditHolidays(facts: UserAdminFacts): boolean {
   return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
 }
 
+/** Fee schedules, client types, and bills: REC Staff and System Admin. */
+export function canManageFees(facts: UserAdminFacts): boolean {
+  return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
+}
+
 export function canReviewRetention(facts: UserAdminFacts): boolean {
   return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
 }

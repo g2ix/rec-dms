@@ -14,6 +14,7 @@ const OPEN = ["OPEN", "CLAIMED"];
 const PASS_COMPLETE = "This pass is complete. No further step is open.";
 
 function roleLabelOf(rule: AssigneeRule | null): string | null {
+  if (rule?.kind === "FIRST_AVAILABLE") return roleLabelOf(rule.rules[0] ?? null);
   if (rule?.kind !== "ROLE" && rule?.kind !== "PANEL_ROLE_OF_PROTOCOL") return null;
   return isRoleKey(rule.role) ? ROLE_KEY_LABEL[rule.role] : rule.role;
 }

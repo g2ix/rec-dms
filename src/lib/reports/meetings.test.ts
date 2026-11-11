@@ -1,35 +1,53 @@
 import { describe, expect, it } from "vitest";
-import { assignMeeting, nextSecondFriday, secondFriday } from "@/lib/reports/meetings";
+import { assignMeeting, nextMeeting, nthWeekday, parseMeetingSchedule, ruleFor } from "@/lib/reports/meetings";
 
-describe("meeting Fridays", () => {
-  it("finds the second Friday", () => {
+const secondFriday = { weekday: 5, week: 2, cutoffDays: 14 };
+
+describe("meeting days", () => {
+  it("finds the nth weekday of a month", () => {
     // 1 Nov 2026 is a Sunday, so the Fridays are 6, 13, 20, and 27.
-    expect(secondFriday(2026, 11)).toBe("2026-11-13");
+    expect(nthWeekday(2026, 11, 5, 1)).toBe("2026-11-06");
+    expect(nthWeekday(2026, 11, 5, 2)).toBe("2026-11-13");
+    expect(nthWeekday(2026, 11, 5, 3)).toBe("2026-11-20");
+    expect(nthWeekday(2026, 11, 5, -1)).toBe("2026-11-27");
+    expect(nthWeekday(2026, 11, 5, 5)).toBeNull();
     // 1 Dec 2026 is a Tuesday, so the Fridays are 4, 11, 18, and 25.
-    expect(secondFriday(2026, 12)).toBe("2026-12-11");
-    expect(nextSecondFriday("2026-11-06")).toBe("2026-11-13");
-    expect(nextSecondFriday("2026-11-13")).toBe("2026-11-13");
-    expect(nextSecondFriday("2026-11-14")).toBe("2026-12-11");
+    expect(nthWeekday(2026, 12, 5, 2)).toBe("2026-12-11");
+    expect(nextMeeting("2026-11-06", secondFriday)).toBe("2026-11-13");
+    expect(nextMeeting("2026-11-13", secondFriday)).toBe("2026-11-13");
+    expect(nextMeeting("2026-11-14", secondFriday)).toBe("2026-12-11");
   });
 
-  it("flags a full review that misses the 14-day cutoff and moves it to the next meeting", () => {
-    // 13 Nov minus 14 days is 30 Oct. 20 Oct is in time for 13 Nov.
-    expect(assignMeeting({ completeDay: "2026-10-20", today: "2026-11-06", fullReview: true })).toEqual({
+  it("reads a rule per panel and falls back to the default", () => {
+    const schedule = parseMeetingSchedule({
+      default: secondFriday,
+      panels: { P1: { weekday: 5, week: 1, cutoffDays: 14 }, P3: { weekday: 5, week: 3, cutoffDays: 10 }, BAD: { weekday: 9 } },
+    });
+    expect(ruleFor(schedule, "P1")).toEqual({ weekday: 5, week: 1, cutoffDays: 14 });
+    expect(ruleFor(schedule, "P2")).toEqual(secondFriday);
+    expect(ruleFor(schedule, "BAD")).toEqual(secondFriday);
+    expect(ruleFor(parseMeetingSchedule(null), "P1")).toBeNull();
+  });
+
+  it("flags a full review that misses the cutoff and moves it to the next meeting", () => {
+    expect(assignMeeting({ completeDay: "2026-10-20", today: "2026-11-06", fullReview: true, rule: secondFriday })).toEqual({
       meeting: "2026-11-13",
       missedCutoff: false,
     });
-    // 1 Nov is after 30 Oct, so the protocol waits for 11 Dec and is flagged.
-    expect(assignMeeting({ completeDay: "2026-11-01", today: "2026-11-06", fullReview: true })).toEqual({
+    expect(assignMeeting({ completeDay: "2026-11-01", today: "2026-11-06", fullReview: true, rule: secondFriday })).toEqual({
       meeting: "2026-12-11",
       missedCutoff: true,
     });
-    // A past meeting that was in time does not keep the flag on the following Friday.
-    expect(assignMeeting({ completeDay: "2026-10-20", today: "2026-11-20", fullReview: true })).toEqual({
+    expect(assignMeeting({ completeDay: "2026-10-20", today: "2026-11-20", fullReview: true, rule: secondFriday })).toEqual({
       meeting: "2026-12-11",
       missedCutoff: false,
     });
-    expect(assignMeeting({ completeDay: "2026-11-01", today: "2026-11-06", fullReview: false })).toEqual({
+    expect(assignMeeting({ completeDay: "2026-11-01", today: "2026-11-06", fullReview: false, rule: secondFriday })).toEqual({
       meeting: "2026-11-13",
+      missedCutoff: false,
+    });
+    expect(assignMeeting({ completeDay: "2026-11-01", today: "2026-11-06", fullReview: true, rule: null })).toEqual({
+      meeting: null,
       missedCutoff: false,
     });
   });

@@ -8,6 +8,7 @@ import { appTimeZone } from "@/lib/time";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
+import { formDefinitionForVersion, settingValue, workflowVersionFor } from "@/server/effective";
 import { freezeWorkingVersion, sharedSnapshot } from "@/server/protocols/snapshot";
 import { completeLeaderSubmissionTx, completeOpenWaitTx, maybeStartInitial, maybeStartResubmissionTx } from "@/server/workflow/engine";
 import { requiredFormCodes, requiredUploadKinds } from "@/server/protocols/settings";
@@ -25,11 +26,12 @@ export async function openWorkingVersion(tx: Tx, protocolId: string, at = new Da
     orderBy: { number: "desc" },
   });
   const number = (latest?.number ?? 0) + 1;
+  const pattern = await settingValue(tx, "protocol.versionLabel", at);
   return tx.protocolVersion.create({
     data: {
       protocolId,
       number,
-      label: versionLabel(number, at, appTimeZone()),
+      label: versionLabel(number, at, appTimeZone(), typeof pattern === "string" ? pattern : undefined),
       state: "WORKING",
     },
   });
@@ -38,10 +40,7 @@ export async function openWorkingVersion(tx: Tx, protocolId: string, at = new Da
 export async function ensureWorkingForms(tx: Tx, versionId: string) {
   const codes = await requiredFormCodes(tx);
   for (const code of codes) {
-    const definition = await tx.formDefinition.findFirst({
-      where: { code, status: "PUBLISHED" },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    });
+    const definition = await formDefinitionForVersion(tx, code, versionId);
     if (!definition) continue;
     const existing = await tx.formInstance.findFirst({
       where: { formDefinitionId: definition.id, ownerType: "PROTOCOL_VERSION", ownerId: versionId },
@@ -106,10 +105,7 @@ export async function submitVersion(protocolId: string, userId: string) {
     });
     const published = routed
       ? null
-      : await tx.workflowVersion.findFirst({
-          where: { status: "PUBLISHED", definition: { key: "INITIAL_SUBMISSION" } },
-          select: { id: true },
-        });
+      : await workflowVersionFor(tx, "INITIAL_SUBMISSION", (await tx.protocol.findUniqueOrThrow({ where: { id: protocolId } })).createdAt);
     if (routed || published) {
       return completeLeaderSubmissionTx(tx, protocolId, version.id, userId, meta);
     }

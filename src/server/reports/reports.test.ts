@@ -201,8 +201,13 @@ describe("dashboards and reports", () => {
     await expect(reportCsv(outsider.id, {})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("moves a late full review to the following second Friday and flags the cutoff", async () => {
+  it("moves a late full review to the following meeting from the schedule setting and flags the cutoff", async () => {
     const suffix = crypto.randomUUID().slice(0, 8);
+    await prisma.setting.upsert({
+      where: { key: "meetings.schedule" },
+      create: { key: "meetings.schedule", value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
+      update: { value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
+    });
     const staff = await makeUser({ email: `meet.${suffix}@usc.edu.ph`, familyName: "Staff" });
     await grant(staff.id, "REC_STAFF");
     const definition = await prisma.workflowDefinition.create({

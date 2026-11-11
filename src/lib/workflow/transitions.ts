@@ -11,11 +11,16 @@ export type LogicData = {
     code: string | null;
     title: string;
     hasAdviser: boolean;
+    /** Review round: the protocol version number, 1 for the initial review. */
+    round?: number;
+    clientTypeKey?: string | null;
   };
   forms: Record<string, unknown>;
   step: { key: string };
   /** Latest completed outcome for each step on this version. */
   decisions?: Record<string, string | null>;
+  /** The earlier instance this one continues, such as the review a resubmission answers. */
+  parent?: { decision: string | null; decisions: Record<string, string | null> };
 };
 
 export function pickTransition(graph: WorkflowGraph, from: string, data: LogicData): Transition | null {
@@ -32,7 +37,7 @@ export function stepIsComplete(
   step: Step,
   tasks: { status: string }[],
 ): boolean {
-  const live = tasks.filter((task) => task.status !== "CANCELLED" && task.status !== "REASSIGNED");
+  const live = tasks.filter((task) => task.status !== "CANCELLED" && task.status !== "REASSIGNED" && task.status !== "DECLINED");
   const done = live.filter((task) => task.status === "COMPLETED").length;
   if (live.length === 0) return false;
   if (step.type === "PARALLEL_TASK") return done >= requiredCompletions(step.parallel?.completeWhen ?? "ALL", live.length);

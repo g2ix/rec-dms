@@ -60,6 +60,8 @@ const staffItems: NavItem[] = [
   { href: "/app/search", label: "Search", icon: Search },
   { href: "/admin/retention", label: "Retention", icon: Archive },
   { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
+  { href: "/admin/fees", label: "Fees", icon: Receipt },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
   { href: "/admin/workflows", label: "Workflows", icon: Workflow },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
@@ -131,6 +133,7 @@ export type NavCapabilities = {
   editSettings: boolean;
   editHolidays: boolean;
   reviewRetention: boolean;
+  manageFees: boolean;
 };
 
 export const EMPTY_NAV_CAPABILITIES: NavCapabilities = {
@@ -141,6 +144,7 @@ export const EMPTY_NAV_CAPABILITIES: NavCapabilities = {
   editSettings: false,
   editHolidays: false,
   reviewRetention: false,
+  manageFees: false,
 };
 
 const HREF_CAPABILITY: Partial<Record<string, keyof NavCapabilities>> = {
@@ -150,6 +154,8 @@ const HREF_CAPABILITY: Partial<Record<string, keyof NavCapabilities>> = {
   "/admin/notifications": "editSettings",
   "/admin/holidays": "editHolidays",
   "/admin/retention": "reviewRetention",
+  "/admin/fees": "manageFees",
+  "/admin/settings": "manageFees",
 };
 
 /** Admin links appear only when the person passes the matching authorize check. */

@@ -26,6 +26,7 @@ describe("navGroups", () => {
     expect(hrefs(view)).not.toContain("/admin/notifications");
     expect(hrefs(view)).not.toContain("/admin/holidays");
     expect(hrefs(view)).not.toContain("/admin/retention");
+    expect(hrefs(view)).not.toContain("/admin/fees");
 
     const all = hrefs(view, {
       viewAudit: true,
@@ -34,6 +35,7 @@ describe("navGroups", () => {
       editSettings: true,
       editHolidays: true,
       reviewRetention: true,
+      manageFees: true,
     });
     expect(all).toEqual(
       expect.arrayContaining([
@@ -43,6 +45,7 @@ describe("navGroups", () => {
         "/admin/notifications",
         "/admin/holidays",
         "/admin/retention",
+        "/admin/fees",
       ]),
     );
   });

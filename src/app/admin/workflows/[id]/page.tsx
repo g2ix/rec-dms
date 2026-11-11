@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { WorkflowEditor } from "@/components/workflow/workflow-editor";
+import { formatManila } from "@/lib/time";
+import { cancelScheduledWorkflowAction } from "@/server/workflow/actions";
 import { parseGraph } from "@/lib/workflow/graph";
 import { authorize } from "@/server/authz";
 import { requireUser } from "@/server/session";
@@ -49,7 +51,16 @@ export default async function WorkflowVersionPage({
           {query.error}
         </p>
       ) : null}
-      {query.published ? <p className="body-sm">Published. New submissions use this version.</p> : null}
+      {query.published ? <p className="body-sm">Published. New submissions use this version from its start date.</p> : null}
+      {version.status === "PUBLISHED" && version.effectiveFrom && version.effectiveFrom.getTime() > Date.now() ? (
+        <form action={cancelScheduledWorkflowAction} className="rec-actions">
+          <input type="hidden" name="versionId" value={version.id} />
+          <p className="body-sm">Scheduled for {formatManila(version.effectiveFrom, "d MMM yyyy")}. Protocols created before then keep the current version.</p>
+          <button className="rec-btn rec-btn--secondary" type="submit">
+            <span>Cancel the schedule</span>
+          </button>
+        </form>
+      ) : null}
       {!parsed.ok ? <p className="body-sm">{parsed.message}</p> : null}
       <WorkflowEditor
         versionId={version.id}

@@ -122,39 +122,39 @@ model User {
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
-  primaryEmail           UserEmail?       @relation("PrimaryEmail", fields: [primaryEmailId], references: [id], onDelete: SetNull)
-  emails                 UserEmail[]      @relation("UserEmails")
+  primaryEmail           UserEmail?              @relation("PrimaryEmail", fields: [primaryEmailId], references: [id], onDelete: SetNull)
+  emails                 UserEmail[]             @relation("UserEmails")
   accounts               Account[]
   sessions               Session[]
-  approvedBy             User?            @relation("Approvals", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedUsers          User[]           @relation("Approvals")
-  mergedInto             User?            @relation("Merges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
-  mergedFrom             User[]           @relation("Merges")
+  approvedBy             User?                   @relation("Approvals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedUsers          User[]                  @relation("Approvals")
+  mergedInto             User?                   @relation("Merges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom             User[]                  @relation("Merges")
   emailCodes             EmailCode[]
   roles                  UserRole[]
   memberships            ProtocolMember[]
   signatures             Signature[]
   signatureEvents        SignatureEvent[]
-  signingStepUps        SigningStepUp[]
+  signingStepUps         SigningStepUp[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
-  tasks                  Task[]               @relation("TaskAssignee")
-  tasksCompleted         Task[]               @relation("TaskCompleter")
-  workflowsPublished     WorkflowVersion[]    @relation("WorkflowPublisher")
-  protocolsCreated       Protocol[]       @relation("ProtocolCreator")
-  mergeSessionsPrimary   MergeSession[]   @relation("MergePrimary")
-  mergeSessionsSecondary MergeSession[]   @relation("MergeSecondary")
-  mergeSessionsCreated   MergeSession[]   @relation("MergeCreator")
+  tasks                  Task[]                  @relation("TaskAssignee")
+  tasksCompleted         Task[]                  @relation("TaskCompleter")
+  workflowsPublished     WorkflowVersion[]       @relation("WorkflowPublisher")
+  protocolsCreated       Protocol[]              @relation("ProtocolCreator")
+  mergeSessionsPrimary   MergeSession[]          @relation("MergePrimary")
+  mergeSessionsSecondary MergeSession[]          @relation("MergeSecondary")
+  mergeSessionsCreated   MergeSession[]          @relation("MergeCreator")
   auditEvents            AuditEvent[]
   formDefinitions        FormDefinition[]
   formFieldRevisions     FormFieldRevision[]
-  protocolsLed           Protocol[]           @relation("ProtocolLeader")
-  versionsSubmitted      ProtocolVersion[]    @relation("VersionSubmitter")
+  protocolsLed           Protocol[]              @relation("ProtocolLeader")
+  versionsSubmitted      ProtocolVersion[]       @relation("VersionSubmitter")
   filesUploaded          StoredFile[]
-  feeDecisions           FeeVerification[]    @relation("FeeVerifier")
+  feeDecisions           FeeVerification[]       @relation("FeeVerifier")
   presence               Presence[]
   uploadIntents          UploadIntent[]
-  invitationsSent        ProtocolMember[]     @relation("MemberInviter")
+  invitationsSent        ProtocolMember[]        @relation("MemberInviter")
   profile                PersonProfile?
   directoryEntry         DirectoryEntry?
 
@@ -164,15 +164,15 @@ model User {
 }
 
 model UserEmail {
-  id         String    @id @default(uuid())
-  userId     String    @map("user_id")
-  email      String    @unique
-  verifiedAt DateTime? @map("verified_at")
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  email       String    @unique
+  verifiedAt  DateTime? @map("verified_at")
   isContact   Boolean   @default(false) @map("is_contact")
   isPrimary   Boolean   @default(false) @map("is_primary")
   defaultView String?   @map("default_view")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   user        User             @relation("UserEmails", fields: [userId], references: [id], onDelete: Cascade)
   primaryFor  User?            @relation("PrimaryEmail")
@@ -183,18 +183,18 @@ model UserEmail {
 }
 
 model Account {
-  id                String  @id @default(uuid())
-  userId            String  @map("user_id")
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
   type              String
   provider          String
-  providerAccountId String  @map("provider_account_id")
+  providerAccountId String   @map("provider_account_id")
   email             String?
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?  @db.Text
   session_state     String?
   defaultView       String?  @map("default_view")
   createdAt         DateTime @default(now()) @map("created_at")
@@ -304,6 +304,8 @@ model UserRole {
   grantedById String?   @map("granted_by_id")
   grantedAt   DateTime  @default(now()) @map("granted_at")
   revokedAt   DateTime? @map("revoked_at")
+  /// Member attributes on a panel grant: designation, isScientist, discipline, affiliate, alternate.
+  attributes  Json      @default("{}")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -372,36 +374,41 @@ model FundingSourceKind {
 }
 
 model Protocol {
-  id                   String      @id @default(uuid())
-  code                 String?     @unique
-  title                String
-  disciplineId         String?     @map("discipline_id")
-  panelId              String?     @map("panel_id")
-  reviewType           ReviewType? @map("review_type")
-  status               String      @default("DRAFT")
-  leaderUserId         String      @map("leader_user_id")
-  institution          String      @default("")
-  institutionAddress   String      @default("") @map("institution_address")
-  researchType         String      @default("") @map("research_type")
-  researchTypeCodes    String[]    @default([]) @map("research_type_codes")
-  researchTypeOther    String      @default("") @map("research_type_other")
-  durationMonths       Int?        @map("duration_months")
-  expectedParticipants Int?        @map("expected_participants")
-  studySite            String      @default("") @map("study_site")
-  fundingSources       Json        @default("[]") @map("funding_sources")
-  retentionFlaggedAt   DateTime?   @map("retention_flagged_at")
-  createdById          String      @map("created_by_id")
-  createdAt            DateTime    @default(now()) @map("created_at")
-  updatedAt            DateTime    @updatedAt @map("updated_at")
+  id                       String      @id @default(uuid())
+  code                     String?     @unique
+  title                    String
+  disciplineId             String?     @map("discipline_id")
+  panelId                  String?     @map("panel_id")
+  reviewType               ReviewType? @map("review_type")
+  status                   String      @default("DRAFT")
+  leaderUserId             String      @map("leader_user_id")
+  institution              String      @default("")
+  institutionAddress       String      @default("") @map("institution_address")
+  researchType             String      @default("") @map("research_type")
+  researchTypeCodes        String[]    @default([]) @map("research_type_codes")
+  researchTypeOther        String      @default("") @map("research_type_other")
+  durationMonths           Int?        @map("duration_months")
+  expectedParticipants     Int?        @map("expected_participants")
+  studySite                String      @default("") @map("study_site")
+  fundingSources           Json        @default("[]") @map("funding_sources")
+  retentionFlaggedAt       DateTime?   @map("retention_flagged_at")
+  /// Fee client type, suggested from the project leader profile and set by REC Staff.
+  clientTypeKey            String?     @map("client_type_key")
+  /// An admin may move this protocol to another workflow version only while this is on.
+  workflowMigrationEnabled Boolean     @default(false) @map("workflow_migration_enabled")
+  createdById              String      @map("created_by_id")
+  createdAt                DateTime    @default(now()) @map("created_at")
+  updatedAt                DateTime    @updatedAt @map("updated_at")
 
-  createdBy  User             @relation("ProtocolCreator", fields: [createdById], references: [id])
-  leader     User             @relation("ProtocolLeader", fields: [leaderUserId], references: [id])
-  discipline Discipline?      @relation(fields: [disciplineId], references: [id])
-  panel      Panel?           @relation(fields: [panelId], references: [id])
-  members            ProtocolMember[]
-  versions           ProtocolVersion[]
-  workflowInstances  WorkflowInstance[]
-  notifications      Notification[]
+  createdBy         User               @relation("ProtocolCreator", fields: [createdById], references: [id])
+  leader            User               @relation("ProtocolLeader", fields: [leaderUserId], references: [id])
+  discipline        Discipline?        @relation(fields: [disciplineId], references: [id])
+  panel             Panel?             @relation(fields: [panelId], references: [id])
+  members           ProtocolMember[]
+  versions          ProtocolVersion[]
+  workflowInstances WorkflowInstance[]
+  notifications     Notification[]
+  bills             Bill[]
 
   @@index([status])
   @@index([leaderUserId])
@@ -454,19 +461,23 @@ model ProtocolMember {
 }
 
 model ProtocolVersion {
-  id            String               @id @default(uuid())
-  protocolId    String               @map("protocol_id")
-  number        Int
-  label         String
-  state         ProtocolVersionState @default(WORKING)
-  submittedAt   DateTime?            @map("submitted_at")
-  submittedById String?              @map("submitted_by_id")
-  snapshot      Json                 @default("{}")
-  createdAt     DateTime             @default(now()) @map("created_at")
-  updatedAt     DateTime             @updatedAt @map("updated_at")
+  id             String               @id @default(uuid())
+  protocolId     String               @map("protocol_id")
+  number         Int
+  label          String
+  state          ProtocolVersionState @default(WORKING)
+  submittedAt    DateTime?            @map("submitted_at")
+  submittedById  String?              @map("submitted_by_id")
+  snapshot       Json                 @default("{}")
+  /// Set while a frozen version is reopened for correction. Holds the data to diff on re-freeze.
+  reopenBaseline Json?                @map("reopen_baseline")
+  reopenedAt     DateTime?            @map("reopened_at")
+  reopenForms    String[]             @default([]) @map("reopen_forms")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
 
-  protocol    Protocol         @relation(fields: [protocolId], references: [id], onDelete: Cascade)
-  submittedBy User?            @relation("VersionSubmitter", fields: [submittedById], references: [id])
+  protocol          Protocol           @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  submittedBy       User?              @relation("VersionSubmitter", fields: [submittedById], references: [id])
   files             StoredFile[]
   fee               FeeVerification?
   signatureEvents   SignatureEvent[]
@@ -495,8 +506,14 @@ model StoredFile {
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
   /// Set when this file was generated from a form instance, so a reprint of the same revision can be reused.
-  formInstanceId    String?    @map("form_instance_id")
-  sourceRevision    Int?       @map("source_revision")
+  formInstanceId String? @map("form_instance_id")
+  sourceRevision Int?    @map("source_revision")
+  /// Proof of payment against this bill.
+  billId         String? @map("bill_id")
+  /// STAFF hides a generated file from proponents and advisers. Null keeps the earlier rules.
+  audience       String?
+  /// A render variant of the same revision, such as a redacted release copy.
+  variant        String?
 
   protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
   formInstance    FormInstance?    @relation(fields: [formInstanceId], references: [id], onDelete: SetNull)
@@ -505,6 +522,7 @@ model StoredFile {
 
   @@index([protocolVersionId, kind])
   @@index([formInstanceId, kind, sourceRevision])
+  @@index([billId])
   @@map("files")
 }
 
@@ -550,6 +568,8 @@ model UploadIntent {
   suggestedName     String?  @map("suggested_name")
   mime              String
   uploadedById      String   @map("uploaded_by_id")
+  /// Proof of payment for this bill. It may arrive while the version is frozen.
+  billId            String?  @map("bill_id")
   expiresAt         DateTime @map("expires_at")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -581,8 +601,8 @@ model Signature {
   createdAt DateTime         @default(now()) @map("created_at")
   updatedAt DateTime         @updatedAt @map("updated_at")
 
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  file   StoredFile?     @relation(fields: [fileId], references: [id])
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file   StoredFile?      @relation(fields: [fileId], references: [id])
   events SignatureEvent[]
 
   @@index([userId])
@@ -719,6 +739,8 @@ model Task {
   /// MAIN advances the step. SIDE is a request that stays beside it, such as an extension.
   kind           String    @default("MAIN")
   sideKey        String?   @map("side_key")
+  /// Reviewer slot key when the step assigns reviewers by slot.
+  slot           String?
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -763,16 +785,19 @@ model WorkflowDefinition {
 
 /// The graph is one jsonb document so a version publishes atomically.
 model WorkflowVersion {
-  id            String                @id @default(uuid())
-  definitionId  String                @map("definition_id")
-  number        Int
-  status        WorkflowVersionStatus @default(DRAFT)
-  graph         Json
-  notes         String?
-  publishedById String?               @map("published_by_id")
-  publishedAt   DateTime?             @map("published_at")
-  createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
+  id                   String                @id @default(uuid())
+  definitionId         String                @map("definition_id")
+  number               Int
+  status               WorkflowVersionStatus @default(DRAFT)
+  graph                Json
+  notes                String?
+  publishedById        String?               @map("published_by_id")
+  publishedAt          DateTime?             @map("published_at")
+  /// Scheduled start. Protocols created before this date keep the earlier version.
+  effectiveFrom        DateTime?             @map("effective_from")
+  effectiveAnnouncedAt DateTime?             @map("effective_announced_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
 
   definition  WorkflowDefinition @relation(fields: [definitionId], references: [id])
   publishedBy User?              @relation("WorkflowPublisher", fields: [publishedById], references: [id])
@@ -793,16 +818,18 @@ model WorkflowInstance {
   currentStepKeys   String[]               @default([]) @map("current_step_keys")
   /// Reviewer user ids chosen at a step, keyed by that step's key.
   assignments       Json                   @default("{}")
+  /// Facts captured on a step, keyed by step key, such as noteToReviewers and reviewDueDate.
+  captures          Json                   @default("{}")
   startedAt         DateTime               @default(now()) @map("started_at")
   endedAt           DateTime?              @map("ended_at")
   parentInstanceId  String?                @map("parent_instance_id")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
 
-  version         WorkflowVersion   @relation(fields: [versionId], references: [id])
-  protocol        Protocol          @relation(fields: [protocolId], references: [id])
-  protocolVersion ProtocolVersion   @relation(fields: [protocolVersionId], references: [id])
-  parent          WorkflowInstance? @relation("InstanceChain", fields: [parentInstanceId], references: [id])
+  version         WorkflowVersion    @relation(fields: [versionId], references: [id])
+  protocol        Protocol           @relation(fields: [protocolId], references: [id])
+  protocolVersion ProtocolVersion    @relation(fields: [protocolVersionId], references: [id])
+  parent          WorkflowInstance?  @relation("InstanceChain", fields: [parentInstanceId], references: [id])
   children        WorkflowInstance[] @relation("InstanceChain")
   tasks           Task[]
 
@@ -886,19 +913,22 @@ enum FormInstanceStatus {
 
 /// Versioned form schema. The .docx template is attached in M10.
 model FormDefinition {
-  id             String               @id @default(uuid())
-  code           String
-  title          String
-  version        String
-  effectiveDate  DateTime             @map("effective_date") @db.Date
-  status         FormDefinitionStatus @default(DRAFT)
-  schema         Json
-  templateFileId String?              @map("template_file_id")
-  placeholderMap Json?                @map("placeholder_map")
-  createdById    String               @map("created_by_id")
-  publishedAt    DateTime?            @map("published_at")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id                   String               @id @default(uuid())
+  code                 String
+  title                String
+  version              String
+  effectiveDate        DateTime             @map("effective_date") @db.Date
+  status               FormDefinitionStatus @default(DRAFT)
+  schema               Json
+  templateFileId       String?              @map("template_file_id")
+  placeholderMap       Json?                @map("placeholder_map")
+  createdById          String               @map("created_by_id")
+  publishedAt          DateTime?            @map("published_at")
+  /// Scheduled start. Protocols created before this date keep the earlier version.
+  effectiveFrom        DateTime?            @map("effective_from")
+  effectiveAnnouncedAt DateTime?            @map("effective_announced_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
 
   createdBy User           @relation(fields: [createdById], references: [id])
   instances FormInstance[]
@@ -963,9 +993,9 @@ model Institution {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  units      OrgUnit[]
-  profiles   PersonProfile[]
-  directory  DirectoryEntry[]
+  units     OrgUnit[]
+  profiles  PersonProfile[]
+  directory DirectoryEntry[]
 
   @@map("institutions")
 }
@@ -1060,4 +1090,153 @@ model DirectoryEntry {
 
   @@index([kind])
   @@map("directory_entries")
+}
+
+/// A conflict of interest one person declared on one protocol. Assignee chains skip them.
+model ConflictDeclaration {
+  id         String   @id @default(uuid())
+  protocolId String   @map("protocol_id")
+  userId     String   @map("user_id")
+  reason     String
+  stepKey    String?  @map("step_key")
+  declaredAt DateTime @default(now()) @map("declared_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([protocolId, userId])
+  @@map("conflict_declarations")
+}
+
+/// A value for a setting that starts on a later date.
+model SettingSchedule {
+  id            String    @id @default(uuid())
+  key           String
+  value         Json
+  effectiveFrom DateTime  @map("effective_from")
+  appliedAt     DateTime? @map("applied_at")
+  cancelledAt   DateTime? @map("cancelled_at")
+  createdById   String?   @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([key, effectiveFrom])
+  @@map("setting_schedules")
+}
+
+/// Protocol code sequence, one row per year.
+model CodeCounter {
+  year      Int      @id
+  last      Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("code_counters")
+}
+
+enum FeeBasis {
+  EXPEDITED
+  FULL
+  EXEMPT
+}
+
+enum BillStatus {
+  ISSUED
+  PAID_PENDING
+  PARTIALLY_PAID
+  VERIFIED
+  REJECTED
+  WAIVED
+}
+
+model ClientType {
+  key       String   @id
+  label     String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("client_types")
+}
+
+/// Dated fee amounts. The schedule in effect on the issue date prices a bill.
+model FeeSchedule {
+  id            String   @id @default(uuid())
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  approvedRef   String   @default("") @map("approved_ref")
+  notes         String   @default("")
+  createdById   String?  @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  rates FeeRate[]
+  rules FeeRule[]
+  bills Bill[]
+
+  @@index([effectiveFrom])
+  @@map("fee_schedules")
+}
+
+/// Amount in centavos for one client type and basis.
+model FeeRate {
+  id            String   @id @default(uuid())
+  scheduleId    String   @map("schedule_id")
+  clientTypeKey String   @map("client_type_key")
+  basis         FeeBasis
+  amount        Int
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  schedule FeeSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, clientTypeKey, basis])
+  @@map("fee_rates")
+}
+
+/// A percent of the base rate, such as the 3rd-to-Nth review.
+model FeeRule {
+  id         String   @id @default(uuid())
+  scheduleId String   @map("schedule_id")
+  key        String
+  label      String   @default("")
+  percent    Int
+  fromRound  Int?     @map("from_round")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  schedule FeeSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, key])
+  @@map("fee_rules")
+}
+
+/// One statement of account. Amounts are centavos.
+model Bill {
+  id              String     @id @default(uuid())
+  protocolId      String     @map("protocol_id")
+  versionId       String     @map("version_id")
+  round           Int        @default(1)
+  description     String
+  amount          Int
+  amountPaid      Int        @default(0) @map("amount_paid")
+  scheduleId      String?    @map("schedule_id")
+  clientTypeKey   String?    @map("client_type_key")
+  basis           String     @default("")
+  status          BillStatus @default(ISSUED)
+  reason          String?
+  issuedById      String?    @map("issued_by_id")
+  issuedAt        DateTime   @default(now()) @map("issued_at")
+  verifiedById    String?    @map("verified_by_id")
+  verifiedAt      DateTime?  @map("verified_at")
+  statementFileId String?    @map("statement_file_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  protocol Protocol     @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  schedule FeeSchedule? @relation(fields: [scheduleId], references: [id])
+
+  @@index([protocolId, round])
+  @@index([status])
+  @@index([issuedAt])
+  @@map("bills")
 }

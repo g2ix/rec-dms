@@ -7,6 +7,7 @@ import {
   canEditHolidays,
   canEditSettings,
   canEditWorkflow,
+  canManageFees,
   canManageUsers,
   canReviewRetention,
   canViewAudit,
@@ -83,6 +84,14 @@ export async function authorize(
   if (action === "holiday.edit") {
     if (canEditHolidays(await userAdminFacts(user.id))) return;
     throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can edit holidays.", 403);
+  }
+  if (action === "fees.manage" || action === "settings.data") {
+    if (canManageFees(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can manage fees.", 403);
+  }
+  if (action === "workflow.migrate") {
+    if (canEditWorkflow(await userAdminFacts(user.id))) return;
+    throw new AppError("FORBIDDEN", "Only a System Admin can move a protocol to another workflow version.", 403);
   }
   if (action === "retention.review") {
     if (canReviewRetention(await userAdminFacts(user.id))) return;

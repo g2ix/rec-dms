@@ -1,6 +1,6 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { formatCentavos } from "@/lib/forms/money";
-import { findField, type FormSchema } from "@/lib/forms/schema";
+import { effectiveCell, findField, overrideMap, type FormSchema } from "@/lib/forms/schema";
 import { normalize, type PlaceholderEntry, type PlaceholderMap } from "@/lib/docs/tags";
 
 const CHECKED = "☑";
@@ -69,6 +69,17 @@ type BudgetLayout = {
   rest: Map<string, Record<string, unknown>[]>;
 };
 
+/** Wraps text that fillDocx prints with a yellow highlight. Private-use characters, removed after rendering. */
+export const HIGHLIGHT_START = "\uE000";
+export const HIGHLIGHT_END = "\uE001";
+
+export type RenderOptions = {
+  /** Field paths (and signature fields) left out of this copy. The stored form is not changed. */
+  redact?: string[];
+  /** false prints an overriding column in place of the original wherever the override is filled. */
+  showOriginal?: boolean;
+};
+
 export function buildRenderModel(input: {
   map: PlaceholderMap;
   data: Record<string, unknown>;
@@ -76,18 +87,47 @@ export function buildRenderModel(input: {
   signatures: SignatureRender[];
   schema?: FormSchema;
   timeZone?: string;
+  options?: RenderOptions;
 }): RenderModel {
   const images: RenderImage[] = [];
   const data: Record<string, unknown> = {};
   const zone = input.timeZone ?? "Asia/Manila";
-  const budget = layoutBudget(input.data);
+  const source = redacted(input, input.options?.redact ?? []);
+  const budget = layoutBudget(source.data);
   for (const [tag, raw] of Object.entries(input.map)) {
     const entry = normalize(raw);
     if (!entry) continue;
-    const value = resolveEntry(tag, entry, input, images, zone, budget);
+    const value = resolveEntry(tag, entry, source, images, zone, budget);
     assign(data, tag, value);
   }
   return { data, images };
+}
+
+function redacted<T extends { data: Record<string, unknown>; bound: Record<string, unknown>; signatures: SignatureRender[] }>(
+  input: T,
+  paths: string[],
+): T {
+  if (paths.length === 0) return input;
+  const data = structuredClone(input.data);
+  const bound = { ...input.bound };
+  for (const path of paths) {
+    removePath(data, path);
+    for (const key of Object.keys(bound)) if (key === path || key.startsWith(`${path}.`)) delete bound[key];
+  }
+  const signatures = input.signatures.filter(
+    (item) => !paths.some((path) => item.fieldPath === path || item.fieldPath.startsWith(`${path}.`) || item.fieldPath.startsWith(`${path}[`)),
+  );
+  return { ...input, data, bound, signatures };
+}
+
+function removePath(source: Record<string, unknown>, path: string): void {
+  const parts = path.split(".");
+  let cursor: unknown = source;
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    if (!isRecord(cursor)) return;
+    cursor = cursor[parts[index]!];
+  }
+  if (isRecord(cursor)) delete cursor[parts[parts.length - 1]!];
 }
 
 export function signedFooterLine(signatures: SignatureRender[], timeZone = "Asia/Manila"): string {
@@ -108,6 +148,7 @@ function resolveEntry(
     bound: Record<string, unknown>;
     signatures: SignatureRender[];
     schema?: FormSchema;
+    options?: RenderOptions;
   },
   images: RenderImage[],
   zone: string,
@@ -224,24 +265,27 @@ function rowLoop(
 }
 
 function assessmentLoop(
-  entry: { path?: string; columns?: string[]; onlyFilled?: string[] },
-  input: { data: Record<string, unknown>; bound: Record<string, unknown>; schema?: FormSchema },
+  entry: { path?: string; columns?: string[]; onlyFilled?: string[]; highlightIf?: string },
+  input: { data: Record<string, unknown>; bound: Record<string, unknown>; schema?: FormSchema; options?: RenderOptions },
 ): Record<string, string>[] {
   const field = entry.path && input.schema ? findField(input.schema, entry.path) : undefined;
   const stored = read(input, entry.path);
   const rows = field?.rows ?? objectRows(stored);
   const filled = entry.onlyFilled ?? [];
+  const overrides = input.options?.showOriginal === false ? overrideMap(field) : {};
   return rows.flatMap((row) => {
     const cells = cellRecord(stored, row.id);
-    if (filled.length > 0 && !filled.some((column) => assessmentCellFilled(cells[column]))) return [];
+    if (filled.length > 0 && !filled.some((column) => assessmentCellFilled(effectiveCell(cells, column, overrides)))) return [];
+    const mark = Boolean(entry.highlightIf && cells[entry.highlightIf] === true);
+    const wrap = (text: string) => (mark && text ? `${HIGHLIGHT_START}${text}${HIGHLIGHT_END}` : text);
     const item: Record<string, string> = {
-      code: row.code,
-      label: row.label,
+      code: wrap(row.code),
+      label: wrap(row.label),
     };
     for (const column of entry.columns ?? []) {
       if (column === "code" || column === "label") continue;
-      const raw = cells[column];
-      item[column] = column === "assessment" || column === "answer" || column === "present" ? choiceLabel(raw) : display(raw);
+      const raw = effectiveCell(cells, column, overrides);
+      item[column] = wrap(column === "assessment" || column === "answer" || column === "present" ? choiceLabel(raw) : display(raw));
     }
     return [item];
   });

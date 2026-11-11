@@ -6,7 +6,8 @@ import { BusyButton } from "@/components/ui/busy-button";
 import { FlowView } from "@/components/workflow/flow-view";
 import { ROLE_KEYS, ROLE_KEY_LABEL } from "@/lib/forms/roles";
 import { DURATION_UNITS, STEP_TYPES, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
-import { simulateGraph } from "@/lib/workflow/simulate";
+import { simulateGraph, waitingForChoice } from "@/lib/workflow/simulate";
+import { ChainEditor, StepAdvanced } from "@/components/workflow/step-advanced";
 import { structuralIssues } from "@/lib/workflow/validate";
 import { publishVersionAction, saveDraftAction } from "@/server/workflow/actions";
 
@@ -30,6 +31,9 @@ export function WorkflowEditor({
   const [issues, setIssues] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
   const [action, setAction] = useState<"save" | "publish" | null>(null);
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [simReviewType, setSimReviewType] = useState("");
+  const [simRound, setSimRound] = useState("1");
 
   function commit(next: WorkflowGraph) {
     setGraph(next);
@@ -66,7 +70,7 @@ export function WorkflowEditor({
         setAction(null);
         return;
       }
-      await publishVersionAction(versionId);
+      await publishVersionAction(versionId, effectiveFrom || null);
     });
   }
 
@@ -76,9 +80,12 @@ export function WorkflowEditor({
     setNotice(found.length === 0 ? "This graph is valid." : null);
   }
 
-  const simulation = simulateGraph(graph, choices, new Set(holidays), new Date());
+  const simulation = simulateGraph(graph, choices, new Set(holidays), new Date(), {
+    reviewType: simReviewType || null,
+    round: Number(simRound) || 1,
+  });
   const waiting = simulation.stops.at(-1);
-  const waitingStep = waiting ? graph.steps.find((item) => item.key === waiting.stepKey) : undefined;
+  const waitingStep = waitingForChoice(graph, waiting);
 
   return (
     <div className="rec-stack">
@@ -184,6 +191,21 @@ export function WorkflowEditor({
       </section>
       <section className="rec-stack">
         <h2 className="heading">Simulate</h2>
+        <div className="rec-actions">
+          <label className="rec-field">
+            <span className="label">Review type at the start</span>
+            <select className="rec-select" value={simReviewType} onChange={(event) => setSimReviewType(event.target.value)}>
+              <option value="">Not set</option>
+              <option value="EXEMPT">Exempt</option>
+              <option value="EXPEDITED">Expedited</option>
+              <option value="FULL">Full</option>
+            </select>
+          </label>
+          <label className="rec-field">
+            <span className="label">Review round</span>
+            <input className="rec-input" inputMode="numeric" value={simRound} onChange={(event) => setSimRound(event.target.value)} />
+          </label>
+        </div>
         <ol className="rec-methods">
           {simulation.stops.map((stop, index) => (
             <li key={`${stop.stepKey}-${index}`}>
@@ -192,11 +214,20 @@ export function WorkflowEditor({
                 {stop.outcome ? ` · ${stop.outcome}` : ""}
                 {stop.dueAt ? ` · due ${new Date(stop.dueAt).toISOString()}` : ""}
               </p>
+              {stop.notes.length > 0 ? (
+                <ul>
+                  {stop.notes.map((note) => (
+                    <li key={note} className="body-sm rec-muted">
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ol>
         {simulation.error ? <p className="body-sm">{simulation.error}</p> : null}
-        {waitingStep?.type === "DECISION" && !waiting?.outcome ? (
+        {waitingStep ? (
           <div className="rec-actions">
             {(waitingStep.outcomes ?? []).map((outcome) => (
               <button key={outcome.key} type="button" className="rec-btn rec-btn--secondary" onClick={() => setChoices([...choices, { stepKey: waitingStep.key, outcome: outcome.key }])}>
@@ -217,8 +248,12 @@ export function WorkflowEditor({
           <button type="button" className="rec-btn rec-btn--secondary" onClick={validate} disabled={pending}>
             <span>Validate</span>
           </button>
+          <label className="rec-field">
+            <span className="label">Starts for new protocols on (optional)</span>
+            <input className="rec-input" type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
+          </label>
           <BusyButton type="button" variant="primary" busy={action === "publish"} disabled={pending} busyLabel="Publishing…" onClick={publish}>
-            Publish
+            {effectiveFrom ? "Publish, scheduled" : "Publish"}
           </BusyButton>
         </div>
       ) : null}
@@ -320,8 +355,12 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
           <option value="PROTOCOL_ADVISER">Adviser</option>
           <option value="ASSIGNED_IN_STEP">Reviewers assigned earlier</option>
           <option value="USER">A specific person</option>
+          <option value="FIRST_AVAILABLE">First available (fallback order)</option>
         </select>
       </label>
+      {assignee?.kind === "FIRST_AVAILABLE" ? (
+        <ChainEditor rules={assignee.rules} onChange={(rules) => onChange({ ...step, assignee: { kind: "FIRST_AVAILABLE", rules } })} />
+      ) : null}
       {assignee?.kind === "ROLE" || assignee?.kind === "PANEL_ROLE_OF_PROTOCOL" ? (
         <label className="rec-field">
           <span className="label">Role</span>
@@ -362,11 +401,16 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
           </select>
         </label>
       </div>
-      {step.type === "DECISION" ? (
+      {step.type !== "END" && step.type !== "AUTO" ? (
         <label className="rec-field rec-field--wide">
           <span className="label">Outcomes</span>
-          <textarea className="rec-input" rows={3} value={(step.outcomes ?? []).map((outcome) => `${outcome.key}|${outcome.label}`).join("\n")} onChange={(event) => onChange({ ...step, outcomes: parseOutcomes(event.target.value) })} />
-          <span className="rec-field__help">One outcome per line, as KEY|Label.</span>
+          <textarea
+            className="rec-input"
+            rows={3}
+            value={(step.outcomes ?? []).map((outcome) => `${outcome.key}|${outcome.label}${outcome.requiresComment ? "|reason" : ""}`).join("\n")}
+            onChange={(event) => onChange({ ...step, outcomes: parseOutcomes(event.target.value) })}
+          />
+          <span className="rec-field__help">One outcome per line, as KEY|Label. Add |reason when the comment is required for that outcome.</span>
         </label>
       ) : null}
       {step.type === "PARALLEL_TASK" ? (
@@ -392,9 +436,17 @@ function StepForm({ step, steps, onChange }: { step: Step; steps: Step[]; onChan
       ) : null}
       <label className="rec-field rec-field--wide">
         <span className="label">Forms</span>
-        <textarea className="rec-input" rows={3} value={(step.forms ?? []).map((form) => `${form.code}|${form.mode}|${form.required ? "required" : "optional"}`).join("\n")} onChange={(event) => onChange({ ...step, forms: parseForms(event.target.value) })} />
-        <span className="rec-field__help">One form per line, as CODE|FILL|required. Mode is FILL, SIGN, or VIEW.</span>
+        <textarea
+          className="rec-input"
+          rows={3}
+          value={(step.forms ?? [])
+            .map((form) => [form.code, form.mode, form.required ? "required" : "optional", form.perAssignee ? "each" : "", form.slot ? `slot:${form.slot}` : ""].filter(Boolean).join("|"))
+            .join("\n")}
+          onChange={(event) => onChange({ ...step, forms: parseForms(event.target.value) })}
+        />
+        <span className="rec-field__help">One form per line, as CODE|FILL|required. Mode is FILL, SIGN, or VIEW. Add |each for one copy per assignee, or |slot:KEY to limit it to one reviewer slot.</span>
       </label>
+      <StepAdvanced step={step} onChange={onChange} />
       <label className="rec-field">
         <span className="label">Notify when assigned</span>
         <input className="rec-input" value={step.notify?.onAssigned ?? ""} onChange={(event) => onChange({ ...step, notify: { ...step.notify, onAssigned: event.target.value || undefined } })} />
@@ -423,6 +475,7 @@ function assigneeFor(kind: string): AssigneeRule | undefined {
   if (kind === "PROTOCOL_ADVISER") return { kind: "PROTOCOL_ADVISER" };
   if (kind === "ASSIGNED_IN_STEP") return { kind: "ASSIGNED_IN_STEP", stepKey: "start" };
   if (kind === "USER") return { kind: "USER", userId: "00000000-0000-4000-8000-000000000000" };
+  if (kind === "FIRST_AVAILABLE") return { kind: "FIRST_AVAILABLE", rules: [{ kind: "PANEL_ROLE_OF_PROTOCOL", role: "PANEL_CHAIR" }] };
   return undefined;
 }
 
@@ -432,8 +485,10 @@ function parseOutcomes(value: string): Step["outcomes"] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [key, label] = line.split("|");
-      return { key: (key ?? "").trim(), label: (label ?? key ?? "").trim() };
+      const [key, label, flag] = line.split("|");
+      const row: NonNullable<Step["outcomes"]>[number] = { key: (key ?? "").trim(), label: (label ?? key ?? "").trim() };
+      if (flag?.trim() === "reason") row.requiresComment = true;
+      return row;
     })
     .filter((row) => row.key && row.label);
   return rows.length > 0 ? rows : undefined;
@@ -445,9 +500,18 @@ function parseForms(value: string): Step["forms"] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [code, mode, required] = line.split("|");
+      const [code, mode, required, ...rest] = line.split("|");
       const parsedMode = mode?.trim() === "SIGN" || mode?.trim() === "VIEW" ? mode.trim() : "FILL";
-      return { code: (code ?? "").trim(), mode: parsedMode as "FILL" | "SIGN" | "VIEW", required: (required ?? "required").trim() !== "optional" };
+      const row: NonNullable<Step["forms"]>[number] = {
+        code: (code ?? "").trim(),
+        mode: parsedMode as "FILL" | "SIGN" | "VIEW",
+        required: (required ?? "required").trim() !== "optional",
+      };
+      for (const part of rest.map((item) => item.trim())) {
+        if (part === "each") row.perAssignee = true;
+        else if (part.startsWith("slot:") && part.length > 5) row.slot = part.slice(5);
+      }
+      return row;
     })
     .filter((row) => row.code);
   return rows.length > 0 ? rows : undefined;

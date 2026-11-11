@@ -36,6 +36,8 @@ const entryObject = z
     extraPaths: z.array(z.string()).optional(),
     onlyFilled: z.array(z.string()).optional(),
     index: z.number().int().nonnegative().optional(),
+    /** assessmentRows: print a row with a yellow highlight when this column is ticked. */
+    highlightIf: z.string().optional(),
   })
   .strict();
 

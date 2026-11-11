@@ -64,6 +64,8 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
           kind: true,
           mime: true,
           createdAt: true,
+          audience: true,
+          formInstanceId: true,
           uploadedBy: { select: { id: true, displayName: true } },
         },
       }),
@@ -97,7 +99,7 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
         summary: `${notice.title || notice.type}${notice.emailStatus === "SENT" ? " · emailed" : ""}`,
         actor: actorName(notice.userId, notice.user.displayName),
       })),
-      ...files.map((file) => ({
+      ...visibleFiles(files, staff).map((file) => ({
         id: file.id,
         at: file.createdAt,
         kind: "Document" as const,
@@ -108,6 +110,20 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
       })),
     ];
     return entries.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 400);
+  });
+}
+
+/**
+ * Staff see every generated file. Others see a STAFF copy never, and for a form released with an
+ * audience, only its PROPONENT copy.
+ */
+function visibleFiles<T extends { audience: string | null; formInstanceId: string | null }>(files: T[], staff: boolean): T[] {
+  if (staff) return files;
+  const controlled = new Set(files.filter((file) => file.audience && file.formInstanceId).map((file) => file.formInstanceId));
+  return files.filter((file) => {
+    if (file.audience === "STAFF") return false;
+    if (file.audience === "PROPONENT") return true;
+    return !file.formInstanceId || !controlled.has(file.formInstanceId);
   });
 }
 

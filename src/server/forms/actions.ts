@@ -12,6 +12,7 @@ import {
   createSampleDefinition,
   createVersion,
   publishDefinition,
+  cancelScheduledDefinition,
   retireDefinition,
   saveTemplate,
   updateDefinition,
@@ -162,11 +163,24 @@ export async function publishFormAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   try {
     const user = await adminUser();
-    await publishDefinition(id, user.id);
+    const day = String(formData.get("effectiveFrom") ?? "").trim();
+    await publishDefinition(id, user.id, /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(`${day}T00:00:00+08:00`) : null);
     revalidatePath("/admin/forms");
     redirect(`/admin/forms/${id}`);
   } catch (error) {
     bounce(id, error, "The form could not be published.");
+  }
+}
+
+export async function cancelScheduledFormAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  try {
+    const user = await adminUser();
+    await cancelScheduledDefinition(id, user.id);
+    revalidatePath("/admin/forms");
+    redirect(`/admin/forms/${id}`);
+  } catch (error) {
+    bounce(id, error, "The schedule could not be cancelled.");
   }
 }
 

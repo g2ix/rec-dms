@@ -12,6 +12,8 @@ type AuditMeta = Awaited<ReturnType<typeof auditRequestMeta>>;
 
 const SYSTEM_ADMIN = "SYSTEM_ADMIN";
 const PANEL_CHAIR = "PANEL_CHAIR";
+/** Per-panel roles with one holder each. With two holders the engine leaves the task unassigned. */
+const SINGLE_HOLDER_PANEL_ROLES = new Set([PANEL_CHAIR, "PANEL_VICE_CHAIR", "PANEL_SECRETARY"]);
 const LIST_LIMIT = 50;
 
 function forbidden(message: string): AppError {
@@ -133,6 +135,12 @@ export async function grantRole(input: { actorUserId: string; userId: string; ro
     if (role.key === PANEL_CHAIR && panel) {
       const [chair] = await currentChairs(tx, panel.id);
       if (chair) throw invalid(`${chair.user.displayName} is the Panel Chair of this panel. Change the chair on the Panels page.`);
+    } else if (SINGLE_HOLDER_PANEL_ROLES.has(role.key) && panel) {
+      const holder = await tx.userRole.findFirst({
+        where: { panelId: panel.id, revokedAt: null, roleId: role.id },
+        include: { user: { select: { displayName: true } } },
+      });
+      if (holder) throw invalid(`${holder.user.displayName} is the ${role.name} of this panel. Revoke that grant first.`);
     }
 
     return addGrant(tx, { actorUserId: input.actorUserId, userId: input.userId, role, panel, meta });

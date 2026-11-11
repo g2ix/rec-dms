@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { formatManila } from "@/lib/time";
 import { authorize } from "@/server/authz";
 import { requireUser } from "@/server/session";
 import { createWorkflowAction, draftFromPublishedAction } from "@/server/workflow/actions";
@@ -72,6 +73,9 @@ export default async function WorkflowsPage() {
                         <td className="code">{version.number}</td>
                         <td>
                           <StatusBadge tone={status.tone} label={status.label} />
+                          {version.status === "PUBLISHED" && version.effectiveFrom && version.effectiveFrom.getTime() > Date.now()
+                            ? ` Scheduled for ${formatManila(version.effectiveFrom, "d MMM yyyy")}`
+                            : ""}
                         </td>
                         <td>
                           <Link href={`/admin/workflows/${version.id}`}>Open</Link>

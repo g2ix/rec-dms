@@ -54,6 +54,7 @@ export function FormBuilder({
   const [message, setMessage] = useState<string | null>(error ?? null);
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
+  const [effectiveFrom, setEffectiveFrom] = useState("");
 
   const check = useMemo(() => {
     try {
@@ -98,6 +99,7 @@ export function FormBuilder({
     if (!stored) return;
     const body = new FormData();
     body.set("id", id);
+    if (effectiveFrom) body.set("effectiveFrom", effectiveFrom);
     await publishFormAction(body);
   }
 
@@ -170,8 +172,15 @@ export function FormBuilder({
           )}
           <div className="rec-actions">
             {status === "DRAFT" ? (
+              <label className="rec-field">
+                <span className="label">Starts for new protocols on (optional)</span>
+                <input className="rec-input" type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
+                <span className="rec-field__help">Leave empty to use it at once. Protocols created before the date keep the current version.</span>
+              </label>
+            ) : null}
+            {status === "DRAFT" ? (
               <Button type="button" variant="primary" disabled={!check.ok || pending} onClick={() => void publish()}>
-                Publish
+                {effectiveFrom ? "Publish, scheduled" : "Publish"}
               </Button>
             ) : null}
             {status !== "RETIRED" ? (

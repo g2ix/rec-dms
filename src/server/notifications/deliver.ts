@@ -65,6 +65,8 @@ async function baseVariables(tx: Tx, input: NoticeInput): Promise<Record<string,
     decision: "",
     roleLabel: "",
     daysLeft: "",
+    reviewDueDate: "",
+    noteToReviewers: "",
   };
   for (const [key, value] of Object.entries(input.variables ?? {})) {
     if (value != null) variables[key] = value;

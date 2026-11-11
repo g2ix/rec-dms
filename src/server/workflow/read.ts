@@ -3,11 +3,12 @@ import type { Prisma } from "@prisma/client";
 import type { RoleView } from "@/lib/role-view";
 import { isReviewerAuthor, REVIEWER_LABEL, seesReviewerNames } from "@/lib/workflow/blinding";
 import { dueState, type DueState } from "@/lib/workflow/due";
-import { parseGraph, type AssigneeRule, type Step } from "@/lib/workflow/graph";
+import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type ReviewerSlot, type Step } from "@/lib/workflow/graph";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { prisma, useAppSchema } from "@/server/db";
 import { openTasks } from "@/server/workflow/inbox";
-import { readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
+import { readAssignments, readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
+import { REDESIGNATE_SIDE_KEY, reviewerCaptures } from "@/server/workflow/engine";
 
 export { taskMatchesView } from "@/lib/workflow/views";
 
@@ -115,7 +116,7 @@ export async function protocolFlow(protocolId: string, userId: string) {
     }
     if (!task.assigneeUserId) {
       const rule = readRule(task.candidateRule);
-      if (rule && (await userMatchesRule(db, rule, userId, protocol, {}))) actionable.push(task);
+      if (rule && (await userMatchesRule(db, rule, userId, protocol, readAssignments(instance.assignments)))) actionable.push(task);
     }
   }
   const history = await prisma.auditEvent.findMany({
@@ -140,19 +141,30 @@ export async function protocolFlow(protocolId: string, userId: string) {
       ...event,
       actorName: nameFor(event.actorUserId, actor?.displayName),
     })),
-    mine: actionable.map((task) => {
-      const step = steps.find((item) => item.key === task.stepKey) ?? null;
-      const side = task.kind === "SIDE" ? step?.sideTasks?.find((item) => item.key === task.sideKey) ?? null : null;
-      return {
-        id: task.id,
-        step,
-        side,
-        kind: task.kind,
-        dueAt: task.dueAt,
-        due: dueState(task.dueAt),
-        assigneeUserId: task.assigneeUserId,
-      };
-    }),
+    mine: await Promise.all(
+      actionable.map(async (task) => {
+        const step = steps.find((item) => item.key === task.stepKey) ?? null;
+        const redesignate = task.kind === "SIDE" && task.sideKey === REDESIGNATE_SIDE_KEY;
+        const side = task.kind === "SIDE" && !redesignate ? step?.sideTasks?.find((item) => item.key === task.sideKey) ?? null : null;
+        const source = step?.assignee?.kind === "ASSIGNED_IN_STEP" ? steps.find((item) => item.key === (step.assignee as { stepKey: string }).stepKey) : undefined;
+        const slot = task.slot ? (slotsOf(source).find((item) => item.key === task.slot) ?? null) : null;
+        const captures = step && task.kind === "MAIN" ? await reviewerCaptures(prisma, instance.id, step) : { noteToReviewers: null, reviewDueDate: null };
+        return {
+          id: task.id,
+          step,
+          side,
+          kind: task.kind,
+          redesignate,
+          slot,
+          dueAt: task.dueAt,
+          due: dueState(task.dueAt),
+          assigneeUserId: task.assigneeUserId,
+          noteToReviewers: captures.noteToReviewers,
+          reviewDueDate: captures.reviewDueDate,
+          canDeclareConflict: Boolean(step && task.kind === "MAIN" && stepAllowsConflict(step)),
+        };
+      }),
+    ),
     extension:
       current.some((step) => (step.sideTasks?.length ?? 0) > 0) && protocol.leaderUserId === userId
         ? { instanceId: instance.id, step: current.find((step) => (step.sideTasks?.length ?? 0) > 0) ?? null }
@@ -165,16 +177,7 @@ export async function reviewerOptions(protocolId: string, roles: string[]) {
     where: { revokedAt: null, role: { key: { in: roles } } },
     include: { user: { select: { id: true, displayName: true, status: true } } },
   });
-  const conflicted = new Set(
-    (
-      await prisma.protocolMember.findMany({
-        where: { protocolId, status: { not: "REMOVED" }, role: { in: ["PROPONENT", "ADVISER"] } },
-        select: { userId: true },
-      })
-    )
-      .map((member) => member.userId)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const conflicted = await conflictedIds(protocolId);
   const ids = [...new Set(grants.map((grant) => grant.userId))].filter((id) => !conflicted.has(id));
   const loads = await prisma.task.groupBy({
     by: ["assigneeUserId"],
@@ -196,4 +199,61 @@ export async function reviewerOptions(protocolId: string, roles: string[]) {
     });
   }
   return options.sort((a, b) => a.openTasks - b.openTasks || a.name.localeCompare(b.name));
+}
+
+async function conflictedIds(protocolId: string): Promise<Set<string>> {
+  const [members, declared] = await Promise.all([
+    prisma.protocolMember.findMany({
+      where: { protocolId, status: { not: "REMOVED" }, role: { in: ["PROPONENT", "ADVISER"] } },
+      select: { userId: true },
+    }),
+    prisma.conflictDeclaration.findMany({ where: { protocolId }, select: { userId: true } }),
+  ]);
+  const out = new Set<string>();
+  for (const row of members) if (row.userId) out.add(row.userId);
+  for (const row of declared) out.add(row.userId);
+  return out;
+}
+
+export type SlotOption = { id: string; name: string; group: "panel" | "alternate" | "other"; detail: string; openTasks: number };
+
+function attributes(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/**
+ * People who can fill a reviewer slot: members of the protocol panel first, then alternates,
+ * then others who hold an eligible role. People with a conflict on the protocol are left out.
+ */
+export async function slotReviewerOptions(protocolId: string, slot: ReviewerSlot): Promise<SlotOption[]> {
+  const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: protocolId }, select: { panelId: true } });
+  const wanted = Object.entries(slot.eligible?.attributes ?? {});
+  const grants = await prisma.userRole.findMany({
+    where: { revokedAt: null, ...(slot.eligible?.roles?.length ? { role: { key: { in: slot.eligible.roles } } } : {}) },
+    include: { user: { select: { id: true, displayName: true, status: true } } },
+  });
+  const conflicted = await conflictedIds(protocolId);
+  const best = new Map<string, SlotOption>();
+  const rank = { panel: 0, alternate: 1, other: 2 } as const;
+  for (const grant of grants) {
+    if (grant.user.status !== "ACTIVE" || conflicted.has(grant.userId)) continue;
+    const attrs = attributes(grant.attributes);
+    if (!wanted.every(([key, value]) => attrs[key] === value)) continue;
+    const group: SlotOption["group"] =
+      attrs.alternate === true ? "alternate" : protocol.panelId && grant.panelId === protocol.panelId ? "panel" : "other";
+    const detail = [attrs.designation, attrs.discipline].filter((item): item is string => typeof item === "string" && item.length > 0).join(" · ");
+    const current = best.get(grant.userId);
+    if (!current || rank[group] < rank[current.group]) {
+      best.set(grant.userId, { id: grant.userId, name: grant.user.displayName, group, detail: detail || current?.detail || "", openTasks: 0 });
+    }
+  }
+  const ids = [...best.keys()];
+  const loads = ids.length
+    ? await prisma.task.groupBy({ by: ["assigneeUserId"], where: { assigneeUserId: { in: ids }, status: { in: ["OPEN", "CLAIMED"] } }, _count: { _all: true } })
+    : [];
+  for (const row of loads) {
+    const option = row.assigneeUserId ? best.get(row.assigneeUserId) : undefined;
+    if (option) option.openTasks = row._count._all;
+  }
+  return [...best.values()].sort((a, b) => rank[a.group] - rank[b.group] || a.openTasks - b.openTasks || a.name.localeCompare(b.name));
 }

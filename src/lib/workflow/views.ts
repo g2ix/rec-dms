@@ -14,8 +14,8 @@ export const VIEW_KIND: Record<RoleView, AssigneeRule["kind"][]> = {
 export const VIEW_ROLES: Record<RoleView, string[]> = {
   proponent: ["PROPONENT", "PROJECT_LEADER"],
   adviser: ["ADVISER"],
-  reviewer: ["REVIEWER", "PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT", "REC_MEMBER"],
-  "panel-chair": ["PANEL_CHAIR"],
+  reviewer: ["REVIEWER", "PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT", "REC_MEMBER", "PANEL_MEMBER"],
+  "panel-chair": ["PANEL_CHAIR", "PANEL_VICE_CHAIR", "PANEL_SECRETARY"],
   staff: ["REC_STAFF", "MEMBER_SECRETARY"],
   chair: ["REC_CHAIR", "SYSTEM_ADMIN"],
 };
@@ -24,6 +24,7 @@ export function taskMatchesView(rule: AssigneeRule | null, view: RoleView | "all
   if (view === "all") return true;
   if (!rule) return false;
   if (rule.kind === "USER") return true;
+  if (rule.kind === "FIRST_AVAILABLE") return rule.rules.some((item) => taskMatchesView(item, view));
   if (rule.kind === "ROLE" || rule.kind === "PANEL_ROLE_OF_PROTOCOL") {
     return VIEW_ROLES[view].includes(rule.role);
   }

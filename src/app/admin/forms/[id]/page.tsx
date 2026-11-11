@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { formatManila } from "@/lib/time";
+import { cancelScheduledFormAction } from "@/server/forms/actions";
 import { notFound, redirect } from "next/navigation";
 import { FormBuilder } from "@/components/forms/form-builder";
 import { FormStatusBadge } from "@/components/forms/form-status";
@@ -53,7 +55,18 @@ export default async function EditFormPage({
       <h1 className="title">{definition.title}</h1>
       <p>
         <FormStatusBadge status={definition.status} />
+        {definition.status === "PUBLISHED" && definition.effectiveFrom && definition.effectiveFrom.getTime() > Date.now()
+          ? ` · Scheduled for ${formatManila(definition.effectiveFrom, "d MMM yyyy")}`
+          : ""}
       </p>
+      {definition.status === "PUBLISHED" && definition.effectiveFrom && definition.effectiveFrom.getTime() > Date.now() ? (
+        <form action={cancelScheduledFormAction}>
+          <input type="hidden" name="id" value={definition.id} />
+          <button className="rec-btn rec-btn--secondary" type="submit">
+            <span>Cancel the schedule</span>
+          </button>
+        </form>
+      ) : null}
       {definition.status === "RETIRED" ? null : (
         <form action={saveTemplateAction} className="rec-stack" encType="multipart/form-data">
           <input type="hidden" name="id" value={definition.id} />

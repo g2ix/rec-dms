@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PanelImport } from "@/components/admin/panel-import";
 import { authorize } from "@/server/authz";
 import { requireUser } from "@/server/session";
 import { panelOverview } from "@/server/users/roles";
@@ -24,6 +25,7 @@ export default async function PanelsPage({ searchParams }: { searchParams: Promi
         <Link href="/admin/users">Users</Link>
       </p>
       {changed ? <p className="rec-banner">The Panel Chair was changed.</p> : null}
+      <PanelImport />
       {panels.length === 0 ? <p className="body">No panels are set up yet.</p> : null}
       {panels.map((panel) => (
         <section className="rec-card rec-stack" key={panel.id} aria-labelledby={`panel-${panel.id}`}>

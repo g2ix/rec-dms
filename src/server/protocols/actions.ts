@@ -180,6 +180,7 @@ export async function prepareUploadAction(input: unknown): Promise<
         kind: z.enum(["MANUSCRIPT", "COVER_LETTER", "FEE_RECEIPT", "SUPPORTING"]),
         originalName: z.string().min(1).max(180),
         mime: z.string().min(1).max(120),
+        billId: z.string().uuid().nullish(),
       })
       .parse(input);
     await authorize(user, "protocol.upload", { type: "protocol", id: parsed.protocolId });
@@ -199,6 +200,7 @@ export async function confirmUploadAction(input: unknown): Promise<{ ok: true } 
     await authorize(user, "protocol.upload", { type: "protocol", id: parsed.protocolId });
     await confirmUpload({ intentId: parsed.intentId, userId: user.id });
     revalidatePath(`/app/protocols/${parsed.protocolId}/uploads`);
+    revalidatePath(`/app/protocols/${parsed.protocolId}`);
     return { ok: true };
   } catch (error) {
     if (error instanceof AppError) return { ok: false, message: error.message };

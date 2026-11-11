@@ -7,7 +7,7 @@ import { generatedFileWhere } from "@/lib/docs/cache";
 import { fillDocx } from "@/lib/docs/fill-docx";
 import { defaultFileNameSetting, officialFormFileName, type FileNameSetting } from "@/lib/docs/names";
 import { placeholderMapSchema, type PlaceholderMap } from "@/lib/docs/tags";
-import { buildRenderModel, type SignatureRender } from "@/lib/docs/view";
+import { buildRenderModel, type RenderOptions, type SignatureRender } from "@/lib/docs/view";
 import { PREVIEW_BOUND_VALUES } from "@/lib/forms/bindings";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
 import { env } from "@/lib/env";
@@ -123,9 +123,11 @@ async function storeGenerated(input: {
   mime: string;
   bytes: Buffer;
   userId: string;
+  variant?: string | null;
+  audience?: string | null;
 }): Promise<string> {
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
-  const storageKey = `generated/${input.instanceId}/${input.kind}/${input.revision}/${sha256}`;
+  const storageKey = `generated/${input.instanceId}/${input.kind}/${input.revision}/${input.variant ? `${input.variant}/` : ""}${sha256}`;
   await putObject(storageKey, input.bytes, input.mime);
   const meta = await auditRequestMeta({ storageKey, formInstanceId: input.instanceId });
   const file = await prisma.$transaction(async (tx) => {
@@ -143,6 +145,8 @@ async function storeGenerated(input: {
         sha256,
         uploadedById: input.userId,
         scanStatus: "CLEAN",
+        variant: input.variant ?? null,
+        audience: input.audience ?? null,
       },
     });
     await audit.record(tx, {
@@ -151,7 +155,7 @@ async function storeGenerated(input: {
       entityType: "file",
       entityId: created.id,
       protocolId: input.protocolId,
-      diff: diffOf({}, { kind: input.kind, originalName: input.fileName, sha256, size: input.bytes.length }),
+      diff: diffOf({}, { kind: input.kind, originalName: input.fileName, sha256, size: input.bytes.length, variant: input.variant ?? null, audience: input.audience ?? null }),
       meta,
     });
     return created;
@@ -168,6 +172,7 @@ export async function cachedGeneratedPdf(instanceId: string): Promise<boolean> {
   const cached = await prisma.storedFile.findFirst({
     where: {
       formInstanceId: instance.id,
+      variant: null,
       ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind: "GENERATED_PDF" }),
     },
     select: { id: true },
@@ -179,6 +184,13 @@ export async function renderFormDocument(input: {
   instanceId: string;
   format: "docx" | "pdf";
   userId: string;
+  /** A named copy kept apart from the plain render, such as "release" for a redacted copy. */
+  variant?: string | null;
+  options?: RenderOptions;
+  /** PROPONENT or STAFF. STAFF copies are hidden from proponents and advisers. */
+  audience?: string | null;
+  /** Extra bound values, such as the signer of the step that released the document. */
+  extraBound?: Record<string, unknown>;
 }): Promise<RenderedDocument> {
   const instance = await prisma.formInstance.findUnique({
     where: { id: input.instanceId },
@@ -189,6 +201,7 @@ export async function renderFormDocument(input: {
   const cached = await prisma.storedFile.findFirst({
     where: {
       formInstanceId: instance.id,
+      variant: input.variant ?? null,
       ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind }),
     },
     orderBy: { createdAt: "asc" },
@@ -210,7 +223,7 @@ export async function renderFormDocument(input: {
   const schema: FormSchema | undefined = check.ok ? check.schema : undefined;
   const map = await loadMap(instance.formDefinition.code, instance.formDefinition.placeholderMap);
   const data = isRecord(instance.data) ? instance.data : {};
-  const bound = await boundValuesFor(protocol?.versionId ?? null);
+  const bound = { ...(await boundValuesFor(protocol?.versionId ?? null)), ...(input.extraBound ?? {}) };
   const signatures = await signatureRenders(instance.id);
   const model = buildRenderModel({
     map,
@@ -219,6 +232,7 @@ export async function renderFormDocument(input: {
     signatures,
     schema,
     timeZone: env.APP_TIMEZONE,
+    options: input.options,
   });
   const template = await templateBytes(instance.formDefinition.code, instance.formDefinition.templateFileId);
   const docx = fillDocx(template, model.data, model.images);
@@ -234,6 +248,8 @@ export async function renderFormDocument(input: {
     mime,
     bytes,
     userId: input.userId,
+    variant: input.variant ?? null,
+    audience: input.audience ?? null,
   });
   return { fileId, bytes, fileName, mime, protocolId: protocol?.protocolId ?? null };
 }
@@ -269,4 +285,20 @@ export async function recordDocumentDownload(input: {
       meta,
     });
   });
+}
+
+/**
+ * What a proponent or adviser may download for a form on a released protocol. A form generated
+ * with a release audience is controlled: they get the PROPONENT copy, and a STAFF-only form is
+ * refused. A form never released that way keeps the earlier rules (null).
+ */
+export async function proponentCopyOf(instanceId: string, format: "docx" | "pdf") {
+  const controlled = await prisma.storedFile.findMany({
+    where: { formInstanceId: instanceId, audience: { not: null } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (controlled.length === 0) return null;
+  const kind = format === "pdf" ? "GENERATED_PDF" : "GENERATED_DOCX";
+  const copy = controlled.find((file) => file.audience === "PROPONENT" && file.kind === kind) ?? null;
+  return { allowed: Boolean(copy), file: copy };
 }

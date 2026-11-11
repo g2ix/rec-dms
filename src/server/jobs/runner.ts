@@ -7,6 +7,7 @@ import { transactionalMail, type TransactionalMail } from "@/server/mail";
 import { deliverEmailJob, deliverNotifyJob, recordNotice } from "@/server/notifications/deliver";
 import { claimReminder } from "@/server/notifications/reminders";
 import { generateDecisionDocuments } from "@/server/docs/generate";
+import { generateStatement } from "@/server/fees/statement";
 import { renderFormDocument } from "@/server/docs/render";
 import { processFileScan } from "@/server/scan/job";
 import { nextAuditAt, nextDigestAt } from "@/server/jobs/schedule";
@@ -59,14 +60,14 @@ export async function processDueJobs(options?: {
         FROM jobs
         WHERE done_at IS NULL
           AND run_at <= ${now}
-          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY', 'GENERATE_DOCUMENTS', 'SCAN_FILE', 'CONVERT_PDF')
+          AND kind IN ('NOTIFY', 'SEND_EMAIL', 'DIGEST', 'AUDIT_VERIFY', 'GENERATE_DOCUMENTS', 'GENERATE_STATEMENT', 'SCAN_FILE', 'CONVERT_PDF')
         ORDER BY run_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       `;
       const job = rows[0];
       if (!job) return "empty" as const;
-      if (job.kind === "GENERATE_DOCUMENTS" || job.kind === "SCAN_FILE" || job.kind === "CONVERT_PDF") {
+      if (job.kind === "GENERATE_DOCUMENTS" || job.kind === "GENERATE_STATEMENT" || job.kind === "SCAN_FILE" || job.kind === "CONVERT_PDF") {
         const attempts = job.attempts + 1;
         await tx.job.update({
           where: { id: job.id },
@@ -136,6 +137,11 @@ async function runExternal(kind: string, payload: unknown): Promise<boolean> {
     return true;
   }
   const record = asRecord(payload);
+  if (kind === "GENERATE_STATEMENT") {
+    const billId = stringOf(record.billId);
+    if (billId) await generateStatement(billId);
+    return true;
+  }
   if (kind === "CONVERT_PDF") {
     const instanceId = stringOf(record.instanceId);
     const userId = stringOf(record.userId);

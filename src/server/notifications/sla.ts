@@ -8,7 +8,8 @@ import { prisma, useAppSchema } from "@/server/db";
 import { toJson } from "@/server/forms/json";
 import { recordNotice } from "@/server/notifications/deliver";
 import { claimEscalation, claimReminder } from "@/server/notifications/reminders";
-import { lapseOverdueWaits } from "@/server/workflow/engine";
+import { applyEffectiveDates } from "@/server/effective";
+import { lapseOverdueWaits, timeoutOverdueTasks } from "@/server/workflow/engine";
 import { readAssignments, resolveSlots } from "@/server/workflow/who";
 
 type Tx = Prisma.TransactionClient;
@@ -21,9 +22,12 @@ export type SlaScan = {
   escalated: number;
   revisionReminders: number;
   lapsed: number;
+  timedOut?: number;
 };
 
 export async function scanSla(now = new Date()): Promise<SlaScan> {
+  await applyEffectiveDates(now);
+  const timedOut = await timeoutOverdueTasks(now);
   const holidays = await holidaySet();
   const tasks = await prisma.task.findMany({
     where: {
@@ -75,7 +79,7 @@ export async function scanSla(now = new Date()): Promise<SlaScan> {
     totals.lapsed += counts.lapsed;
   }
   await lapseOverdueWaits(now);
-  return totals;
+  return timedOut > 0 ? { ...totals, timedOut } : totals;
 }
 
 async function scanTask(

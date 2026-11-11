@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { authorize } from "@/server/authz";
 import { prisma } from "@/server/db";
-import { cachedGeneratedPdf, recordDocumentDownload, renderFormDocument } from "@/server/docs/render";
+import { isCommitteeStaff } from "@/server/authz/staff";
+import { cachedGeneratedPdf, proponentCopyOf, recordDocumentDownload, renderFormDocument } from "@/server/docs/render";
+import { getObjectBytes } from "@/server/storage";
 import { errorResponse, fileResponse } from "@/server/docs/response";
 import { AppError } from "@/server/errors";
 import { enqueuePdfConversion } from "@/server/scan/job";
@@ -31,6 +33,16 @@ export async function GET(request: Request, context: { params: Promise<{ instanc
     const format = url.searchParams.get("format") === "pdf" ? "pdf" : "docx";
     const inline = url.searchParams.get("disposition") === "inline";
     const probe = url.searchParams.get("probe") === "1";
+    if (instance.ownerType === "PROTOCOL_VERSION" && !(await isCommitteeStaff(user.id))) {
+      const released = await proponentCopyOf(instanceId, format);
+      if (released && !released.allowed) throw new AppError("NOT_FOUND", "That form was not sent to you.", 404);
+      if (released?.file) {
+        if (probe) return NextResponse.json({ state: "ready" });
+        const object = await getObjectBytes(released.file.storageKey);
+        await recordDocumentDownload({ fileId: released.file.id, userId: user.id, protocolId: null, fileName: released.file.originalName });
+        return fileResponse(Buffer.from(object.body), released.file.suggestedName || released.file.originalName, released.file.mime, inline && format === "pdf");
+      }
+    }
     if (format === "pdf" && env.pdfConverter === "gotenberg" && !(await cachedGeneratedPdf(instanceId))) {
       await enqueuePdfConversion(instanceId, user.id);
       return NextResponse.json({ state: "pending" }, { status: 202 });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatManila } from "@/lib/time";
 import { redirect } from "next/navigation";
 import { FormStatusBadge } from "@/components/forms/form-status";
 import { createSampleAction } from "@/server/forms/actions";
@@ -57,6 +58,9 @@ export default async function FormsPage() {
                   <td>{dateToDay(definition.effectiveDate)}</td>
                   <td>
                     <FormStatusBadge status={definition.status} />
+                    {definition.status === "PUBLISHED" && definition.effectiveFrom && definition.effectiveFrom.getTime() > Date.now()
+                      ? ` Scheduled for ${formatManila(definition.effectiveFrom, "d MMM yyyy")}`
+                      : ""}
                   </td>
                   <td>
                     <Link href={`/admin/forms/${definition.id}`}>Edit</Link>

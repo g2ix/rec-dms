@@ -1,11 +1,12 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { formatFormalName } from "@/lib/display-name";
 import { formatManila } from "@/lib/time";
 import { audit, diffOf } from "@/server/audit";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
+import { reopenChanges } from "@/server/protocols/reopen";
 
 type MemberRow = {
   role: string;
@@ -109,6 +110,7 @@ export async function freezeWorkingVersion(
   });
   const submittedAt = new Date();
   const snapshot = sharedSnapshot(protocol, version.label, submittedAt);
+  const corrections = version.reopenBaseline ? await reopenChanges(tx, version.id, version.reopenBaseline) : null;
   await tx.protocolVersion.update({
     where: { id: version.id },
     data: {
@@ -116,6 +118,7 @@ export async function freezeWorkingVersion(
       submittedAt,
       submittedById: input.userId,
       snapshot: toJson(snapshot),
+      ...(corrections ? { reopenBaseline: Prisma.DbNull, reopenForms: [] } : {}),
     },
   });
   await tx.formInstance.updateMany({
@@ -135,7 +138,12 @@ export async function freezeWorkingVersion(
     protocolId: input.protocolId,
     diff: diffOf(
       { state: "WORKING", status: protocol.status },
-      { state: "SUBMITTED", status: input.status ?? "SUBMITTED", label: version.label },
+      {
+        state: "SUBMITTED",
+        status: input.status ?? "SUBMITTED",
+        label: version.label,
+        ...(corrections ? { corrected: true, changes: toJson(corrections) } : {}),
+      },
     ),
     meta: input.meta,
   });
