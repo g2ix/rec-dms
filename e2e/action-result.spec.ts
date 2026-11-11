@@ -100,6 +100,8 @@ async function protocolAtStep(input: { stepKey: "submit" | "assess"; assigneeId:
         leaderUserId: leaderId,
         createdById: leaderId,
         institution: "University of San Carlos",
+        researchType: "Social / Behavioral Research",
+        researchTypeCodes: ["SOCIAL_BEHAVIORAL"],
         status: input.stepKey === "submit" ? "Draft" : "Under Review",
         members: {
           create: [
@@ -153,7 +155,7 @@ test("a proponent submits, sees the confirmation, and lands on the protocol page
   const protocolId = await protocolAtStep({ stepKey: "submit", assigneeId: leaderId });
   await signIn(page, proponentEmail);
   await page.goto(`/app/protocols/${protocolId}`);
-  await page.getByRole("button", { name: "Complete Submit the test protocol" }).click();
+  await page.getByRole("button", { name: "Submit for screening" }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 30_000 });
@@ -164,7 +166,7 @@ test("a proponent submits, sees the confirmation, and lands on the protocol page
   await dialog.getByRole("button", { name: "OK" }).click();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
   await expect(page).toHaveURL(new RegExp(`/app/protocols/${protocolId}$`));
-  await expect(page.getByRole("button", { name: "Complete Submit the test protocol" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Submit for screening" })).toHaveCount(0);
 });
 
 test("a reviewer completes a review, sees the confirmation, and lands on My reviews", async ({ page }) => {

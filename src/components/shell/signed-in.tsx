@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { Clock } from "lucide-react";
+import { Icon } from "@/components/icons";
 import { AppShell } from "@/components/shell/app-shell";
 import { EMPTY_NAV_CAPABILITIES, type NavCapabilities } from "@/components/shell/nav";
 import { signOut } from "@/server/auth";
@@ -68,8 +70,12 @@ export async function SignedInChrome({
       counts={waiting > 0 ? { "/app/tasks": { value: waiting, waiting: true } } : undefined}
     >
       {user.status === "PENDING_APPROVAL" ? (
-        <p className="rec-banner" role="status">
-          Your account is waiting for REC Staff approval.
+        <p className="rec-banner rec-banner--pending" role="status">
+          <Icon icon={Clock} size={18} />
+          <span>
+            <strong>Your account is waiting for REC Staff approval.</strong> You can prepare everything now. You can submit once your account is
+            approved.
+          </span>
         </p>
       ) : null}
       {children}

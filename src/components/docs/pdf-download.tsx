@@ -39,51 +39,13 @@ export function PdfDownload({
 }
 
 function PdfFileDownload({ href, label, ready }: { href: string; label: string; ready: string }) {
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function run() {
-    setPending(true);
-    setMessage(null);
-    const probeUrl = `${href}${href.includes("?") ? "&" : "?"}probe=1`;
-    try {
-      for (let attempt = 0; attempt < 40; attempt += 1) {
-        const probe = await fetch(probeUrl);
-        if (probe.status === 202) {
-          await wait(3_000);
-          continue;
-        }
-        if (!probe.ok) {
-          setMessage("The PDF could not be prepared.");
-          return;
-        }
-        const file = await fetch(href);
-        if (!file.ok) {
-          setMessage("The PDF could not be downloaded.");
-          return;
-        }
-        const blob = await file.blob();
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = fileName(file) ?? "document.pdf";
-        anchor.click();
-        URL.revokeObjectURL(url);
-        toast(ready);
-        return;
-      }
-      setMessage("The PDF is still being prepared. Try again in a minute.");
-    } finally {
-      setPending(false);
-    }
-  }
-
+  const { pending, message, run } = useFileDownload();
   return (
     <div className="rec-stack">
       <button
         type="button"
         className="rec-btn rec-btn--secondary"
-        onClick={() => void run()}
+        onClick={() => void run(href, ready)}
         disabled={pending}
         aria-busy={pending}
       >
@@ -97,6 +59,50 @@ function PdfFileDownload({ href, label, ready }: { href: string; label: string; 
       ) : null}
     </div>
   );
+}
+
+/** Waits for a generated PDF or ZIP, then saves it. Shared by the single buttons and the Download menu. */
+export function useFileDownload() {
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function run(href: string, ready: string) {
+    setPending(true);
+    setMessage(null);
+    const probeUrl = `${href}${href.includes("?") ? "&" : "?"}probe=1`;
+    try {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const probe = await fetch(probeUrl);
+        if (probe.status === 202) {
+          await wait(3_000);
+          continue;
+        }
+        if (!probe.ok) {
+          setMessage("The file could not be prepared.");
+          return;
+        }
+        const file = await fetch(href);
+        if (!file.ok) {
+          setMessage("The file could not be downloaded.");
+          return;
+        }
+        const blob = await file.blob();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName(file) ?? "document.pdf";
+        anchor.click();
+        URL.revokeObjectURL(url);
+        toast(ready);
+        return;
+      }
+      setMessage("The file is still being prepared. Try again in a minute.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return { pending, message, run };
 }
 
 function fileName(response: Response): string | null {

@@ -39,6 +39,7 @@ export async function protocolHeader(userId: string, protocolId: string) {
     include: {
       discipline: true,
       panel: true,
+      leader: { select: { displayName: true } },
       versions: { orderBy: { number: "desc" } },
       members: { where: { userId }, orderBy: { updatedAt: "desc" } },
     },

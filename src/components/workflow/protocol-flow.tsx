@@ -2,7 +2,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ActionForm } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { TaskCommentList } from "@/components/workflow/task-comments";
-import { auditActionLabel } from "@/lib/audit-log";
 import { dueState } from "@/lib/workflow/due";
 import { formatManila } from "@/lib/time";
 import { isCommitteeStaff } from "@/server/authz/staff";
@@ -38,9 +37,11 @@ export async function ProtocolFlow({
   return (
     <section className="rec-stack">
       <h2 className="heading">Review</h2>
-      <p className="body-sm rec-muted">
-        {flow.instance.version.definition.name} · version <span className="code">{flow.instance.version.number}</span> · {flow.instance.status}
-      </p>
+      {staff ? (
+        <p className="body-sm rec-muted">
+          {flow.instance.version.definition.name} · version <span className="code">{flow.instance.version.number}</span> · {flow.instance.status}
+        </p>
+      ) : null}
       {flow.current.length === 0 ? (
         <p className="body">This pass has no open step.</p>
       ) : (
@@ -84,21 +85,6 @@ export async function ProtocolFlow({
           ))
         : null}
       <TaskCommentList comments={comments} level="h3" />
-      <h3 className="subheading">History</h3>
-      {flow.history.length === 0 ? (
-        <p className="body-sm rec-muted">No workflow events yet.</p>
-      ) : (
-        <ol className="rec-methods">
-          {flow.history.map((event) => (
-            <li key={event.id}>
-              <p className="body-sm">
-                {auditActionLabel(event.action)}
-                {event.actorName ? ` · ${event.actorName}` : ""} · {formatManila(event.occurredAt, "d MMM yyyy, h:mm a")}
-              </p>
-            </li>
-          ))}
-        </ol>
-      )}
     </section>
   );
 }

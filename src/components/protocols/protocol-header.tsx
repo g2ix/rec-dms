@@ -1,4 +1,5 @@
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { formatManila } from "@/lib/time";
 
 const STATUS: Record<string, { tone: StatusTone; label: string }> = {
   DRAFT: { tone: "draft", label: "Draft" },
@@ -22,22 +23,42 @@ export function ProtocolHeader({
   code,
   title,
   version,
+  versionNumber = null,
   status,
+  leaderName = null,
+  createdAt = null,
+  actions = null,
 }: {
   code: string | null;
   title: string;
   version: string | null;
+  versionNumber?: number | null;
   status: string;
+  leaderName?: string | null;
+  createdAt?: Date | null;
+  actions?: React.ReactNode;
 }) {
   const mapped = STATUS[status] ?? { tone: "draft" as const, label: status };
+  const kind = versionNumber == null ? null : versionNumber <= 1 ? "Initial submission" : `Resubmission ${versionNumber - 1}`;
+  const facts = [
+    kind,
+    leaderName ? `Project leader: ${leaderName}` : null,
+    createdAt ? `Created ${formatManila(createdAt, "d MMM yyyy")}` : null,
+  ].filter((item): item is string => Boolean(item));
   return (
-    <header className="rec-stack">
-      <div className="rec-inline">
-        <p className="code">{code ?? "Code not assigned"}</p>
-        {version ? <p className="code">{version}</p> : null}
-        <StatusBadge tone={mapped.tone} label={mapped.label} />
+    <header className="rec-proto-head">
+      <div className="rec-proto-head__main">
+        <div className="rec-inline">
+          <StatusBadge tone={mapped.tone} label={mapped.label} />
+          <p className="code">
+            {code ?? "No code yet"}
+            {version ? <span className="rec-muted"> · {version}</span> : null}
+          </p>
+        </div>
+        <h1 className="title">{title}</h1>
+        {facts.length > 0 ? <p className="label rec-muted rec-proto-head__facts">{facts.join(" · ")}</p> : null}
       </div>
-      <h1 className="title">{title}</h1>
+      {actions ? <div className="rec-proto-head__actions">{actions}</div> : null}
     </header>
   );
 }
