@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 import { Icon } from "@/components/icons";
+import { useChecklistCounts } from "@/components/protocols/submission-checklist";
 import type { ChecklistTab } from "@/lib/protocols/checklist";
 
 export const PROTOCOL_TABS: { href: string; label: string; checklist?: ChecklistTab }[] = [
@@ -17,9 +18,10 @@ export const PROTOCOL_TABS: { href: string; label: string; checklist?: Checklist
   { href: "/logbook", label: "Logbook" },
 ];
 
-/** `counts` holds the missing required items per tab, from getSubmissionChecklist. Tabs it leaves out show no mark. */
-export function ProtocolNav({ protocolId, counts = {} }: { protocolId: string; counts?: Partial<Record<ChecklistTab, number>> }) {
+/** Missing required items per tab come from the shared checklist. Tabs it leaves out show no mark. */
+export function ProtocolNav({ protocolId }: { protocolId: string }) {
   const pathname = usePathname();
+  const counts: Partial<Record<ChecklistTab, number>> = useChecklistCounts() ?? {};
   const base = `/app/protocols/${protocolId}`;
   return (
     <nav className="rec-proto-nav" aria-label="Protocol">

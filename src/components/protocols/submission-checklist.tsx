@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Icon } from "@/components/icons";
-import { firstMissing, groupLeft, type SubmissionChecklist } from "@/lib/protocols/checklist";
+import { firstMissing, groupLeft, tabCounts, type ChecklistTab, type SubmissionChecklist } from "@/lib/protocols/checklist";
 
 export const CHECKLIST_ID = "submission-checklist";
 const REVEAL = "rec:checklist-reveal";
@@ -14,7 +15,64 @@ export function revealChecklist() {
   window.dispatchEvent(new CustomEvent(REVEAL));
 }
 
-export function SubmissionChecklistPanel({ checklist }: { checklist: SubmissionChecklist }) {
+const ChecklistContext = createContext<SubmissionChecklist | null>(null);
+
+/**
+ * Holds the checklist for every protocol tab. Moving between tabs does not re-render the layout,
+ * and form autosaves do not refresh the page, so it reloads on each tab change and on window focus.
+ */
+export function ChecklistProvider({
+  protocolId,
+  initial,
+  children,
+}: {
+  protocolId: string;
+  initial: SubmissionChecklist;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const [checklist, setChecklist] = useState(initial);
+  const first = useRef(true);
+
+  useEffect(() => setChecklist(initial), [initial]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const response = await fetch(`/api/protocols/${protocolId}/checklist`, { cache: "no-store" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { checklist: SubmissionChecklist | null };
+        if (!cancelled && body.checklist) setChecklist(body.checklist);
+      } catch {
+        // Keep the last checklist; the next tab change or focus tries again.
+      }
+    }
+    if (first.current) first.current = false;
+    else void load();
+    window.addEventListener("focus", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", load);
+    };
+  }, [protocolId, pathname]);
+
+  return <ChecklistContext.Provider value={checklist}>{children}</ChecklistContext.Provider>;
+}
+
+/** Missing items per tab from the shared checklist, or null outside a ChecklistProvider. */
+export function useChecklistCounts(): Partial<Record<ChecklistTab, number>> | null {
+  const checklist = useContext(ChecklistContext);
+  return checklist ? tabCounts(checklist) : null;
+}
+
+export function SubmissionChecklistPanel() {
+  const checklist = useContext(ChecklistContext);
+  if (!checklist) return null;
+  return <ChecklistBody checklist={checklist} />;
+}
+
+function ChecklistBody({ checklist }: { checklist: SubmissionChecklist }) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
   const percent = checklist.total === 0 ? 100 : Math.round((checklist.done / checklist.total) * 100);

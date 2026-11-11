@@ -1,6 +1,5 @@
 import { FeesSection } from "@/components/protocols/fees-section";
 import { RecentActivity, StageTrack, TeamCard, stageOf } from "@/components/protocols/overview-cards";
-import { SubmissionChecklistPanel } from "@/components/protocols/submission-checklist";
 import { SubmitStepForm } from "@/components/protocols/submit-step-card";
 import { WorkflowMigration } from "@/components/workflow/workflow-migration";
 import { ProtocolFlow } from "@/components/workflow/protocol-flow";
@@ -65,7 +64,7 @@ export default async function ProtocolOverviewPage({
   const stepCard = proponentView && checklist && !flow?.extension && (task || !flow?.mine.length) ? checklist : null;
 
   const main = (
-    <div className="rec-stack rec-overview__main">
+    <div className="rec-stack">
       {error ? (
         <p className="rec-alert" role="alert">
           {error}
@@ -103,17 +102,7 @@ export default async function ProtocolOverviewPage({
     </div>
   );
 
-  if (!stepCard) return main;
-  return (
-    <div className="rec-proto">
-      <div className="rec-overview">
-        {main}
-        <div className="rec-overview__side">
-          <SubmissionChecklistPanel checklist={stepCard} />
-        </div>
-      </div>
-    </div>
-  );
+  return main;
 }
 
 function StepCard({
