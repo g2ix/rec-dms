@@ -107,6 +107,44 @@ export async function linkProviderAccount(input: {
   return { linked: true };
 }
 
+/**
+ * A seeded admin or an invited person has a verified email but no way to sign in yet.
+ * The first verified OAuth sign-in with that email claims the account. Users who already
+ * have a password or a linked provider must link explicitly from Sign-in methods.
+ */
+export async function claimUnlinkedProviderAccount(input: {
+  provider: string;
+  providerAccountId: string;
+  email: string | null | undefined;
+  emailVerified: boolean;
+  type?: string;
+}): Promise<string | null> {
+  if (!input.email || !input.emailVerified) return null;
+  const already = await prisma.account.findUnique({
+    where: {
+      provider_providerAccountId: { provider: input.provider, providerAccountId: input.providerAccountId },
+    },
+  });
+  if (already) return null;
+  const row = await prisma.userEmail.findFirst({
+    where: {
+      email: normalizeEmail(input.email),
+      verifiedAt: { not: null },
+      user: { status: { notIn: ["MERGED", "SUSPENDED"] }, mergedIntoId: null },
+    },
+    include: { user: { select: { id: true, passwordHash: true, _count: { select: { accounts: true } } } } },
+  });
+  if (!row || row.user.passwordHash || row.user._count.accounts > 0) return null;
+  await linkProviderAccount({
+    userId: row.user.id,
+    provider: input.provider,
+    providerAccountId: input.providerAccountId,
+    email: input.email,
+    type: input.type,
+  });
+  return row.user.id;
+}
+
 export async function listSignInMethods(userId: string) {
   const [user, accounts, emails] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: userId } }),

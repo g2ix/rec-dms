@@ -8,7 +8,7 @@ import { signTotpCookie } from "@/lib/totp-cookie";
 import { env } from "@/lib/env";
 import { audit, diffOf } from "@/server/audit";
 import { rateLimiter } from "@/server/auth/rate-limit";
-import { newTotpSecret, openSecret, sealSecret, totpCodeMatches, totpUri } from "@/server/auth/totp";
+import { newTotpSecret, openSecret, sealSecret, totpCodeMatches, totpQrSvg, totpUri } from "@/server/auth/totp";
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/session";
 
@@ -86,12 +86,15 @@ export async function challengeTotpAction(formData: FormData): Promise<void> {
   redirect("/app");
 }
 
-export async function totpSetup(): Promise<{ enrolled: boolean; uri: string | null; secret: string | null }> {
+type TotpSetup = { enrolled: boolean; uri: string | null; secret: string | null; qrSvg: string | null };
+
+export async function totpSetup(): Promise<TotpSetup> {
   const user = await requireUser({ totp: false });
-  if (user.totpEnabledAt) return { enrolled: true, uri: null, secret: null };
+  if (user.totpEnabledAt) return { enrolled: true, uri: null, secret: null, qrSvg: null };
   const jar = await cookies();
   const pending = jar.get(PENDING)?.value;
   const secret = pending ? openSecret(pending) : null;
-  if (!secret) return { enrolled: false, uri: null, secret: null };
-  return { enrolled: false, uri: totpUri(user.email ?? "", secret), secret };
+  if (!secret) return { enrolled: false, uri: null, secret: null, qrSvg: null };
+  const uri = totpUri(user.email ?? "", secret);
+  return { enrolled: false, uri, secret, qrSvg: await totpQrSvg(uri) };
 }

@@ -1,12 +1,14 @@
 "use client";
 
-export function Checkbox({
-  label,
-  ...props
-}: { label: React.ReactNode } & Omit<React.ComponentProps<"input">, "type">) {
+import { forwardRef } from "react";
+
+export const Checkbox = forwardRef<
+  HTMLInputElement,
+  { label: React.ReactNode } & Omit<React.ComponentProps<"input">, "type">
+>(function Checkbox({ label, ...props }, ref) {
   return (
     <label className="rec-check">
-      <input type="checkbox" {...props} />
+      <input ref={ref} type="checkbox" {...props} />
       <span className="rec-check__box" aria-hidden="true">
         <svg viewBox="0 0 12 12">
           <polyline points="2,6 5,9 10,3" />
@@ -15,4 +17,4 @@ export function Checkbox({
       <span>{label}</span>
     </label>
   );
-}
+});

@@ -7,7 +7,10 @@ import { Field, type SaveState } from "@/components/ui/field";
 import { Radio } from "@/components/ui/radio";
 import { Textarea } from "@/components/ui/textarea";
 import { formatBoundValue } from "@/lib/forms/bindings";
-import { canChangeRepeatingRows, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { asCellRecord, rowHasFilled } from "@/lib/forms/cells";
+import { valueDiffersFromDefault } from "@/lib/forms/defaults";
+import { canChangeRepeatingRows, columnVisibleToRoles, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
 import { centavosFromPesos, formatCentavos, pesosInput } from "@/lib/forms/money";
 import { isRowVisible, isSectionVisible } from "@/lib/forms/logic";
 import { getPath, setPath } from "@/lib/forms/paths";
@@ -84,6 +87,7 @@ export function FormRenderer({
               data={data}
               editing={editing}
               editable={editable}
+              roles={roles}
               onChange={onChange}
               fieldState={fieldState}
               boundValues={boundValues}
@@ -105,6 +109,7 @@ function FieldBlock(props: {
   data: Record<string, unknown>;
   editing: boolean;
   editable: Set<string>;
+  roles: RoleKey[];
   onChange?: (path: string, value: unknown) => void;
   fieldState?: Record<string, FieldUi>;
   boundValues: Record<string, unknown>;
@@ -283,6 +288,7 @@ function Control({
   value,
   readOnly,
   options,
+  controlLabel,
   onChange,
 }: {
   id: string;
@@ -291,6 +297,7 @@ function Control({
   value: unknown;
   readOnly: boolean;
   options?: { value: string; label: string }[];
+  controlLabel?: string;
   onChange: (value: unknown) => void;
 }) {
   if (type === "textarea" || type === "richtext") {
@@ -406,7 +413,48 @@ function Control({
       </div>
     );
   }
+  if (type === "checkbox") {
+    return (
+      <FlagCheckbox
+        id={id}
+        label={controlLabel ?? "Needs action"}
+        value={value}
+        readOnly={readOnly}
+        onChange={onChange}
+      />
+    );
+  }
   return null;
+}
+
+function FlagCheckbox({
+  id,
+  label,
+  value,
+  readOnly,
+  onChange,
+}: {
+  id: string;
+  label?: string;
+  value: unknown;
+  readOnly: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const chosen = typeof value === "boolean";
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = !chosen;
+  }, [chosen]);
+  return (
+    <Checkbox
+      id={id}
+      ref={inputRef}
+      label={label ?? "Flag"}
+      checked={value === true}
+      disabled={readOnly}
+      onChange={(event) => onChange(event.target.checked)}
+    />
+  );
 }
 
 function NumberControl({
@@ -689,6 +737,7 @@ function AssessmentTable({
   data,
   editing,
   editable,
+  roles,
   onChange,
   fieldState,
   onUseTheirs,
@@ -698,6 +747,7 @@ function AssessmentTable({
   data: Record<string, unknown>;
   editing: boolean;
   editable: Set<string>;
+  roles: RoleKey[];
   onChange?: (path: string, value: unknown) => void;
   fieldState?: Record<string, FieldUi>;
   onUseTheirs?: (path: string) => void;
@@ -706,18 +756,44 @@ function AssessmentTable({
   const table = data[field.id];
   const record = table && typeof table === "object" && !Array.isArray(table) ? (table as Record<string, unknown>) : {};
   const labelId = useId();
+  const columns = (field.columns ?? []).filter((column) => columnVisibleToRoles(column, roles));
+  const flagColumn = (field.columns ?? []).find((column) => column.type === "checkbox" && column.id === "needs_action");
+  const visibleRows = (field.rows ?? []).filter((row) => isRowVisible(row, data) && shownAssessmentRow(field, record[row.id]));
+  const pendingChoices = editing
+    ? visibleRows.filter((row) => {
+        if (!flagColumn?.requireExplicitIf) return false;
+        const path = `${field.id}.${row.id}.${flagColumn.id}`;
+        if (!editable.has(path)) return false;
+        const cells = asCellRecord(record[row.id]);
+        const trigger = (field.columns ?? []).find((column) => column.id === flagColumn.requireExplicitIf?.column);
+        if (!trigger) return false;
+        return valueDiffersFromDefault(cells[trigger.id], trigger.defaultValue) && typeof cells[flagColumn.id] !== "boolean";
+      })
+    : [];
+  const hiddenAddable = (field.rows ?? []).filter((row) => {
+    if (!isRowVisible(row, data) || shownAssessmentRow(field, record[row.id])) return false;
+    if (!flagColumn) return false;
+    return editing && editable.has(`${field.id}.${row.id}.${flagColumn.id}`);
+  });
+  const [addRowId, setAddRowId] = useState("");
+
   return (
     <div className="rec-field rec-field--wide">
       <p className="rec-field__label" id={labelId}>
         {field.label}
       </p>
       {field.help ? <p className="rec-field__help">{field.help}</p> : null}
+      {pendingChoices.length > 0 ? (
+        <p className="body-sm rec-field__error" role="status">
+          Choose “Needs action” for: {pendingChoices.map((row) => row.code).join(", ")}.
+        </p>
+      ) : null}
       <div className="rec-table-wrap">
         <table className="rec-table rec-assess" aria-labelledby={labelId}>
           <thead>
             <tr>
               <th scope="col">Point</th>
-              {(field.columns ?? []).map((column) => (
+              {columns.map((column) => (
                 <th key={column.id} scope="col">
                   {column.label}
                 </th>
@@ -725,30 +801,36 @@ function AssessmentTable({
             </tr>
           </thead>
           <tbody>
-            {(field.rows ?? [])
-              .filter((row) => isRowVisible(row, data) && shownAssessmentRow(field, record[row.id]))
-              .map((row) => {
-              const rowValue = record[row.id];
-              const cells = rowValue && typeof rowValue === "object" && !Array.isArray(rowValue) ? (rowValue as Record<string, unknown>) : {};
+            {visibleRows.map((row) => {
+              const cells = asCellRecord(record[row.id]);
+              const flagged = cells.needs_action === true;
               return (
-                <tr key={row.id}>
+                <tr key={row.id} className={flagged ? "rec-assess__row--needs-action" : undefined}>
                   <th scope="row">
                     <span className="code">{row.code}</span> {row.label}
+                    {flagged ? (
+                      <span className="rec-assess__flag">
+                        <StatusBadge tone="warning" label="Needs action" />
+                      </span>
+                    ) : null}
                     {row.help ? <span className="rec-field__help">{row.help}</span> : null}
                   </th>
-                  {(field.columns ?? []).map((column) => {
+                  {columns.map((column) => {
                     const path = `${field.id}.${row.id}.${column.id}`;
                     const open = editing && editable.has(path);
                     const ui = notice(fieldState, path);
+                    const displayValue =
+                      cells[column.id] == null && typeof column.defaultValue === "string" ? column.defaultValue : cells[column.id];
                     return (
                       <td key={column.id} className={open ? undefined : "rec-cell--locked"} data-label={column.label}>
                         <span className="rec-assess__label label">{column.label}</span>
                         <Control
                           id={path}
                           type={column.type}
-                          value={cells[column.id]}
+                          value={displayValue}
                           readOnly={!open}
                           options={column.options}
+                          controlLabel={column.label}
                           onChange={(value) => onChange?.(path, value)}
                         />
                         {ui?.error ? <p className="rec-field__error">{ui.error}</p> : null}
@@ -766,10 +848,42 @@ function AssessmentTable({
             })}
           </tbody>
         </table>
-        {field.showRowsWhenFilled &&
-        field.showRowsWhenFilled.length > 0 &&
-        (field.rows ?? []).every((row) => !isRowVisible(row, data) || !shownAssessmentRow(field, record[row.id])) ? (
-          <p className="body-sm rec-muted">No reviewer comments or suggestions were recorded for these points.</p>
+        {field.showRowsWhenFilled && field.showRowsWhenFilled.length > 0 && visibleRows.length === 0 ? (
+          <p className="body-sm rec-muted">No points were flagged as needing action.</p>
+        ) : null}
+        {hiddenAddable.length > 0 && flagColumn ? (
+          <div className="rec-assess__add">
+            <label className="label" htmlFor={`${field.id}-add-point`}>
+              Add a point
+            </label>
+            <div className="rec-actions">
+              <select
+                id={`${field.id}-add-point`}
+                className="rec-select"
+                value={addRowId}
+                onChange={(event) => setAddRowId(event.target.value)}
+              >
+                <option value="">Choose a point</option>
+                {hiddenAddable.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.code} {row.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!addRowId}
+                onClick={() => {
+                  if (!addRowId) return;
+                  onChange?.(`${field.id}.${addRowId}.${flagColumn.id}`, true);
+                  setAddRowId("");
+                }}
+              >
+                Add point
+              </Button>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>
@@ -779,8 +893,7 @@ function AssessmentTable({
 function shownAssessmentRow(field: FormField, cells: unknown): boolean {
   const keys = field.showRowsWhenFilled;
   if (!keys || keys.length === 0) return true;
-  const row = cells && typeof cells === "object" && !Array.isArray(cells) ? (cells as Record<string, unknown>) : {};
-  return keys.some((key) => typeof row[key] === "string" && row[key].trim() !== "");
+  return rowHasFilled(asCellRecord(cells), keys);
 }
 
 export function patchData(data: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {

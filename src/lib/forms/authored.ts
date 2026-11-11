@@ -21,7 +21,11 @@ export function authoredRowMap(schema: FormSchema, sources: AuthoredSource[]): R
         const table = record(record(source.data)[spec.field]);
         for (const row of field.rows ?? []) {
           const cells = record(table[row.id]);
-          const commented = spec.columns.some((id) => typeof cells[id] === "string" && cells[id].trim() !== "");
+          const commented = spec.columns.some((id) => {
+            const value = cells[id];
+            if (typeof value === "boolean") return value === true;
+            return typeof value === "string" && value.trim() !== "";
+          });
           if (commented) ids.add(row.id);
         }
       }

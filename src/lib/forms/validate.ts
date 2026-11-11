@@ -1,3 +1,5 @@
+import { asCellRecord, rowHasFilled } from "@/lib/forms/cells";
+import { valueDiffersFromDefault } from "@/lib/forms/defaults";
 import { isRowRequired, isRowVisible, isSectionVisible, logicIsTrue } from "@/lib/forms/logic";
 import type { ColumnType, FormColumn, FormField, FormRow, FormSchema } from "@/lib/forms/schema";
 
@@ -139,11 +141,27 @@ function checkAssessment(
       if (
         required &&
         column.type !== "computed" &&
+        column.type !== "checkbox" &&
         cellOpen(column.fillers, column.editableInSteps ?? field.editableInSteps, context) &&
         rowAllowed(field, column, row.id, context) &&
         isEmpty(column.type, cell)
       ) {
         issues.push({ path: `${path}.${row.id}.${column.id}`, message: `${row.code} ${column.label} is required.` });
+      }
+      if (mode === "complete" && column.type === "checkbox" && column.requireExplicitIf) {
+        const trigger = field.columns?.find((item) => item.id === column.requireExplicitIf?.column);
+        if (
+          trigger &&
+          cellOpen(column.fillers, column.editableInSteps ?? field.editableInSteps, context) &&
+          rowAllowed(field, column, row.id, context) &&
+          valueDiffersFromDefault(record[trigger.id], trigger.defaultValue) &&
+          typeof cell !== "boolean"
+        ) {
+          issues.push({
+            path: `${path}.${row.id}.${column.id}`,
+            message: `${row.code}: tick or untick “${column.label}” because the recommendation is not the default.`,
+          });
+        }
       }
     }
   }
@@ -173,7 +191,7 @@ function columnShape(column: FormColumn, value: unknown, field: FormField): stri
 function rowShown(field: FormField, record: Record<string, unknown>): boolean {
   const keys = field.showRowsWhenFilled;
   if (!keys || keys.length === 0) return true;
-  return keys.some((key) => typeof record[key] === "string" && record[key].trim() !== "");
+  return rowHasFilled(asCellRecord(record), keys);
 }
 
 function assessmentRowShown(
@@ -222,7 +240,11 @@ function isEmpty(type: string, value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === "string") return value.trim() === "";
   if (typeof value === "number") return false;
-  if (typeof value === "boolean") return type === "declaration" ? value !== true : false;
+  if (typeof value === "boolean") {
+    if (type === "declaration") return value !== true;
+    if (type === "checkbox") return false;
+    return false;
+  }
   if (Array.isArray(value)) return value.length === 0;
   if (type === "yesNoNa" && typeof value === "object") {
     const choice = (value as { choice?: unknown }).choice;
@@ -299,6 +321,9 @@ function shapeError(
     }
     case "declaration":
       if (typeof value !== "boolean") return "Tick the declaration or leave it unticked.";
+      return null;
+    case "checkbox":
+      if (typeof value !== "boolean") return "Tick or untick this box.";
       return null;
     default:
       return null;

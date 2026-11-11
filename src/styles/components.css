@@ -1129,6 +1129,19 @@ html.theme-fade * {
 .rec-assess th[scope="row"] { text-align: left; font-weight: 500; }
 .rec-assess th[scope="row"] .rec-field__help { display: block; }
 .rec-assess__label { display: none; }
+.rec-assess__row--needs-action {
+  background: var(--warning-soft);
+}
+.rec-assess__flag {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+.rec-assess__add {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
 .rec-form--print .rec-save,
 .rec-form--print .rec-row-actions { display: none; }
 @media (max-width: 719px) {
@@ -2171,3 +2184,16 @@ html.theme-fade * {
     opacity: 0;
   }
 }
+
+/* Authenticator setup QR: always dark-on-white so phones can scan it in dark mode too. */
+.rec-totp-qr {
+  width: 200px;
+  max-width: 100%;
+  padding: 8px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d0d0d0);
+}
+.rec-totp-qr svg { display: block; width: 100%; height: auto; }
+.rec-totp-manual summary { cursor: pointer; }
+.rec-totp-manual > * + * { margin-top: 8px; }

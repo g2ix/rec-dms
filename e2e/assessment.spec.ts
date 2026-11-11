@@ -107,7 +107,7 @@ async function ensureProtocol(): Promise<string> {
   }
 }
 
-test("F-37 shows only the points that have a reviewer comment", async ({ page }) => {
+test("F-37 shows only the points flagged as needing action", async ({ page }) => {
   test.setTimeout(60_000);
   const prisma = new PrismaClient();
   const form = uscForms.find((item) => item.code === "F-37");
@@ -169,7 +169,10 @@ test("F-37 shows only the points that have a reviewer comment", async ({ page })
       ownerId: version.id,
       status: "DRAFT",
       data: {
-        praf: { p101: { comments: "Reviewer 1: Narrow the question.", recommendations: "" } },
+        praf: {
+          p101: { comments: "Reviewer 1: Narrow the question.", recommendations: "", needs_action: true },
+          p102: { comments: "Looks fine.", recommendations: "No recommendations", needs_action: false },
+        },
       },
     },
   });
@@ -178,6 +181,7 @@ test("F-37 shows only the points that have a reviewer comment", async ({ page })
   await signIn(page);
   await page.goto(`/app/protocols/${protocol.id}/forms/${instance.id}`);
   await expect(page.getByText("Is/Are the main research question(s) reasonable?")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Needs action")).toBeVisible();
   await expect(page.getByText("Are the study objectives specific, measurable, attainable, and reasonable based on the research instrument(s) presented?")).toHaveCount(0);
   const comment = page.locator("[id='praf.p101.comments']");
   await expect(comment).toHaveValue("Reviewer 1: Narrow the question.");

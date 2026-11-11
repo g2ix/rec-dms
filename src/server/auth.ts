@@ -14,7 +14,7 @@ import { AppError } from "@/server/errors";
 import { createRecAdapter } from "@/server/auth/adapter";
 import { authConfig } from "@/server/auth.config";
 import { clearLinkIntent, readLinkIntent } from "@/server/auth/link-intent";
-import { findOrStartSelfMerge } from "@/server/auth/linking";
+import { claimUnlinkedProviderAccount, findOrStartSelfMerge } from "@/server/auth/linking";
 import { clientIp, rateLimiter, SIGN_IN_LIMIT } from "@/server/auth/rate-limit";
 import { authenticatePassword } from "@/server/auth/register";
 import { ensureVerifiedEmail } from "@/server/auth/users";
@@ -184,6 +184,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return `/app/account/merge/${session.id}`;
         }
         return true;
+      }
+
+      if (account && account.type === "oidc" && account.provider === "google") {
+        const verified = Boolean(
+          profile && typeof profile === "object" && "email_verified" in profile && profile.email_verified === true,
+        );
+        const claimedId = await claimUnlinkedProviderAccount({
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+          email: await profileEmail(profile, user.email),
+          emailVerified: verified,
+          type: account.type,
+        });
+        if (claimedId) user.id = claimedId;
       }
 
       if (user.id) {

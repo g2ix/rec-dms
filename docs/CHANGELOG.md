@@ -1,5 +1,17 @@
 # Changelog
 
+## Needs-action flag on F-35–F-38 (2026-11-10)
+
+F-37 and F-38 no longer treat every comment as work for the researcher. Reviewers tick **Needs action from researcher** on each F-35 / F-36 point. Specific Recommendations starts as “No recommendations”; if the reviewer changes that text, they must tick or untick the flag before submit (the form lists points that still need that choice). Proponents do not see the flag. Chair views of F-35 / F-36 and F-37 highlight flagged points with `warning-soft`, an icon, and the words “Needs action”.
+
+F-37 copies only points any reviewer flagged. The chair can unflag a point or add another during consolidation. F-38 shows only those flagged rows, with panel comments under “Panel/Reviewers' Recommendations”; Actions Taken and page/paragraph stay for the proponent; Reviewer's Remarks start blank on every resubmission; each row has **Still needs action**. The next pass carries forward only rows still flagged. Printed F-35–F-38 maps still match the official templates (the flag is not printed).
+
+Published as form version `10-01` for F-35, F-36, F-37, and F-38. Earlier published versions are retired on seed; protocols already in review keep their definition ids.
+
+### Deviation from the request
+
+- Assessment columns gain a `checkbox` type plus optional `defaultValue`, `visibleToRoles`, and `requireExplicitIf` so the flag stays in the form schema rather than hard-coded REC rules in TypeScript.
+
 ## Upload limit, F-29 email, F-36 “If NO…”, and spell-check (2026-11-10)
 
 The default `uploads.maxBytes` is 100 MB (was 25 MB). The uploads panel help text shows that setting. `docs/DEPLOY.md` notes Supabase’s free plan 50 MB file cap.

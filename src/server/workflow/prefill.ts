@@ -20,6 +20,7 @@ export async function prefillForm(tx: Tx, params: Record<string, unknown>, ctx: 
   else if (strategy === "copyReviewerColumns") await copyReviewerColumns(tx, params, ctx);
   else if (strategy === "copySharedCells") await copySharedCells(tx, params, ctx);
   else if (strategy === "copyTableColumn") await copyTableColumn(tx, params, ctx);
+  else if (strategy === "prepareActionSummary") await prepareActionSummary(tx, params, ctx);
   else if (strategy === "decisionLetter") await decisionLetter(tx, params, ctx);
   else if (strategy === "summaryHeader") await summaryHeader(tx, params, ctx);
 }
@@ -81,15 +82,23 @@ async function copyReviewerColumns(tx: Tx, params: Record<string, unknown>, ctx:
   const sources = await instancesOf(tx, ctx.protocolVersionId, sourceCode);
   const reviewers = sources.filter((item) => item.filledByMemberId);
   const columns = pairList(params.columns);
+  const flagColumn = text(params.flagColumn) || "needs_action";
+  const onlyFlagged = params.onlyFlagged !== false;
   const data = record(target.data);
   const table = record(data[targetField]);
   const definition = await tx.formDefinition.findUnique({ where: { id: target.formDefinitionId } });
   const rows = rowIds(definition?.schema, targetField);
   for (const rowId of rows) {
+    const flagged = reviewers.some((item) => {
+      const sourceRow = record(record(record(item.data)[sourceField])[rowId]);
+      return sourceRow[flagColumn] === true;
+    });
+    if (onlyFlagged && !flagged) continue;
     const row = record(table[rowId]);
     for (const pair of columns) {
       const parts = reviewers.map((item, index) => {
         const sourceRow = record(record(record(item.data)[sourceField])[rowId]);
+        if (onlyFlagged && sourceRow[flagColumn] !== true) return "";
         const value = sourceRow[pair.from];
         const textValue = typeof value === "string" ? value.trim() : "";
         return textValue ? `Reviewer ${index + 1}: ${textValue}` : "";
@@ -98,6 +107,9 @@ async function copyReviewerColumns(tx: Tx, params: Record<string, unknown>, ctx:
       if (joined && (typeof row[pair.to] !== "string" || (row[pair.to] as string).trim() === "")) {
         row[pair.to] = joined;
       }
+    }
+    if (flagged && row[flagColumn] !== true && row[flagColumn] !== false) {
+      row[flagColumn] = true;
     }
     table[rowId] = row;
   }
@@ -139,9 +151,11 @@ async function copyTableColumn(tx: Tx, params: Record<string, unknown>, ctx: Ctx
   const data = record(target.data);
   const table = record(data[targetField]);
   const sourceTable = record(record(source.data)[sourceField]);
+  const flagColumn = text(params.flagColumn);
   for (const [rowId, sourceRow] of Object.entries(sourceTable)) {
-    const row = record(table[rowId]);
     const from = record(sourceRow);
+    if (flagColumn && from[flagColumn] !== true) continue;
+    const row = record(table[rowId]);
     for (const pair of pairList(params.columns)) {
       const incoming = from[pair.from];
       if (typeof incoming !== "string" || !incoming.trim()) continue;
@@ -149,10 +163,62 @@ async function copyTableColumn(tx: Tx, params: Record<string, unknown>, ctx: Ctx
       if (typeof current !== "string" || !current.trim()) row[pair.to] = incoming;
       else if (!current.includes(incoming)) row[pair.to] = `${current}\n\n${incoming}`;
     }
+    if (flagColumn) row[flagColumn] = true;
+    for (const column of stringList(params.clearColumns)) row[column] = "";
     table[rowId] = row;
   }
   data[targetField] = table;
   await writeFormData(tx, target.id, data);
+}
+
+/** Keep still-flagged F-38 rows (blank remarks) or, on the first revision, copy flagged F-37 points. */
+async function prepareActionSummary(tx: Tx, params: Record<string, unknown>, ctx: Ctx): Promise<void> {
+  const formCode = text(params.formCode) || "F-38";
+  const target = await sharedInstance(tx, ctx.protocolVersionId, formCode);
+  if (!target) return;
+  const fields = stringList(params.fields);
+  const flagColumn = text(params.flagColumn) || "needs_action";
+  const clearColumns = stringList(params.clearColumns);
+  const fallbackForm = text(params.fallbackForm) || "F-37";
+  const data = record(target.data);
+  let changed = false;
+  for (const field of fields) {
+    const table = record(data[field]);
+    const stillOpen = Object.entries(table).filter(([, cells]) => record(cells)[flagColumn] === true);
+    if (stillOpen.length > 0) {
+      const next: Row = {};
+      for (const [rowId, cells] of stillOpen) {
+        const row = record(cells);
+        for (const column of clearColumns) row[column] = "";
+        row[flagColumn] = true;
+        next[rowId] = row;
+      }
+      data[field] = next;
+      changed = true;
+      continue;
+    }
+    const source = await sharedInstance(tx, ctx.protocolVersionId, fallbackForm);
+    if (!source) continue;
+    const sourceTable = record(record(source.data)[field]);
+    const next = record(table);
+    for (const [rowId, sourceRow] of Object.entries(sourceTable)) {
+      const from = record(sourceRow);
+      if (from[flagColumn] !== true) continue;
+      const row = record(next[rowId]);
+      const parts = [from.comments, from.recommendations]
+        .filter((value): value is string => typeof value === "string" && value.trim() !== "")
+        .map((value) => value.trim());
+      if (parts.length > 0 && (typeof row.panel_comments !== "string" || !row.panel_comments.trim())) {
+        row.panel_comments = parts.join("\n\n");
+      }
+      row[flagColumn] = true;
+      for (const column of clearColumns) row[column] = "";
+      next[rowId] = row;
+      changed = true;
+    }
+    data[field] = next;
+  }
+  if (changed) await writeFormData(tx, target.id, data);
 }
 
 async function summaryHeader(tx: Tx, params: Record<string, unknown>, ctx: Ctx): Promise<void> {

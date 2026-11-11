@@ -4,16 +4,23 @@ import { FUNDING_KIND_OPTIONS, RESEARCH_TYPE_OPTIONS } from "../../../src/lib/pr
 import { F26_ITEMS, F35_POINTS, F36_POINTS, F41_CRITERIA } from "./points";
 
 const VERSION = "09-01";
+const ASSESSMENT_VERSION = "10-01";
 const EFFECTIVE = "2025-08-01";
 const PROPONENT = ["PROPONENT"] as const;
 const ADVISER = ["ADVISER"] as const;
 const STAFF = ["REC_STAFF"] as const;
 const CHAIRS = ["PANEL_CHAIR", "REC_CHAIR"] as const;
 const REVIEWERS = ["PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT"] as const;
+const FLAG_VIEWERS = ["PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT", "PANEL_CHAIR", "REC_CHAIR", "REC_STAFF"] as const;
 const SUBMIT_STEPS = ["proponent_submit", "proponent_revise"];
 const REVIEW_STEP = ["reviewer_assess"];
 const DECISION_STEPS = ["chair_decide", "chair_finalize"];
 const LOCKED = ["locked"];
+const NO_RECOMMENDATIONS = "No recommendations";
+
+function assessmentMeta(code: string, title: string) {
+  return { code, title, versionLabel: ASSESSMENT_VERSION, effectiveDate: EFFECTIVE };
+}
 
 const yesNo = [
   { value: "YES", label: "YES" },
@@ -58,21 +65,52 @@ const reviewColumns = [
   { id: "page", label: "Page and paragraph number where assessment point can be found", type: "text", fillers: [...PROPONENT], editableInSteps: SUBMIT_STEPS },
   { id: "assessment", label: "Assessment", type: "select", options: yesNoUnable, fillers: [...REVIEWERS], editableInSteps: REVIEW_STEP },
   { id: "comments", label: "Detailed Comments/ Observations", type: "text", fillers: [...REVIEWERS], editableInSteps: REVIEW_STEP },
-  { id: "recommendations", label: "Specific Recommendations", type: "text", fillers: [...REVIEWERS], editableInSteps: REVIEW_STEP },
+  {
+    id: "recommendations",
+    label: "Specific Recommendations",
+    type: "text",
+    fillers: [...REVIEWERS],
+    editableInSteps: REVIEW_STEP,
+    defaultValue: NO_RECOMMENDATIONS,
+  },
+  {
+    id: "needs_action",
+    label: "Needs action from researcher",
+    type: "checkbox",
+    fillers: [...REVIEWERS],
+    editableInSteps: REVIEW_STEP,
+    visibleToRoles: [...FLAG_VIEWERS],
+    requireExplicitIf: { column: "recommendations" },
+  },
 ];
 
 function actionColumns(sourceForm: "F-35" | "F-36") {
   return [
     { id: "page", label: "Page and paragraph number", type: "text", fillers: [...PROPONENT], editableInSteps: ["proponent_revise"] },
-    { id: "panel_comments", label: "Panel Comments/Recommendations", type: "text", fillers: [...PROPONENT], editableInSteps: LOCKED },
+    {
+      id: "panel_comments",
+      label: "Panel/Reviewers' Recommendations",
+      type: "text",
+      fillers: [...PROPONENT],
+      editableInSteps: LOCKED,
+    },
     { id: "actions_taken", label: "Actions Taken", type: "text", fillers: [...PROPONENT], editableInSteps: ["proponent_revise"] },
     {
       id: "panel_remarks",
-      label: "Panel Remarks",
+      label: "Reviewer's Remarks",
       type: "text",
       fillers: [...REVIEWERS],
       editableInSteps: REVIEW_STEP,
-      authoredFrom: { forms: [sourceForm], field: "points", columns: ["comments", "recommendations"] },
+      authoredFrom: { forms: [sourceForm], field: "points", columns: ["comments", "recommendations", "needs_action"] },
+    },
+    {
+      id: "needs_action",
+      label: "Still needs action",
+      type: "checkbox",
+      fillers: [...REVIEWERS],
+      editableInSteps: REVIEW_STEP,
+      visibleToRoles: [...FLAG_VIEWERS],
+      authoredFrom: { forms: [sourceForm], field: "points", columns: ["comments", "recommendations", "needs_action"] },
     },
   ];
 }
@@ -477,7 +515,7 @@ const rawForms: {
     ],
   },
   {
-    ...meta("F-35", "Protocol Review Assessment Form"),
+    ...assessmentMeta("F-35", "Protocol Review Assessment Form"),
     sections: [
       {
         id: "instructions",
@@ -489,7 +527,7 @@ const rawForms: {
             type: "staticText",
             fillers: [],
             content:
-              "Researcher(s)/Proponent(s): write the page and paragraph number where each assessment point can be found. Primary Reviewer and Independent Consultant: assess each point, write detailed comments and specific recommendations, and recommend an action.",
+              "Researcher(s)/Proponent(s): write the page and paragraph number where each assessment point can be found. Primary Reviewer and Independent Consultant: assess each point, write detailed comments and specific recommendations, tick Needs action from researcher when the researcher must change something, and recommend an action. Specific Recommendations starts as “No recommendations”; if you change that text, tick or untick Needs action before you submit.",
           },
         ],
       },
@@ -497,7 +535,15 @@ const rawForms: {
         id: "assessment",
         title: "Assessment",
         fields: [
-          { id: "points", label: "Protocol review assessment", type: "assessmentTable", required: true, fillers: [...PROPONENT, ...REVIEWERS], rows: points(F35_POINTS), columns: reviewColumns },
+          {
+            id: "points",
+            label: "Protocol review assessment",
+            type: "assessmentTable",
+            required: true,
+            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS, ...STAFF],
+            rows: points(F35_POINTS),
+            columns: reviewColumns,
+          },
           {
             id: "recommended_action",
             label: "Recommended action",
@@ -522,13 +568,21 @@ const rawForms: {
     ],
   },
   {
-    ...meta("F-36", "ICF Assessment Checklist"),
+    ...assessmentMeta("F-36", "ICF Assessment Checklist"),
     sections: [
       {
         id: "assessment",
         title: "Informed consent assessment",
         fields: [
-          { id: "points", label: "ICF assessment", type: "assessmentTable", required: true, fillers: [...PROPONENT, ...REVIEWERS], rows: points(F36_POINTS), columns: reviewColumns },
+          {
+            id: "points",
+            label: "ICF assessment",
+            type: "assessmentTable",
+            required: true,
+            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS, ...STAFF],
+            rows: points(F36_POINTS),
+            columns: reviewColumns,
+          },
           {
             id: "recommended_action",
             label: "Recommended action",
@@ -553,7 +607,7 @@ const rawForms: {
     ],
   },
   {
-    ...meta("F-37", "Summary of Reviewers' Comments"),
+    ...assessmentMeta("F-37", "Summary of Reviewers' Comments"),
     sections: [
       {
         id: "header",
@@ -565,7 +619,7 @@ const rawForms: {
             type: "staticText",
             fillers: [],
             content:
-              "Comments and suggestions are copied from every Protocol Review Assessment Form and ICF Assessment Checklist. Only points that have a comment or a suggestion are shown. Those copied words cannot be edited. The deciding chair adds the recommended action and the justification.",
+              "Only points a reviewer flagged as needing action are copied from the Protocol Review Assessment Form and ICF Assessment Checklist. Copied comments stay closed. The deciding chair can unflag a point or add another point, then records the recommended action and the justification.",
           },
           { id: "review_type", label: "Type of review", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
           { id: "reviewed_by", label: "Reviewed by", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
@@ -582,11 +636,19 @@ const rawForms: {
             type: "assessmentTable",
             required: true,
             fillers: [...CHAIRS],
-            showRowsWhenFilled: ["comments", "recommendations"],
+            showRowsWhenFilled: ["needs_action"],
             rows: points(F35_POINTS),
             columns: [
               { id: "comments", label: "Detailed Comments/ Observations", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
               { id: "recommendations", label: "Specific Recommendations", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
+              {
+                id: "needs_action",
+                label: "Needs action from researcher",
+                type: "checkbox",
+                fillers: [...CHAIRS],
+                editableInSteps: DECISION_STEPS,
+                visibleToRoles: [...FLAG_VIEWERS],
+              },
             ],
           },
         ],
@@ -601,11 +663,19 @@ const rawForms: {
             type: "assessmentTable",
             required: true,
             fillers: [...CHAIRS],
-            showRowsWhenFilled: ["comments", "recommendations"],
+            showRowsWhenFilled: ["needs_action"],
             rows: points(F36_POINTS),
             columns: [
               { id: "comments", label: "Detailed Comments/ Observations", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
               { id: "recommendations", label: "Specific Recommendations", type: "text", fillers: [...CHAIRS], editableInSteps: LOCKED },
+              {
+                id: "needs_action",
+                label: "Needs action from researcher",
+                type: "checkbox",
+                fillers: [...CHAIRS],
+                editableInSteps: DECISION_STEPS,
+                visibleToRoles: [...FLAG_VIEWERS],
+              },
             ],
           },
           {
@@ -623,7 +693,7 @@ const rawForms: {
     ],
   },
   {
-    ...meta("F-38", "Summary of Actions Taken"),
+    ...assessmentMeta("F-38", "Summary of Actions Taken"),
     sections: [
       {
         id: "actions",
@@ -634,8 +704,8 @@ const rawForms: {
             label: "Protocol review points",
             type: "assessmentTable",
             required: true,
-            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS],
-            showRowsWhenFilled: ["panel_comments"],
+            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS, ...STAFF],
+            showRowsWhenFilled: ["needs_action"],
             rows: points(F35_POINTS),
             columns: actionColumns("F-35"),
           },
@@ -644,8 +714,8 @@ const rawForms: {
             label: "ICF points",
             type: "assessmentTable",
             required: true,
-            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS],
-            showRowsWhenFilled: ["panel_comments"],
+            fillers: [...PROPONENT, ...REVIEWERS, ...CHAIRS, ...STAFF],
+            showRowsWhenFilled: ["needs_action"],
             rows: points(F36_POINTS),
             columns: actionColumns("F-36"),
           },

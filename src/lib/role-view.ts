@@ -30,3 +30,25 @@ export function viewsForRoleKeys(keys: Iterable<string>): RoleView[] {
   }
   return ROLE_VIEWS.filter((view) => unlocked.has(view));
 }
+
+const USC_ACADEMIC_LOCAL = /^[a-z]+(?:[.-][a-z]+)+$/i;
+
+function isUscHost(host: string): boolean {
+  return host === "usc.edu.ph" || host.endsWith(".usc.edu.ph");
+}
+
+/**
+ * Views every account gets from who it is, before any granted role.
+ * Every registrant can propose a protocol. A `firstname.lastname@usc.edu.ph`
+ * address is faculty or staff, who can also advise. Being an adviser on a
+ * protocol unlocks the adviser view for anyone.
+ */
+export function baseViews(input: { emails: Iterable<string>; advisesAProtocol: boolean }): RoleView[] {
+  const unlocked = new Set<RoleView>(["proponent"]);
+  if (input.advisesAProtocol) unlocked.add("adviser");
+  for (const email of input.emails) {
+    const [local, host] = email.trim().toLowerCase().split("@");
+    if (local && host && isUscHost(host) && USC_ACADEMIC_LOCAL.test(local)) unlocked.add("adviser");
+  }
+  return ROLE_VIEWS.filter((view) => unlocked.has(view));
+}

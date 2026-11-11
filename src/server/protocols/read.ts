@@ -168,17 +168,6 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
   if (!version) throw new AppError("NOT_FOUND", "That form was not found.", 404);
   const parsed = validateSchema(instance.formDefinition.schema);
   if (!parsed.ok) throw new AppError("INVALID", "This form schema cannot be shown.", 400);
-  let data = instance.data;
-  if (instance.status === "DRAFT" && version.state === "WORKING") {
-    const { prefillResearcherTable } = await import("@/server/forms/roster-prefill");
-    const next = await prefillResearcherTable(prisma, {
-      instanceId: instance.id,
-      protocolId,
-      schema: instance.formDefinition.schema,
-      data: instance.data,
-    });
-    data = next as typeof instance.data;
-  }
   const member = await prisma.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
   });
@@ -194,6 +183,25 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
   }
   const { editingStepFor } = await import("@/server/workflow/access");
   const stepKey = await editingStepFor(prisma, userId, version.id, instance.formDefinition.code);
+  let data = instance.data;
+  if (instance.status === "DRAFT" && version.state === "WORKING") {
+    const { prefillResearcherTable } = await import("@/server/forms/roster-prefill");
+    const { applyAssessmentDefaults } = await import("@/lib/forms/defaults");
+    const next = await prefillResearcherTable(prisma, {
+      instanceId: instance.id,
+      protocolId,
+      schema: instance.formDefinition.schema,
+      data: instance.data,
+    });
+    const withDefaults = applyAssessmentDefaults(parsed.schema, next, roles, stepKey);
+    if (JSON.stringify(withDefaults) !== JSON.stringify(next)) {
+      await prisma.formInstance.update({
+        where: { id: instance.id },
+        data: { data: withDefaults as never },
+      });
+    }
+    data = withDefaults as typeof instance.data;
+  }
   return {
     instance: { ...instance, data },
     version,

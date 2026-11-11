@@ -30,7 +30,7 @@
       "panel_remarks"
     ],
     "onlyFilled": [
-      "panel_comments"
+      "needs_action"
     ]
   },
   "icf": {
@@ -45,7 +45,7 @@
       "panel_remarks"
     ],
     "onlyFilled": [
-      "panel_comments"
+      "needs_action"
     ]
   },
   "cb_action_APPROVED": {

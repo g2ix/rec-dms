@@ -40,8 +40,7 @@
       "recommendations"
     ],
     "onlyFilled": [
-      "comments",
-      "recommendations"
+      "needs_action"
     ],
     "covers": [
       "praf",
@@ -58,8 +57,7 @@
       "recommendations"
     ],
     "onlyFilled": [
-      "comments",
-      "recommendations"
+      "needs_action"
     ]
   },
   "cb_action_APPROVED": {

@@ -48,29 +48,30 @@ describe("USC REC seed", () => {
     expect([...onReview].some((path) => path.endsWith(".page"))).toBe(false);
   });
 
-  it("shows the chair only the copied comments and leaves them closed", () => {
+  it("shows the chair only flagged points and leaves copied comments closed", () => {
     const schema = form("F-37");
     const data = {
-      praf: { p101: { comments: "Reviewer 1: Narrow the question.", recommendations: "" } },
+      praf: { p101: { comments: "Reviewer 1: Narrow the question.", recommendations: "", needs_action: true } },
       icf: {},
     };
     const editable = getEditableFields({ schema }, { status: "DRAFT", data }, { id: "chair" }, ["REC_CHAIR"], "chair_decide");
     expect([...editable].some((path) => path.includes("comments") || path.includes("recommendations"))).toBe(false);
+    expect(editable.has("praf.p101.needs_action")).toBe(true);
     expect(editable.has("recommended_action")).toBe(true);
     expect(editable.has("justification")).toBe(true);
     const table = findField(schema, "praf");
-    expect(table?.showRowsWhenFilled).toEqual(["comments", "recommendations"]);
+    expect(table?.showRowsWhenFilled).toEqual(["needs_action"]);
   });
 
   it("lets a reviewer remark only on points they raised", () => {
     const schema = form("F-38");
     const data = {
       praf: {
-        p101: { panel_comments: "Reviewer 1: Narrow the question." },
-        p102: { panel_comments: "Reviewer 2: Add the site." },
+        p101: { panel_comments: "Reviewer 1: Narrow the question.", needs_action: true },
+        p102: { panel_comments: "Reviewer 2: Add the site.", needs_action: true },
       },
     };
-    const allowed = { "praf.panel_remarks": ["p101"] };
+    const allowed = { "praf.panel_remarks": ["p101"], "praf.needs_action": ["p101"] };
     const editable = getEditableFields(
       { schema },
       { status: "DRAFT", data },
@@ -81,6 +82,17 @@ describe("USC REC seed", () => {
     );
     expect(editable.has("praf.p101.panel_remarks")).toBe(true);
     expect(editable.has("praf.p102.panel_remarks")).toBe(false);
+  });
+
+  it("hides the needs-action flag from proponents on F-35", () => {
+    const schema = form("F-35");
+    const column = findField(schema, "points")?.columns?.find((item) => item.id === "needs_action");
+    expect(column?.visibleToRoles).toEqual(
+      expect.arrayContaining(["PRIMARY_REVIEWER", "INDEPENDENT_CONSULTANT", "PANEL_CHAIR", "REC_CHAIR", "REC_STAFF"]),
+    );
+    expect(column?.visibleToRoles).not.toContain("PROPONENT");
+    const recommendations = findField(schema, "points")?.columns?.find((item) => item.id === "recommendations");
+    expect(recommendations?.defaultValue).toBe("No recommendations");
   });
 
   it("assigns determine-review to the REC Chair and leaves the reviewer list open", () => {

@@ -1,11 +1,13 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { authenticator } from "otplib";
+import QRCode from "qrcode";
 import { env } from "@/lib/env";
 
 authenticator.options = { window: 1 };
 
-const ISSUER = "USC REC-DMS";
+/** The name authenticator apps show for this account. */
+export const TOTP_ISSUER = "USC REC-DMS";
 
 function key(): Buffer {
   return scryptSync(env.AUTH_SECRET, "recdms-totp-v1", 32);
@@ -37,7 +39,12 @@ export function newTotpSecret(): string {
 }
 
 export function totpUri(email: string, secret: string): string {
-  return authenticator.keyuri(email || "account", ISSUER, secret);
+  return authenticator.keyuri(email || "account", TOTP_ISSUER, secret);
+}
+
+/** An SVG QR code of the otpauth:// link, for authenticator apps to scan. */
+export function totpQrSvg(uri: string): Promise<string> {
+  return QRCode.toString(uri, { type: "svg", errorCorrectionLevel: "M", margin: 2, color: { dark: "#000000", light: "#ffffff" } });
 }
 
 export function totpCodeMatches(secret: string, code: string): boolean {

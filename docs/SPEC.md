@@ -49,6 +49,7 @@ One person = one account, reachable through several linked sign-in identities, h
 - USC organization data is `institutions` and `org_units` (school, department, office, program). The seed loads the named USC schools and the named Arts and Sciences departments. A unit that is not in the list is stored as text. `Discipline` remains the REC panel and is not a school.
 - Creating a protocol or accepting an invitation requires a saved profile, then copies it onto the membership (institution, school, department, office, program, year, position, and the printed designation). A correction on that protocol does not change the profile unless the person asks to save it. A submitted protocol keeps the copied designation.
 - A `@usc.edu.ph` address is still approved from the domain alone. The local part only suggests a form: digits suggest a student, `firstname.lastname` suggests faculty or staff. An imported directory row matched on the verified email wins, and fills the profile on account creation. The import is a function. There is no admin upload screen in this slice.
+- Every registrant has the Proponent view, so anyone can create a protocol. A verified `firstname.lastname@usc.edu.ph` address also unlocks the Adviser view, and so does being an adviser on any protocol. Granted roles add their views on top. Proponent and Adviser are still held per protocol.
 
 **Roles**
 

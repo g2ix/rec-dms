@@ -1,3 +1,4 @@
+import { asCellRecord, rowHasFilled } from "@/lib/forms/cells";
 import { isRowVisible, isSectionVisible } from "@/lib/forms/logic";
 import type { RoleKey } from "@/lib/forms/roles";
 import type { FormColumn, FormField, FormSchema } from "@/lib/forms/schema";
@@ -20,8 +21,12 @@ function record(value: unknown): Record<string, unknown> {
 function rowShown(field: FormField, cells: unknown): boolean {
   const keys = field.showRowsWhenFilled;
   if (!keys || keys.length === 0) return true;
-  const row = record(cells);
-  return keys.some((key) => typeof row[key] === "string" && row[key].trim() !== "");
+  return rowHasFilled(asCellRecord(cells), keys);
+}
+
+export function columnVisibleToRoles(column: FormColumn, roles: readonly string[]): boolean {
+  if (!column.visibleToRoles || column.visibleToRoles.length === 0) return true;
+  return column.visibleToRoles.some((role) => roles.includes(role));
 }
 
 function roleMatches(fillers: readonly string[], roles: readonly string[]): boolean {
@@ -77,13 +82,17 @@ function addField(
   if (field.bind || NEVER_EDITABLE.has(field.type)) return;
   if (field.type === "assessmentTable") {
     const table = record(record(data)[field.id]);
+    const revealKeys = new Set(field.showRowsWhenFilled ?? []);
     for (const row of field.rows ?? []) {
       if (!isRowVisible(row, data)) continue;
       const cells = table[row.id];
-      if (!rowShown(field, cells)) continue;
+      const shown = rowShown(field, cells);
       for (const column of field.columns ?? []) {
+        if (!columnVisibleToRoles(column, roles)) continue;
         if (!columnEditable(field, column, roles, currentStepKey)) continue;
         if (column.authoredFrom && allowedRows && !(allowedRows[`${field.id}.${column.id}`] ?? []).includes(row.id)) continue;
+        // Flag columns that reveal a row stay editable while the row is hidden so a chair can add a point.
+        if (!shown && !(column.type === "checkbox" && revealKeys.has(column.id))) continue;
         editable.add(`${field.id}.${row.id}.${column.id}`);
       }
     }

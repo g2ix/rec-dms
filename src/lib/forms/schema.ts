@@ -35,6 +35,7 @@ export const COLUMN_TYPES = [
   "phone",
   "select",
   "yesNoNa",
+  "checkbox",
   "computed",
 ] as const;
 
@@ -90,6 +91,20 @@ const columnSchema = z
     editableInSteps: z.array(z.string().min(1)).optional(),
     formula: z.string().optional(),
     required: z.boolean().optional(),
+    /** Starting value when the cell is empty (for example “No recommendations”). */
+    defaultValue: z.union([z.string(), z.boolean(), z.number()]).optional(),
+    /** When set, only these roles see the column. Others do not see it at all. */
+    visibleToRoles: z.array(z.enum(ROLE_KEYS)).optional(),
+    /**
+     * For a checkbox: if the named column differs from its default (or is non-empty when it has no
+     * default), this box must be explicitly true or false before the form can be completed.
+     */
+    requireExplicitIf: z
+      .object({
+        column: z.string().min(1),
+      })
+      .strict()
+      .optional(),
     /** This column can be edited only on rows the same person commented on in an earlier form. */
     authoredFrom: z
       .object({
@@ -126,7 +141,7 @@ export const fieldSchema = z
     validation: validationSchema.optional(),
     columns: z.array(columnSchema).optional(),
     rows: z.array(rowSchema).optional(),
-    /** Assessment rows stay hidden until one of these columns has text. */
+    /** Assessment rows stay hidden until one of these columns has text, or a checkbox is ticked. */
     showRowsWhenFilled: z.array(z.string().min(1)).optional(),
     formula: z.string().optional(),
     signer: signerSchema.optional(),
@@ -351,6 +366,23 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
     }
     if (column.options && column.type !== "select") {
       issues.push({ path: `${path}.columns.${index}.options`, message: "Only a select column uses options." });
+    }
+    if (column.requireExplicitIf) {
+      if (column.type !== "checkbox") {
+        issues.push({
+          path: `${path}.columns.${index}.requireExplicitIf`,
+          message: "Only a checkbox can require an explicit choice.",
+        });
+      }
+      if (!columns.some((item) => item.id === column.requireExplicitIf?.column)) {
+        issues.push({
+          path: `${path}.columns.${index}.requireExplicitIf.column`,
+          message: `“${column.requireExplicitIf.column}” is not a column on this table.`,
+        });
+      }
+    }
+    if (column.visibleToRoles && column.visibleToRoles.length === 0) {
+      issues.push({ path: `${path}.columns.${index}.visibleToRoles`, message: "List at least one role, or omit visibleToRoles." });
     }
     if (column.authoredFrom && field.type !== "assessmentTable") {
       issues.push({ path: `${path}.columns.${index}.authoredFrom`, message: "Only an assessment column can be limited to earlier comments." });

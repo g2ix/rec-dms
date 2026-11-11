@@ -58,6 +58,7 @@ function record(value: unknown): Record<string, unknown> {
 function blank(type: string, value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === "string") return value.trim() === "";
+  if (typeof value === "boolean") return false;
   if (Array.isArray(value)) return value.length === 0;
   if (type === "yesNoNa" && typeof value === "object") {
     const choice = (value as { choice?: unknown }).choice;
@@ -69,11 +70,21 @@ function blank(type: string, value: unknown): boolean {
 function sample(type: string, options?: { value: string }[]): unknown {
   if (type === "money" || type === "number") return 10000;
   if (type === "date") return "2026-11-06";
-  if (type === "declaration") return true;
+  if (type === "declaration" || type === "checkbox") return true;
   if (type === "yesNoNa") return { choice: "YES", reason: "" };
   if (type === "radio" || type === "select") return options?.[0]?.value ?? "YES";
   if (type === "checkboxes") return options?.[0] ? [options[0].value] : [];
   return "Page 1, paragraph 1";
+}
+
+function rowShown(field: { showRowsWhenFilled?: string[] }, cells: Record<string, unknown>): boolean {
+  const keys = field.showRowsWhenFilled;
+  if (!keys || keys.length === 0) return true;
+  return keys.some((key) => {
+    const value = cells[key];
+    if (typeof value === "boolean") return value === true;
+    return typeof value === "string" && value.trim() !== "";
+  });
 }
 
 function canFill(fillers: string[] | undefined, steps: string[] | undefined, roles: string[], stepKey: string): boolean {
@@ -91,6 +102,7 @@ function fillSchema(schema: FormSchema, current: Record<string, unknown>, stepKe
       const table = record(data[field.id]);
       for (const row of field.rows ?? []) {
         const cells = record(table[row.id]);
+        if (!rowShown(field, cells)) continue;
         for (const column of field.columns ?? []) {
           if (column.type === "computed") continue;
           const steps = column.editableInSteps ?? field.editableInSteps;

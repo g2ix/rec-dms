@@ -99,6 +99,8 @@ const summaryPrefill = [
       sourceField: "points",
       targetForm: "F-37",
       targetField: "praf",
+      flagColumn: "needs_action",
+      onlyFlagged: true,
       columns: [
         { from: "comments", to: "comments" },
         { from: "recommendations", to: "recommendations" },
@@ -114,6 +116,8 @@ const summaryPrefill = [
       sourceField: "points",
       targetForm: "F-37",
       targetField: "icf",
+      flagColumn: "needs_action",
+      onlyFlagged: true,
       columns: [
         { from: "comments", to: "comments" },
         { from: "recommendations", to: "recommendations" },
@@ -423,21 +427,20 @@ const initialSubmissionGraph: WorkflowGraph = {
   ],
 };
 
-const actionPrefill = ["praf", "icf"].map((field) => ({
-  kind: "PREFILL" as const,
-  hook: "onEnter" as const,
-  params: {
-    strategy: "copyTableColumn",
-    sourceForm: "F-37",
-    sourceField: field,
-    targetForm: "F-38",
-    targetField: field,
-    columns: [
-      { from: "comments", to: "panel_comments" },
-      { from: "recommendations", to: "panel_comments" },
-    ],
+const actionPrefill = [
+  {
+    kind: "PREFILL" as const,
+    hook: "onEnter" as const,
+    params: {
+      strategy: "prepareActionSummary",
+      formCode: "F-38",
+      fields: ["praf", "icf"],
+      flagColumn: "needs_action",
+      clearColumns: ["panel_remarks", "page", "actions_taken"],
+      fallbackForm: "F-37",
+    },
   },
-}));
+];
 
 const resubmissionGraph: WorkflowGraph = {
   startStep: "proponent_revise",

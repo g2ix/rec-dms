@@ -233,7 +233,7 @@ function assessmentLoop(
   const filled = entry.onlyFilled ?? [];
   return rows.flatMap((row) => {
     const cells = cellRecord(stored, row.id);
-    if (filled.length > 0 && !filled.some((column) => display(cells[column]))) return [];
+    if (filled.length > 0 && !filled.some((column) => assessmentCellFilled(cells[column]))) return [];
     const item: Record<string, string> = {
       code: row.code,
       label: row.label,
@@ -245,6 +245,11 @@ function assessmentLoop(
     }
     return [item];
   });
+}
+
+function assessmentCellFilled(value: unknown): boolean {
+  if (typeof value === "boolean") return value === true;
+  return Boolean(display(value));
 }
 
 function layoutBudget(data: Record<string, unknown>): BudgetLayout {
