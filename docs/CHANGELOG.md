@@ -1,5 +1,27 @@
 # Changelog
 
+## Google sign-in for any account, and the client type from the leader's profile (2026-11-11)
+
+**Google sign-in.** "Continue with Google" no longer asks Google for @usc.edu.ph accounts only (`hd`). Any Google account works: USC, another organization's Google Workspace, or a personal Gmail account. Accounts outside `auth.autoApproveDomains` still wait for an administrator's approval, as accounts made with a password do. The line under the button says so.
+
+**Client type.** It used to be only a suggestion in the REC Staff dropdown, saved only when staff pressed Save, so a protocol nobody had looked at could not be billed. Now:
+- **On submission** (completing the workflow's start step), the protocol gets the client type the rules give, unless REC Staff already chose one. This is audited as `protocol.client_type_set` with no actor and `suggested: true`.
+- **Before a bill is priced**, the same rules are tried once more for a protocol that still has none.
+- **REC Staff** change it on the protocol page as before. The rules never replace a type staff chose, and a bill already issued keeps its amount.
+
+The rules can now read the leader's program, course, department, office and position, and the source of funds on the application form. That form and field are named by the new setting `fees.clientTypeFunds`, seeded as F-27 `funds`. A condition can be a value, a list, `{ "matches": regex }` or `{ "not": ... }` (`src/lib/fees/client-type.ts`).
+
+The seeded `fees.clientTypeRules` now covers all nine client types (table in `docs/PROCESS-UPDATE-2026-11.md` → Fees). The seed replaces the earlier M14 rules where a database still holds them unchanged, and leaves a value staff edited alone.
+
+Tests: `src/lib/fees/client-type.test.ts` places every profile kind. A new cycle in `zz-usc-rec-2026.cycle.test.ts` covers USC faculty with agency funding: submission sets the grant type, REC Staff change it to research workload, and the bill charges ₱4,500.
+
+### Still to confirm
+
+Three questions are in `docs/PROCESS-UPDATE-2026-11.md` → Fees:
+- Whether any institution or agency funding counts as a research grant.
+- Whether Senior High needs its own level in the profile.
+- What rate an external faculty member without a grant pays.
+
 ## M14 — USC REC seed, November 2026 (2026-11-11)
 
 `pnpm db:seed` publishes the November 2026 process (`docs/PROCESS-UPDATE-2026-11.md`) beside the 2025 one. Every new form version, both workflow versions and the settings that change behaviour start on 1 Jan 2027 (Asia/Manila), the date the REC gave on 10 Nov. A protocol created before that date, including one already in flight, keeps the 2025 versions to the end, resubmissions included. All of it is seed data under `prisma/seed/usc-rec/` (`forms-2026-11.ts`, `points-2026-11.ts`, `workflows-2026-11.ts`, `install-2026-11.ts`). If the REC moves the start, change `PROCESS_START` and the printed dates in `forms-2026-11.ts`.

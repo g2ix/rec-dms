@@ -5,6 +5,7 @@ import { manilaDay } from "@/lib/workflow/calendar";
 import { prisma } from "@/server/db";
 import { generateDecisionDocuments } from "@/server/docs/generate";
 import { decideBill } from "@/server/fees/bills";
+import { setClientType } from "@/server/fees/client-type";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 import { startRevision } from "@/server/protocols/versions";
 import { getObjectBytes } from "@/server/storage";
@@ -196,6 +197,38 @@ describe("USC REC November 2026 workflows", () => {
     await prisma.bill.deleteMany({ where: { scheduleId: fixtureScheduleId } });
     await prisma.feeSchedule.delete({ where: { id: fixtureScheduleId } });
   });
+
+  it("sets the client type from the leader's profile on submission, and bills the type REC Staff change it to", async () => {
+    const who = await people(crypto.randomUUID().slice(0, 6));
+    const run = await newProtocol(who, `Client type ${crypto.randomUUID().slice(0, 6)}`);
+    await prisma.protocol.update({ where: { id: run.protocolId }, data: { clientTypeKey: null } });
+    await prisma.protocolMember.updateMany({ where: { protocolId: run.protocolId, isLeader: true }, data: { profileKind: "USC_ACADEMIC", academicLevel: null } });
+    for (const code of ["F-27", "F-28", "F-30", "F-35", "F-36"]) {
+      const overrides = code === "F-27" ? { funds: ["AGENCY"], fund_agency: "DOST-PCHRD" } : {};
+      await writeForm({ ...run, code, stepKey: "proponent_submit", roles: LEADER, userId: who.leader.id, overrides });
+    }
+    await upload(run.versionId, who.leader.id, "MANUSCRIPT");
+    await upload(run.versionId, who.leader.id, "COVER_LETTER");
+    await finish(run.instanceId, "proponent_submit", who.leader.id);
+    expect((await prisma.protocol.findUniqueOrThrow({ where: { id: run.protocolId } })).clientTypeKey).toBe("USC_FACULTY_GRANT");
+    const audited = await prisma.auditEvent.findFirstOrThrow({ where: { protocolId: run.protocolId, action: "protocol.client_type_set" } });
+    expect(audited.actorUserId).toBeNull();
+    expect(audited.diff).toMatchObject({ clientTypeKey: { before: null, after: "USC_FACULTY_GRANT" }, suggested: { after: true } });
+
+    // REC Staff correct it at screening; the suggestion never replaces their choice.
+    await setClientType({ protocolId: run.protocolId, clientTypeKey: "USC_FACULTY_WORKLOAD", actorUserId: who.staff.id });
+    await writeForm({ ...run, code: "F-26", stepKey: "staff_screening", roles: STAFF, userId: who.staff.id, overrides: { submission_type: "INITIAL" } });
+    await finish(run.instanceId, "staff_screening", who.staff.id, { outcome: "ACCEPT" });
+    await writeForm({ ...run, code: "F-31", stepKey: "determine_review", roles: ["PANEL_CHAIR"], userId: who.chair.id, overrides: { exempt: "NO", review_type: "EXPEDITED", submission_type: "INITIAL" } });
+    await finish(run.instanceId, "determine_review", who.chair.id, {
+      outcome: "EXPEDITED",
+      reviewerSlots: { SCIENTIST: who.scientist.id, NON_SCIENTIST: who.layperson.id },
+      noteToReviewers: "Note.",
+      reviewDueDate: "2027-01-20",
+    });
+    const bill = await prisma.bill.findFirstOrThrow({ where: { protocolId: run.protocolId, round: 1 } });
+    expect(bill).toMatchObject({ clientTypeKey: "USC_FACULTY_WORKLOAD", amount: 450_000 });
+  }, 600_000);
 
   it("exempts with recommendations on the same version, and issues F-42 only after payment", async () => {
     const who = await people(crypto.randomUUID().slice(0, 6));

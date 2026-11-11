@@ -64,7 +64,8 @@
     "Cronbach",
     "FPIC",
     "anonymization",
-    "barangay"
+    "barangay",
+    "juris"
   ],
   "ignorePaths": [
     "node_modules/**",

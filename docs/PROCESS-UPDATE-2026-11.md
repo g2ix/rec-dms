@@ -109,6 +109,34 @@ Legend: **Done** already in the system and matching · **Setting** layers 1–3 
 
 The fee depends on the client type and the review type, and the REC changes the amounts every few years. Store them as dated rows, not code: client types (USC SHS/undergraduate, USC Law, USC graduate (free for now), USC faculty with research workload, USC faculty with a grant, external SHS/undergraduate, external medicine/law, external graduate, external institution with grants) × expedited, full, exempt, with 3rd-to-Nth review, amendment and continuing review at 50% of the base. Distribution 70% reviewer honorarium, 20% REC operation, 10% administrative cost is a report setting. The statement of account follows the billing template: date, names, department, description `Ethics review fee for Protocol <code>: <title> (<review type or "3rd Review">)`, amount, payment instructions, "Certified correct" by REC Staff.
 
+**Which client type a protocol is billed as (11 Nov 2026).** Nobody types it in. It comes from what the project leader already gave:
+
+| Data | Where it is entered | Fields |
+|---|---|---|
+| Account | Sign-up (email and password, or Google, or a one-time link) | Name, title, suffix, credentials, email. Google adds the photo. |
+| Affiliation profile | Before the first protocol, at `/app/account/profile` | Kind (USC student, student at another institution, USC faculty, USC staff, adviser from outside USC, industry partner), undergraduate or graduate, year, program, school, department or office, institution, position |
+| Protocol | Copied from the profile when the protocol is created, correctable for that protocol | The same fields on the project leader's row |
+| F-27 | At submission | Source of funds (researcher, institution, agency, other) |
+
+The rules in `fees.clientTypeRules` turn these into a client type when the protocol is submitted. REC Staff can change it on the protocol page at any time; a bill already issued keeps its amount.
+
+| Profile | Client type |
+|---|---|
+| USC student, program or course names law (Juris Doctor, Bachelor of Laws, LLB) | USC Law |
+| USC student, graduate | USC graduate (free) |
+| USC student, any other | USC Senior High / Undergraduate |
+| Student elsewhere, program or course names medicine or law | External Medicine / Law |
+| Student elsewhere, graduate | External graduate |
+| Student elsewhere, any other | External Senior High / Undergraduate |
+| USC faculty or staff, F-27 funded by an institution or an agency | USC faculty with a research grant |
+| USC faculty or staff, any other | USC faculty with research workload |
+| Adviser from outside USC, industry partner | External faculty / institution with research grants |
+
+**Confirm** with the REC:
+- Does "with research grant" mean any institution or agency funding on F-27, including a USC internal grant?
+- The profile has no Senior High level, so a Senior High student picks undergraduate. Does the REC want a separate level?
+- Does an external faculty member without a grant pay the external institution rate?
+
 ### Panels and members
 
 `REC members.xlsx` lists three panels with Panel Chair, Vice-Chair, Secretary, scientists and non-scientists, an alternate member, and affiliate / non-affiliate. Membership changes often, so it is imported from the spreadsheet on `/admin/panels` (M13 item 11), not typed into the seed.
@@ -153,3 +181,4 @@ None of these had an answer when M14 was run (11 Nov 2026). M14 uses the default
 - 2026-11-10: fix tasks 5–10 run before M13. Task 7 (F-29 email) is affected because F-29 is no longer used; task 9 (F-36 "If NO") should match the new F-36 10-00 wording (page and line, Unable to assess / Yes / No); task 8 ("Needs action" flag) is the flag M13 item 8 reuses.
 - 2026-11-10: REC answered billing timing, reviewer slots, F-37 override and the 1 Jan 2027 start (see "Answered by the REC").
 - 2026-11-11: M14 seeds the November 2026 forms, settings and workflows, all scheduled for 1 Jan 2027. The open items above use their stated defaults (layers 1–3). See `docs/CHANGELOG.md` → M14.
+- 2026-11-11: Google sign-in accepts any Google account (not only @usc.edu.ph); other domains still wait for approval. The client type is set from the leader's profile and F-27 on submission, and REC Staff can change it (layers 1 and 4).

@@ -50,7 +50,11 @@ export async function FeesSection({ protocolId, userId }: { protocolId: string; 
                 </option>
               ))}
             </select>
-            {suggestion ? <span className="rec-field__help">Suggested from the project leader&rsquo;s affiliation. Save to use it.</span> : null}
+            <span className="rec-field__help">
+              {suggestion
+                ? "Suggested from the project leader’s profile and source of funds. Save to use it."
+                : "Filled in from the project leader’s profile and source of funds when the protocol is submitted. Change it here if it is wrong; a bill already issued keeps its amount."}
+            </span>
           </label>
           <BusyButton type="submit">Save client type</BusyButton>
         </form>

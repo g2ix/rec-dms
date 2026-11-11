@@ -111,7 +111,7 @@ export function SignInForm({
       </form>
       <p className="signin-hint">
         {googleEnabled
-          ? "USC students and staff: use your @usc.edu.ph account."
+          ? "Use any Google account. USC students and staff: use your @usc.edu.ph account. Other accounts wait for an administrator to approve them."
           : "Google sign-in is not configured on this server."}
       </p>
       <div className="signin-or" role="separator" aria-label="or use your email">

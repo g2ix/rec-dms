@@ -38,6 +38,7 @@ import {
 } from "@/server/workflow/who";
 import { formDefinitionForVersion, referenceDate, settingValue, workflowVersionFor } from "@/server/effective";
 import { feeBlock, issueBillTx } from "@/server/fees/bills";
+import { applySuggestedClientType } from "@/server/fees/client-type";
 import { reopenVersionTx } from "@/server/protocols/reopen";
 
 type Tx = Prisma.TransactionClient;
@@ -378,6 +379,8 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
   }
 
   if (userId) await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId, readSlotAssignments(instance.assignments));
+  // Submitting (completing the start step) fills in the client type the rules suggest, unless REC Staff chose one.
+  if (step.key === graph.startStep) await applySuggestedClientType(tx, protocol.id, meta);
   const completedAt = new Date();
   await tx.task.update({
     where: { id: task.id },

@@ -40,7 +40,7 @@ export async function installProcess2026(prisma: PrismaClient, ownerId: string, 
 
 /** Billing and certificate settings are read only by the 2026 versions, so they apply at once. */
 async function immediateSettings(prisma: PrismaClient): Promise<void> {
-  const rows: { key: string; value: unknown }[] = [
+  const rows: { key: string; value: unknown; replaces?: unknown[] }[] = [
     { key: "fees.statementTitle", value: "STATEMENT OF ACCOUNT" },
     // From the billing statement template; {review} is "Expedited Review", "Full Review", "Exempt Review" or "3rd Review".
     { key: "fees.description", value: "Ethics review fee for Protocol {code}: {title} ({review})" },
@@ -52,16 +52,9 @@ async function immediateSettings(prisma: PrismaClient): Promise<void> {
     { key: "fees.certifiedLabel", value: "CERTIFIED CORRECT.\nREC Staff" },
     // Memo of 12 Nov 2024: 70% honorarium of reviewer, 20% REC operation, 10% administrative cost.
     { key: "fees.distribution", value: { "Reviewer honorarium": 70, "REC operation": 20, "Administrative cost": 10 } },
-    {
-      key: "fees.clientTypeRules",
-      value: [
-        { clientTypeKey: "USC_GRADUATE", when: { profileKind: "USC_STUDENT", academicLevel: "GRADUATE" } },
-        { clientTypeKey: "USC_SHS_UNDERGRADUATE", when: { profileKind: "USC_STUDENT" } },
-        { clientTypeKey: "EXTERNAL_GRADUATE", when: { profileKind: "EXTERNAL_STUDENT", academicLevel: "GRADUATE" } },
-        { clientTypeKey: "EXTERNAL_SHS_UNDERGRADUATE", when: { profileKind: "EXTERNAL_STUDENT" } },
-        { clientTypeKey: "USC_FACULTY_WORKLOAD", when: { profileKind: "USC_ACADEMIC" } },
-      ],
-    },
+    // Client type from the leader's profile and the F-27 source of funds (docs/PROCESS-UPDATE-2026-11.md → Fees).
+    { key: "fees.clientTypeRules", value: CLIENT_TYPE_RULES, replaces: [CLIENT_TYPE_RULES_M14] },
+    { key: "fees.clientTypeFunds", value: { code: "F-27", field: "funds" } },
     // F-40: approved for one year, progress report within six months, continuing review 30 days before expiry.
     { key: "certificates.approvalPeriod", value: { amount: 1, unit: "YEARS" } },
     { key: "certificates.progressReportAfter", value: { amount: 6, unit: "MONTHS" } },
@@ -70,9 +63,46 @@ async function immediateSettings(prisma: PrismaClient): Promise<void> {
     { key: "meetings.schedule", value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
   ];
   for (const row of rows) {
-    await prisma.setting.upsert({ where: { key: row.key }, create: { key: row.key, value: row.value as never }, update: {} });
+    const existing = await prisma.setting.findUnique({ where: { key: row.key } });
+    if (!existing) {
+      await prisma.setting.create({ data: { key: row.key, value: row.value as never } });
+      continue;
+    }
+    // An earlier seeded value is brought up to date; a value staff changed is left alone.
+    if (row.replaces?.some((old) => canonical(old) === canonical(existing.value))) {
+      await prisma.setting.update({ where: { key: row.key }, data: { value: row.value as never } });
+    }
   }
 }
+
+/** Juris Doctor, Bachelor of Laws, LLB; Doctor of Medicine, MD. Matched against the program or course name. */
+const LAW = String.raw`\b(law|laws|juris|jd|llb)\b`;
+const MEDICINE_OR_LAW = String.raw`\b(medicine|md|law|laws|juris|jd|llb)\b`;
+
+/** First match wins. Law and medicine are read from the program or course the person typed. */
+export const CLIENT_TYPE_RULES = [
+  { clientTypeKey: "USC_LAW", when: { profileKind: "USC_STUDENT", programName: { matches: LAW } } },
+  { clientTypeKey: "USC_LAW", when: { profileKind: "USC_STUDENT", course: { matches: LAW } } },
+  { clientTypeKey: "USC_GRADUATE", when: { profileKind: "USC_STUDENT", academicLevel: "GRADUATE" } },
+  { clientTypeKey: "USC_SHS_UNDERGRADUATE", when: { profileKind: "USC_STUDENT" } },
+  { clientTypeKey: "EXTERNAL_MEDICINE_LAW", when: { profileKind: "EXTERNAL_STUDENT", programName: { matches: MEDICINE_OR_LAW } } },
+  { clientTypeKey: "EXTERNAL_MEDICINE_LAW", when: { profileKind: "EXTERNAL_STUDENT", course: { matches: MEDICINE_OR_LAW } } },
+  { clientTypeKey: "EXTERNAL_GRADUATE", when: { profileKind: "EXTERNAL_STUDENT", academicLevel: "GRADUATE" } },
+  { clientTypeKey: "EXTERNAL_SHS_UNDERGRADUATE", when: { profileKind: "EXTERNAL_STUDENT" } },
+  // A study funded by an institution or an outside agency counts as a research grant.
+  { clientTypeKey: "USC_FACULTY_GRANT", when: { profileKind: ["USC_ACADEMIC", "USC_STAFF"], funds: ["INSTITUTION", "AGENCY"] } },
+  { clientTypeKey: "USC_FACULTY_WORKLOAD", when: { profileKind: ["USC_ACADEMIC", "USC_STAFF"] } },
+  { clientTypeKey: "EXTERNAL_INSTITUTION", when: { profileKind: ["EXTERNAL_ADVISER", "INDUSTRY_PARTNER"] } },
+];
+
+/** The rules M14 first seeded, replaced where a database still holds them unchanged. */
+const CLIENT_TYPE_RULES_M14 = [
+  { clientTypeKey: "USC_GRADUATE", when: { profileKind: "USC_STUDENT", academicLevel: "GRADUATE" } },
+  { clientTypeKey: "USC_SHS_UNDERGRADUATE", when: { profileKind: "USC_STUDENT" } },
+  { clientTypeKey: "EXTERNAL_GRADUATE", when: { profileKind: "EXTERNAL_STUDENT", academicLevel: "GRADUATE" } },
+  { clientTypeKey: "EXTERNAL_SHS_UNDERGRADUATE", when: { profileKind: "EXTERNAL_STUDENT" } },
+  { clientTypeKey: "USC_FACULTY_WORKLOAD", when: { profileKind: "USC_ACADEMIC" } },
+];
 
 /** Settings that change how the 2025 process behaves start with the new process. */
 async function scheduledSettings(prisma: PrismaClient, ownerId: string, startsOn: Date): Promise<void> {

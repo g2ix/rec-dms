@@ -8,6 +8,7 @@ import { prisma } from "@/server/db";
 import { settingValue } from "@/server/effective";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
+import { applySuggestedClientType } from "@/server/fees/client-type";
 import { recordNotice } from "@/server/notifications/deliver";
 
 type Tx = Prisma.TransactionClient;
@@ -41,6 +42,8 @@ export async function issueBillTx(
   input: { protocolId: string; protocolVersionId: string; basis: string; actorUserId: string | null; meta: Prisma.InputJsonObject; now?: Date },
 ) {
   const now = input.now ?? new Date();
+  // A protocol submitted before the rules matched it still gets the suggested type when it is first billed.
+  await applySuggestedClientType(tx, input.protocolId, input.meta);
   const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: input.protocolId } });
   const round = await roundOf(tx, input.protocolVersionId);
   const existing = await tx.bill.findFirst({

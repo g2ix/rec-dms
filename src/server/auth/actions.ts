@@ -62,7 +62,9 @@ export async function signInWithGoogle(_prev: ActionState, formData: FormData): 
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
       return { ok: false, error: "Google sign-in is not configured." };
     }
-    await signIn("google", { redirectTo: afterSignIn(formData) }, { hd: "usc.edu.ph" });
+    // Any Google account: USC, another organization's Google Workspace, or a personal account.
+    // Accounts outside the auto-approve domains wait for approval (auth.autoApproveDomains).
+    await signIn("google", { redirectTo: afterSignIn(formData) });
     return null;
   } catch (error) {
     return actionError(error, "Google sign-in did not complete.");
