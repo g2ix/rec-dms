@@ -451,6 +451,7 @@ model ProtocolMember {
   contactEmail  UserEmail?     @relation(fields: [contactEmailId], references: [id])
   invitedBy     User?          @relation("MemberInviter", fields: [invitedById], references: [id])
   formInstances FormInstance[]
+  agreements    IntakeAgreement[]
 
   @@unique([protocolId, userId])
   @@index([userId])
@@ -482,6 +483,7 @@ model ProtocolVersion {
   fee               FeeVerification?
   signatureEvents   SignatureEvent[]
   workflowInstances WorkflowInstance[]
+  intake            ProtocolIntake?
 
   @@unique([protocolId, number])
   @@index([protocolId, state])
@@ -490,6 +492,59 @@ model ProtocolVersion {
 }
 
 /// Object-storage pointer. Named StoredFile so it does not clash with the DOM File type.
+/// What the proponents answer once per protocol version. F-27, F-28, F-30 and the proponent
+/// columns of F-35, F-36 and F-38 are printed from it and from the protocol's study details.
+model ProtocolIntake {
+  id                String   @id @default(uuid())
+  protocolVersionId String   @unique @map("protocol_version_id")
+  /// { consentNeeded, waiverReason, minors, vulnerable, focusGroups, onlineConsent, nonEnglishIcf, facultyInitiated, personalData }
+  scoping           Json     @default("{}")
+  /// { kind: "NONE" | "SPECIFY", text }
+  coi               Json     @default("{}")
+  /// [{ id, section: PS | MOOE | CAPITAL | ADMIN, item, personal, external, internal }] in centavos
+  budgetLines       Json     @default("[]") @map("budget_lines")
+  /// { [point code]: { page, line } | "NA" }
+  references        Json     @default("{}")
+  /// F-38 on a resubmission: { [point code]: actions taken, with page and paragraph }
+  actions           Json     @default("{}")
+  revision          Int      @default(0)
+  /// Who saved each section last, at which revision: { [section]: { revision, userId, at } }. Used for conflicts.
+  sectionRevisions  Json     @default("{}") @map("section_revisions")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  protocolVersion ProtocolVersion   @relation(fields: [protocolVersionId], references: [id], onDelete: Cascade)
+  agreements      IntakeAgreement[]
+
+  @@map("protocol_intakes")
+}
+
+enum IntakeAgreementKind {
+  DECLARATIONS
+  F28_CONSENT
+}
+
+/// One researcher's agreement to the F-27 declarations or the F-28 consents. The signature itself
+/// stays in signature_events; this row only points at it.
+model IntakeAgreement {
+  id               String              @id @default(uuid())
+  intakeId         String              @map("intake_id")
+  memberId         String              @map("member_id")
+  kind             IntakeAgreementKind
+  agreedAt         DateTime            @map("agreed_at")
+  signatureEventId String?             @map("signature_event_id")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  intake         ProtocolIntake  @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  member         ProtocolMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  signatureEvent SignatureEvent? @relation(fields: [signatureEventId], references: [id])
+
+  @@unique([intakeId, memberId, kind])
+  @@index([signatureEventId])
+  @@map("intake_agreements")
+}
+
 model StoredFile {
   id                String     @id @default(uuid())
   protocolVersionId String?    @map("protocol_version_id")
@@ -647,6 +702,7 @@ model SignatureEvent {
   user            User             @relation(fields: [userId], references: [id])
   signature       Signature        @relation(fields: [signatureId], references: [id])
   protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
+  agreements      IntakeAgreement[]
 
   @@index([formInstanceId])
   @@index([userId])
@@ -927,6 +983,8 @@ model FormDefinition {
   /// Scheduled start. Protocols created before this date keep the earlier version.
   effectiveFrom        DateTime?            @map("effective_from")
   effectiveAnnouncedAt DateTime?            @map("effective_announced_at")
+  /// Not used for protocols created on or after this date. Protocols created earlier keep it, and old copies stay readable.
+  retiredFrom          DateTime?            @map("retired_from")
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
 

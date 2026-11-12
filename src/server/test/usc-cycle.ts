@@ -4,6 +4,8 @@ import { canSignSlot, signatureSlots, type RosterMember } from "@/lib/signatures
 import { prisma } from "@/server/db";
 import { toJson } from "@/server/forms/json";
 import { toRoster } from "@/server/signatures/sign";
+import { ensureIntake } from "@/server/intake/service";
+import { intakeState } from "@/server/intake/state";
 import { completeTask, type CompleteInput } from "@/server/workflow/engine";
 
 /** Test helpers that walk the seeded USC REC workflows as each role would: fill, sign, complete. */
@@ -175,6 +177,53 @@ export async function writeForm(input: {
     await sign(instance.id, slot.fieldPath, input.userId, input.versionId);
   }
   return instance;
+}
+
+/**
+ * Answers the Study section (Details) and the intake as the proponents would on an intake (11-01)
+ * version: every scoping answer yes, no conflict of interest, one budget line, a page and line for
+ * every point to reference, an action on every open F-38 point, and every researcher's agreements.
+ */
+export async function fillIntake(protocolId: string, versionId: string, options: { funding?: { code: string; detail: string }[] } = {}) {
+  const funding = options.funding ?? [{ code: "RESEARCHER", detail: "" }];
+  await prisma.protocol.update({
+    where: { id: protocolId },
+    data: {
+      researchTypeCodes: ["SOCIAL_BEHAVIORAL"],
+      durationMonths: 6,
+      expectedParticipants: 30,
+      studySite: "University of San Carlos",
+      fundingSources: toJson(funding.map((item) => ({ ...item, name: item.detail ? `${item.code}: ${item.detail}` : item.code }))),
+    },
+  });
+  const intake = await prisma.$transaction((tx) => ensureIntake(tx, versionId));
+  const state = await intakeState(prisma, versionId);
+  if (!state) throw new Error("No intake on this version.");
+  const references: Record<string, { page: string; line: string }> = {};
+  for (const group of state.groups) for (const point of group.points) references[point.code] = { page: "1", line: "1" };
+  const actions: Record<string, string> = {};
+  for (const point of state.actionPoints) actions[point.code] = `Revised as asked on page 2, paragraph 1 (${point.code}).`;
+  const column = funding.some((item) => item.code === "RESEARCHER") ? "personal" : funding.some((item) => item.code === "INSTITUTION") ? "internal" : "external";
+  await prisma.protocolIntake.update({
+    where: { id: intake.id },
+    data: {
+      scoping: toJson({ consentNeeded: true, minors: true, vulnerable: true, focusGroups: true, onlineConsent: true, nonEnglishIcf: true, facultyInitiated: true, personalData: true }),
+      coi: toJson({ kind: "NONE" }),
+      budgetLines: toJson([{ id: "line-1", section: "MOOE", item: "Supplies and materials expenses", [column]: 50_000 }]),
+      references: toJson(references),
+      actions: toJson(actions),
+    },
+  });
+  const members = await prisma.protocolMember.findMany({ where: { protocolId, role: "PROPONENT", status: "ACTIVE" } });
+  for (const member of members) {
+    for (const kind of ["DECLARATIONS", "F28_CONSENT"] as const) {
+      await prisma.intakeAgreement.upsert({
+        where: { intakeId_memberId_kind: { intakeId: intake.id, memberId: member.id, kind } },
+        update: {},
+        create: { intakeId: intake.id, memberId: member.id, kind, agreedAt: new Date() },
+      });
+    }
+  }
 }
 
 export async function upload(versionId: string, userId: string, kind: "MANUSCRIPT" | "COVER_LETTER" | "FEE_RECEIPT") {

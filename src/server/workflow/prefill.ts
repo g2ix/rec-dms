@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { addDuration } from "@/lib/workflow/calendar";
 import { manilaDay } from "@/lib/workflow/calendar";
 import { effectiveCell } from "@/lib/forms/schema";
+import { validateSchema } from "@/lib/forms/schema";
+import { missingRequiredSignatures } from "@/lib/signatures/target";
 import { formDefinitionForVersion } from "@/server/effective";
+import { signatureMarks, toRoster } from "@/server/signatures/sign";
 
 type Tx = Prisma.TransactionClient;
 
@@ -43,12 +46,14 @@ async function yesNoFromEvidence(tx: Tx, params: Record<string, unknown>, ctx: C
     const rowId = text((rule as Row).row);
     if (!rowId) continue;
     const present = await evidencePresent(tx, ctx, rule as Row);
-    if (!present) continue;
+    // `otherwise` ("NO" or "NA") is the suggestion when the evidence is missing; staff confirm either way.
+    const otherwise = (rule as Row).otherwise === "NO" || (rule as Row).otherwise === "NA" ? ((rule as Row).otherwise as string) : null;
+    if (!present && !otherwise) continue;
     const row = record(table[rowId]);
     const cell = row[column];
     const choice = cell && typeof cell === "object" && !Array.isArray(cell) ? (cell as Row).choice : null;
     if (choice === "YES" || choice === "NO" || choice === "NA") continue;
-    row[column] = { choice: "YES", reason: "" };
+    row[column] = { choice: present ? "YES" : otherwise, reason: present ? "" : "Suggested from the submission" };
     table[rowId] = row;
     changed = true;
   }
@@ -66,7 +71,21 @@ async function evidencePresent(tx: Tx, ctx: Ctx, rule: Row): Promise<boolean> {
     return Boolean(file);
   }
   if (typeof rule.form === "string") {
-    return Boolean(await sharedInstance(tx, ctx.protocolVersionId, rule.form));
+    const instance = await sharedInstance(tx, ctx.protocolVersionId, rule.form);
+    if (!instance) return false;
+    // `signed: true`: the form counts only when every required signature is on it.
+    if (rule.signed !== true) return true;
+    const definition = await tx.formDefinition.findUnique({ where: { id: instance.formDefinitionId }, select: { schema: true } });
+    const check = validateSchema(definition?.schema);
+    if (!check.ok) return false;
+    const members = toRoster(
+      await tx.protocolMember.findMany({
+        where: { protocolId: ctx.protocolId, status: { in: ["ACTIVE", "INVITED"] } },
+        include: { user: { select: { displayName: true } } },
+      }),
+    );
+    const marks = (await signatureMarks(tx, [instance.id])).get(instance.id) ?? [];
+    return missingRequiredSignatures(check.schema, members, marks).length === 0;
   }
   if (rule.fee === "VERIFIED") {
     const fee = await tx.feeVerification.findUnique({ where: { protocolVersionId: ctx.protocolVersionId } });

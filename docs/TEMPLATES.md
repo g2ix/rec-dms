@@ -44,6 +44,16 @@ The official Word files of the November 2026 process are in `docs/forms/source/`
 - F-40 and F-42 are forms, so the chair and the researchers can sign them. The release date, the validity period, the progress report date and the continuing review date come from the `certificates.*` settings when the decision is released. The Conformé shows the first four researchers' signatures; every signer is listed in the footer.
 - F-39 keeps the printed instructions for each decision and fills the submission deadline and, when disapproved, the justification.
 
+## Intake set (11-01, INTAKE-01)
+
+F-26, F-27, F-28, F-30, F-35, F-36 and F-38 version 11-01 print from the intake and the Details page. Their templates are in `templates/11-01/`, derived from the tagged 2026 set by `pnpm templates:prepare-11` (`scripts/prepare-templates-11-01.ts`). The layout of the Word files is unchanged; only placeholders move:
+
+- F-27 and F-28: the signature row repeats for every researcher (`signers` helper), each with the date that researcher signed. The six declaration boxes print ticked when every researcher has agreed on the intake.
+- F-30: "d. Ethics Review Fee" prints in the column the proponent chose (`fee_personal` … `fee_total`). Budget items are free text guided by the named lines: an item that matches a named line (salaries, honoraria, travel, supplies, incentive) prints there, every other item on the `<details>` lines. Extra MOOE items all print under "a. Traveling expenses", where the Word file has its first `<details>` line.
+- F-35 and F-36: the 2026 templates, with the page and line filled from `intake.references` (`p. 3, line 12`, or `NA`).
+- F-38: the Type of Review boxes from the review type, and every researcher's signature in the Researcher(s)/Proponent(s) cell.
+- `pnpm templates:check` checks the 2025, 2026-11 and 11-01 sets.
+
 ## PDF conversion
 
 `PDF_CONVERTER=libreoffice-local` (the older name `soffice` still works) uses local LibreOffice (`soffice --headless`). `PDF_CONVERTER=gotenberg` posts the docx to `$GOTENBERG_URL/forms/libreoffice/convert` with basic auth from `GOTENBERG_USERNAME` and `GOTENBERG_PASSWORD`. The request times out after 90 seconds and is tried twice more on a 5xx or a timeout. On Vercel that work is a background job so a cold start does not hold the page.

@@ -6,7 +6,9 @@ import { validateSchema } from "../../../src/lib/forms/schema";
 import { validateGraph } from "../../../src/lib/workflow/validate";
 import type { UscForm } from "./forms";
 import { uscForms2026 } from "./forms-2026-11";
-import { initialSubmission2026, PROCESS_START, resubmission2026 } from "./workflows-2026-11";
+import { REPLACED_BY_11, RETIRED_FORMS, uscForms11 } from "./forms-11-01";
+import { SCOPING_RULES_11 } from "./scoping-11";
+import { initialSubmission2026, M14_START, PROCESS_START, resubmission2026 } from "./workflows-2026-11";
 
 /**
  * The November 2026 process (docs/PROCESS-UPDATE-2026-11.md) as data: form versions, workflow
@@ -18,6 +20,13 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const TEMPLATE_DIR = join(process.cwd(), "templates", "2026-11");
+const TEMPLATE_DIR_11 = join(process.cwd(), "templates", "11-01");
+
+/** The forms of the November process: the 11-01 intake outputs, and the M14 versions of the other codes. */
+export const processForms: { form: UscForm; dir: string }[] = [
+  ...uscForms2026.filter((form) => !REPLACED_BY_11.includes(form.code)).map((form) => ({ form, dir: TEMPLATE_DIR })),
+  ...uscForms11.map((form) => ({ form, dir: TEMPLATE_DIR_11 })),
+];
 
 export type InstallOptions = {
   /** When the new versions start. Defaults to PROCESS_START; tests pass their own date. */
@@ -27,13 +36,15 @@ export type InstallOptions = {
 export async function installProcess2026(prisma: PrismaClient, ownerId: string, options: InstallOptions = {}): Promise<void> {
   const startsOn = options.startsOn ?? PROCESS_START;
   await immediateSettings(prisma);
+  await moveEarlierSchedule(prisma, startsOn);
   await scheduledSettings(prisma, ownerId, startsOn);
   await feeSchedule(prisma, ownerId);
   const codes = new Set<string>();
-  for (const form of uscForms2026) {
-    await publishScheduledForm(prisma, ownerId, form, startsOn);
+  for (const { form, dir } of processForms) {
+    await publishScheduledForm(prisma, ownerId, form, startsOn, dir);
     codes.add(form.code);
   }
+  await retireReplaced(prisma, startsOn);
   await publishScheduledWorkflow(prisma, ownerId, { key: "INITIAL_SUBMISSION", name: "Initial submission", submissionType: "INITIAL", graph: initialSubmission2026, codes }, startsOn);
   await publishScheduledWorkflow(prisma, ownerId, { key: "RESUBMISSION", name: "Resubmission", submissionType: "RESUBMISSION", graph: resubmission2026, codes }, startsOn);
 }
@@ -61,6 +72,8 @@ async function immediateSettings(prisma: PrismaClient): Promise<void> {
     { key: "certificates.continuingReviewBefore", value: { amount: 30, unit: "DAYS" } },
     // The 2025 process met on the second Friday with a 14-day cutoff; it stays until the 2027 schedule starts.
     { key: "meetings.schedule", value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
+    // INTAKE-01: scoping answers that mark F-35 and F-36 points N/A. Read only by 11-01 forms.
+    { key: "intake.scopingRules", value: SCOPING_RULES_11 },
   ];
   for (const row of rows) {
     const existing = await prisma.setting.findUnique({ where: { key: row.key } });
@@ -109,8 +122,8 @@ async function scheduledSettings(prisma: PrismaClient, ownerId: string, startsOn
   const rows: { key: string; value: unknown }[] = [
     // 2027-001-Cruz, or 2027-001-Cruz et al for several researchers.
     { key: "protocol.codePattern", value: "{YYYY}-{###}-{LEADER_FAMILY}{ET_AL}" },
-    // 2-01Jan2027.
-    { key: "protocol.versionLabel", value: "{N}-{DDMMMYYYY}" },
+    // 2/01Jan2027, as the F-38 Word file shows. The suggested manuscript file name writes 2-01Jan2027.
+    { key: "protocol.versionLabel", value: "{N}/{DDMMMYYYY}" },
     // Panel 1 meets on the first Friday, Panel 2 on the second, Panel 3 on the third.
     {
       key: "meetings.schedule",
@@ -190,9 +203,9 @@ async function feeSchedule(prisma: PrismaClient, ownerId: string): Promise<void>
   });
 }
 
-function mapFor(code: string): unknown {
-  const path = join(TEMPLATE_DIR, "maps", `${code}.json`);
-  if (!existsSync(path)) throw new Error(`templates/2026-11/maps/${code}.json is missing. Run scripts/prepare-templates-2026-11.ts.`);
+function mapFor(code: string, dir: string = TEMPLATE_DIR): unknown {
+  const path = join(dir, "maps", `${code}.json`);
+  if (!existsSync(path)) throw new Error(`${path} is missing. Run the prepare-templates script for that set.`);
   return JSON.parse(readFileSync(path, "utf8")) as unknown;
 }
 
@@ -200,8 +213,8 @@ function mapFor(code: string): unknown {
  * Stores the official Word template beside its form version, as the admin "replace template"
  * screen does, so each version prints with its own file. The object key is the content hash.
  */
-async function templateFile(prisma: Db, ownerId: string, form: UscForm, current: string | null): Promise<string> {
-  const bytes = readFileSync(join(TEMPLATE_DIR, `${form.code}.docx`));
+async function templateFile(prisma: Db, ownerId: string, form: UscForm, current: string | null, dir: string = TEMPLATE_DIR): Promise<string> {
+  const bytes = readFileSync(join(dir, `${form.code}.docx`));
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   if (current) {
     const stored = await prisma.storedFile.findUnique({ where: { id: current } });
@@ -226,14 +239,17 @@ async function templateFile(prisma: Db, ownerId: string, form: UscForm, current:
   return stored.id;
 }
 
-async function publishScheduledForm(prisma: PrismaClient, ownerId: string, form: UscForm, startsOn: Date): Promise<void> {
+async function publishScheduledForm(prisma: PrismaClient, ownerId: string, form: UscForm, startsOn: Date, dir: string = TEMPLATE_DIR): Promise<void> {
   const check = validateSchema(form.schema);
   if (!check.ok) throw new Error(`${form.code} ${form.version}: ${check.issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`);
-  const map = mapFor(form.code);
+  const map = mapFor(form.code, dir);
   const existing = await prisma.formDefinition.findUnique({ where: { code_version: { code: form.code, version: form.version } } });
-  const templateFileId = await templateFile(prisma, ownerId, form, existing?.templateFileId ?? null);
+  const templateFileId = await templateFile(prisma, ownerId, form, existing?.templateFileId ?? null, dir);
   if (existing) {
-    // Refresh the wording of a version already published; its start date and status stay.
+    // Refresh the wording of a version already published; its status stays. An unused version
+    // still scheduled for another start moves to the current start.
+    const unused = (await prisma.formInstance.count({ where: { formDefinitionId: existing.id } })) === 0;
+    const move = unused && existing.effectiveFrom != null && existing.effectiveFrom.getTime() !== startsOn.getTime();
     await prisma.formDefinition.update({
       where: { id: existing.id },
       data: {
@@ -242,6 +258,7 @@ async function publishScheduledForm(prisma: PrismaClient, ownerId: string, form:
         placeholderMap: map as never,
         templateFileId,
         ...(existing.status === "DRAFT" ? { status: "PUBLISHED", publishedAt: new Date(), effectiveFrom: startsOn } : {}),
+        ...(move ? { effectiveFrom: startsOn, effectiveAnnouncedAt: null } : {}),
       },
     });
     return;
@@ -260,6 +277,42 @@ async function publishScheduledForm(prisma: PrismaClient, ownerId: string, form:
       publishedAt: new Date(),
       effectiveFrom: startsOn,
     },
+  });
+}
+
+/**
+ * 11-01 replaces the M14 versions of F-26, F-27, F-28, F-30, F-35, F-36 and F-38: an unused one is
+ * retired, one already in use stops being chosen for protocols created from the start. F-29 is
+ * retired the same way; protocols created earlier keep it, and old copies stay readable.
+ */
+async function retireReplaced(prisma: PrismaClient, startsOn: Date): Promise<void> {
+  const replaced = uscForms2026.filter((form) => REPLACED_BY_11.includes(form.code));
+  for (const form of replaced) {
+    const row = await prisma.formDefinition.findUnique({ where: { code_version: { code: form.code, version: form.version } } });
+    if (!row || row.status === "RETIRED") continue;
+    const used = await prisma.formInstance.count({ where: { formDefinitionId: row.id } });
+    await prisma.formDefinition.update({ where: { id: row.id }, data: used === 0 ? { status: "RETIRED" } : { retiredFrom: startsOn } });
+  }
+  await prisma.formDefinition.updateMany({ where: { code: { in: RETIRED_FORMS }, retiredFrom: null }, data: { retiredFrom: startsOn } });
+}
+
+/**
+ * M14 scheduled its versions and settings for 1 Jan 2027. Unused workflow versions and unapplied
+ * settings still waiting for that date are archived or cancelled, so they do not take over from
+ * the versions published for the current start. Form versions move in publishScheduledForm.
+ */
+async function moveEarlierSchedule(prisma: PrismaClient, startsOn: Date): Promise<void> {
+  if (startsOn.getTime() === M14_START.getTime()) return;
+  const stale = await prisma.workflowVersion.findMany({
+    where: { status: "PUBLISHED", effectiveFrom: M14_START },
+    include: { _count: { select: { instances: true } } },
+  });
+  for (const version of stale) {
+    if (version._count.instances === 0) await prisma.workflowVersion.update({ where: { id: version.id }, data: { status: "ARCHIVED" } });
+  }
+  await prisma.settingSchedule.updateMany({
+    where: { effectiveFrom: M14_START, appliedAt: null, cancelledAt: null },
+    data: { cancelledAt: new Date() },
   });
 }
 

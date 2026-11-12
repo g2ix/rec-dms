@@ -6,11 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, type SaveState } from "@/components/ui/field";
 import { Radio } from "@/components/ui/radio";
 import { Textarea } from "@/components/ui/textarea";
-import { formatBoundValue } from "@/lib/forms/bindings";
+import { formatBoundValue, SET_BY_SYSTEM } from "@/lib/forms/bindings";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { asCellRecord, rowHasFilled } from "@/lib/forms/cells";
 import { valueDiffersFromDefault } from "@/lib/forms/defaults";
-import { canChangeRepeatingRows, columnVisibleToRoles, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
+import { canChangeRepeatingRows, columnVisibleToRoles, fieldVisibleToRoles, getEditableFields, isRepeatingColumnEditable } from "@/lib/forms/editable";
 import { centavosFromPesos, formatCentavos, pesosInput } from "@/lib/forms/money";
 import { isRowVisible, isSectionVisible } from "@/lib/forms/logic";
 import { getPath, setPath } from "@/lib/forms/paths";
@@ -119,6 +119,7 @@ function FieldBlock(props: {
   signing?: SigningPrompt | null;
 }) {
   const { field, data, boundValues } = props;
+  if (!fieldVisibleToRoles(field, props.roles)) return null;
   if (field.type === "staticText") {
     return (
       <div className="rec-field rec-field--wide">
@@ -146,9 +147,31 @@ function FieldBlock(props: {
     );
   }
   if (field.bind) {
+    const intake = props.schema.source === "intake";
+    const protocolId = typeof boundValues["system.protocolId"] === "string" ? boundValues["system.protocolId"] : null;
+    const onDetails = field.bind.startsWith("protocol.");
+    const systemNote = SET_BY_SYSTEM[field.bind];
+    const href = protocolId ? `/app/protocols/${protocolId}/${intake && !onDetails ? "intake" : "details"}` : "/app/protocols";
+    if (field.type === "repeatingTable") {
+      return (
+        <div className="rec-stack">
+          <RepeatingTable {...props} editing={false} />
+          <p className="caption">
+            <a href={href}>Edit in the intake</a>
+          </p>
+        </div>
+      );
+    }
+    const value = intake ? data[field.id] : boundValues[field.bind];
     return (
-      <Field label={field.label} help={field.help} locked lockedHref="/app/protocols">
-        {formatBoundValue(boundValues[field.bind])}
+      <Field
+        label={field.label}
+        help={field.help}
+        locked
+        lockedHref={systemNote ? null : href}
+        lockedLabel={systemNote ?? (intake && !onDetails ? "Edit in the intake" : "Edit in protocol details")}
+      >
+        {boundText(field, value)}
       </Field>
     );
   }
@@ -156,6 +179,21 @@ function FieldBlock(props: {
   if (field.type === "assessmentTable") return <AssessmentTable {...props} />;
   if (field.type === "declaration") return <Declaration {...props} />;
   return <ScalarField {...props} />;
+}
+
+/** A bound value as the proponent chose it: option labels for choices, Yes or No for a declaration. */
+function boundText(field: FormField, value: unknown): string {
+  const labels = new Map((field.options ?? []).map((option) => [option.value, option.label]));
+  if (Array.isArray(value) && labels.size > 0) {
+    const chosen = value.map((item) => labels.get(String(item)) ?? String(item));
+    return chosen.length > 0 ? chosen.join("; ") : "Not entered yet";
+  }
+  if (typeof value === "string" && labels.has(value)) return labels.get(value)!;
+  if (field.type === "declaration" || field.type === "checkboxes") {
+    if (value === true) return "Agreed";
+    if (value === false) return "Not yet agreed by every researcher";
+  }
+  return formatBoundValue(value);
 }
 
 function notice(fieldState: Record<string, FieldUi> | undefined, path: string): FieldUi | undefined {
@@ -819,8 +857,12 @@ function AssessmentTable({
                     const path = `${field.id}.${row.id}.${column.id}`;
                     const open = editing && editable.has(path);
                     const ui = notice(fieldState, path);
-                    const displayValue =
-                      cells[column.id] == null && typeof column.defaultValue === "string" ? column.defaultValue : cells[column.id];
+                    const naText = column.bind && typeof cells._na === "string" ? cells._na : null;
+                    const displayValue = naText
+                      ? naText
+                      : cells[column.id] == null && typeof column.defaultValue === "string"
+                        ? column.defaultValue
+                        : cells[column.id];
                     return (
                       <td key={column.id} className={open ? undefined : "rec-cell--locked"} data-label={column.label}>
                         <span className="rec-assess__label label">{column.label}</span>

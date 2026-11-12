@@ -46,6 +46,9 @@ export function DetailsForm({
       <section className="rec-card rec-stack">
         <h2 className="heading">Shown on every form</h2>
         <p className="body-sm rec-muted">Researchers follow the proponent roster, in order, as First M. Family.</p>
+        <p className="body-sm rec-muted">
+          These details are the Study section of the intake. F-27 prints them as they are here, so there is nothing to type again on the form.
+        </p>
         <p className="body">{researchers.length > 0 ? researchers.join(", ") : "No active proponents yet."}</p>
       </section>
       <form action={action} className="rec-form">

@@ -1,0 +1,405 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code",
+    "covers": [
+      "protocol_code"
+    ]
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title",
+    "covers": [
+      "protocol_title"
+    ]
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel",
+    "covers": [
+      "version"
+    ]
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "covers": [
+      "researchers"
+    ]
+  },
+  "protocol.emails": {
+    "path": "protocol.emails",
+    "helper": "join"
+  },
+  "protocol.contactNumbers": {
+    "path": "protocol.contactNumbers",
+    "helper": "join"
+  },
+  "protocol.institution": {
+    "path": "protocol.institution",
+    "helper": "text"
+  },
+  "protocol.institutionAddress": {
+    "path": "protocol.institutionAddress",
+    "helper": "text"
+  },
+  "protocol.submissionDate": {
+    "path": "protocol.submissionDate",
+    "helper": "date"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "ps_salaries_personal": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "salaries",
+    "column": "personal"
+  },
+  "ps_salaries_external": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "salaries",
+    "column": "external"
+  },
+  "ps_salaries_internal": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "salaries",
+    "column": "internal"
+  },
+  "ps_salaries_total": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "salaries",
+    "column": "total"
+  },
+  "ps_honoraria_personal": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "honoraria",
+    "column": "personal"
+  },
+  "ps_honoraria_external": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "honoraria",
+    "column": "external"
+  },
+  "ps_honoraria_internal": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "honoraria",
+    "column": "internal"
+  },
+  "ps_honoraria_total": {
+    "path": "ps",
+    "helper": "budgetCell",
+    "match": "honoraria",
+    "column": "total"
+  },
+  "mooe_travel_personal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "travel",
+    "column": "personal"
+  },
+  "mooe_travel_external": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "travel",
+    "column": "external"
+  },
+  "mooe_travel_internal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "travel",
+    "column": "internal"
+  },
+  "mooe_travel_total": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "travel",
+    "column": "total"
+  },
+  "mooe_supplies_personal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "supplies",
+    "column": "personal"
+  },
+  "mooe_supplies_external": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "supplies",
+    "column": "external"
+  },
+  "mooe_supplies_internal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "supplies",
+    "column": "internal"
+  },
+  "mooe_supplies_total": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "supplies",
+    "column": "total"
+  },
+  "mooe_incentive_personal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "incentive",
+    "column": "personal"
+  },
+  "mooe_incentive_external": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "incentive",
+    "column": "external"
+  },
+  "mooe_incentive_internal": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "incentive",
+    "column": "internal"
+  },
+  "mooe_incentive_total": {
+    "path": "mooe",
+    "helper": "budgetCell",
+    "match": "incentive",
+    "column": "total"
+  },
+  "ps_details": {
+    "path": "ps",
+    "helper": "budgetRest",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "ps"
+    ]
+  },
+  "mooe_details": {
+    "path": "mooe",
+    "helper": "budgetRest",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "mooe"
+    ]
+  },
+  "ps_sub_personal": {
+    "path": "ps_total",
+    "helper": "budgetSum",
+    "column": "personal",
+    "sections": [
+      "ps"
+    ]
+  },
+  "ps_sub_external": {
+    "path": "ps_total",
+    "helper": "budgetSum",
+    "column": "external",
+    "sections": [
+      "ps"
+    ]
+  },
+  "ps_sub_internal": {
+    "path": "ps_total",
+    "helper": "budgetSum",
+    "column": "internal",
+    "sections": [
+      "ps"
+    ]
+  },
+  "ps_sub_total": {
+    "path": "ps_total",
+    "helper": "budgetSum",
+    "column": "total",
+    "sections": [
+      "ps"
+    ]
+  },
+  "mooe_sub_personal": {
+    "path": "mooe_total",
+    "helper": "budgetSum",
+    "column": "personal",
+    "sections": [
+      "mooe"
+    ]
+  },
+  "mooe_sub_external": {
+    "path": "mooe_total",
+    "helper": "budgetSum",
+    "column": "external",
+    "sections": [
+      "mooe"
+    ]
+  },
+  "mooe_sub_internal": {
+    "path": "mooe_total",
+    "helper": "budgetSum",
+    "column": "internal",
+    "sections": [
+      "mooe"
+    ]
+  },
+  "mooe_sub_total": {
+    "path": "mooe_total",
+    "helper": "budgetSum",
+    "column": "total",
+    "sections": [
+      "mooe"
+    ]
+  },
+  "capital_sub_personal": {
+    "path": "capital_total",
+    "helper": "budgetSum",
+    "column": "personal",
+    "sections": [
+      "capital"
+    ]
+  },
+  "capital_sub_external": {
+    "path": "capital_total",
+    "helper": "budgetSum",
+    "column": "external",
+    "sections": [
+      "capital"
+    ]
+  },
+  "capital_sub_internal": {
+    "path": "capital_total",
+    "helper": "budgetSum",
+    "column": "internal",
+    "sections": [
+      "capital"
+    ]
+  },
+  "capital_sub_total": {
+    "path": "capital_total",
+    "helper": "budgetSum",
+    "column": "total",
+    "sections": [
+      "capital"
+    ]
+  },
+  "grand_personal": {
+    "path": "grand_total",
+    "helper": "budgetSum",
+    "column": "personal",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ]
+  },
+  "grand_external": {
+    "path": "grand_total",
+    "helper": "budgetSum",
+    "column": "external",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ]
+  },
+  "grand_internal": {
+    "path": "grand_total",
+    "helper": "budgetSum",
+    "column": "internal",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ]
+  },
+  "grand_total": {
+    "path": "grand_total",
+    "helper": "budgetSum",
+    "column": "total",
+    "sections": [
+      "ps",
+      "mooe",
+      "capital",
+      "admin"
+    ]
+  },
+  "capital": {
+    "path": "capital",
+    "helper": "rows",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "capital"
+    ]
+  },
+  "admin": {
+    "path": "admin",
+    "helper": "rows",
+    "columns": [
+      "particular",
+      "personal",
+      "external",
+      "internal",
+      "total"
+    ],
+    "covers": [
+      "admin"
+    ]
+  },
+  "external_source": {
+    "helper": "text",
+    "path": "external_source"
+  },
+  "admin_total_sum": {
+    "path": "admin_total",
+    "helper": "budgetSum",
+    "column": "total",
+    "sections": [
+      "admin"
+    ]
+  },
+  "fee_personal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "fee",
+    "column": "personal"
+  },
+  "fee_external": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "fee",
+    "column": "external"
+  },
+  "fee_internal": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "fee",
+    "column": "internal"
+  },
+  "fee_total": {
+    "helper": "budgetCell",
+    "path": "mooe",
+    "match": "fee",
+    "column": "total"
+  }
+}

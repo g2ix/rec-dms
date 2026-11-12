@@ -13,6 +13,7 @@ export function Field({
   conflict,
   locked = false,
   lockedHref = "/app",
+  lockedLabel = "Edit in protocol details",
   htmlFor,
   labelId,
   children,
@@ -24,7 +25,10 @@ export function Field({
   saveState?: SaveState;
   conflict?: string;
   locked?: boolean;
-  lockedHref?: string;
+  /** Null shows `lockedLabel` as plain text: there is nowhere to edit the value. */
+  lockedHref?: string | null;
+  /** The link text under a locked field. */
+  lockedLabel?: string;
   htmlFor?: string;
   labelId?: string;
   children: React.ReactNode;
@@ -54,9 +58,7 @@ export function Field({
         children
       )}
       {locked ? (
-        <p className="caption">
-          <a href={lockedHref}>Edit in protocol details</a>
-        </p>
+        <p className="caption">{lockedHref ? <a href={lockedHref}>{lockedLabel}</a> : lockedLabel}</p>
       ) : null}
       {error ? (
         <p className="rec-field__error" role="alert">

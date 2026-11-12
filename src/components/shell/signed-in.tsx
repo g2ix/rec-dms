@@ -3,7 +3,7 @@ import { Clock } from "lucide-react";
 import { Icon } from "@/components/icons";
 import { AppShell } from "@/components/shell/app-shell";
 import { EMPTY_NAV_CAPABILITIES, type NavCapabilities } from "@/components/shell/nav";
-import { signOut } from "@/server/auth";
+import { redirect } from "next/navigation";
 import { resolveRoleView } from "@/server/auth/view";
 import {
   canEditForms,
@@ -44,11 +44,9 @@ export async function SignedInChrome({
   try {
     user = await requireUser();
   } catch (error) {
-    if (error instanceof AppError && error.code === "SUSPENDED") {
-      await signOut({ redirectTo: "/sign-in?error=Suspended" });
-    }
-    if (error instanceof AppError && error.code === "UNAUTHENTICATED") {
-      await signOut({ redirectTo: "/sign-in" });
+    // A page cannot change cookies while it renders; the route handler ends the session.
+    if (error instanceof AppError && (error.code === "SUSPENDED" || error.code === "UNAUTHENTICATED")) {
+      redirect("/api/session/end");
     }
     throw error;
   }

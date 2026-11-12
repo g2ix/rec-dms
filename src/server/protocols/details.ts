@@ -5,6 +5,7 @@ import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
+import { intakeFormsBefore, refreshIntakeForms } from "@/server/intake/service";
 
 export const protocolDetailsSchema = z.object({
   title: z.string().trim().min(1, "Enter the protocol title.").max(300),
@@ -67,6 +68,7 @@ export async function updateSharedDetails(protocolId: string, userId: string, in
     if (!working) throw new AppError("LOCKED", "This version is submitted and cannot be edited.", 409);
     const before = await tx.protocol.findUnique({ where: { id: protocolId } });
     if (!before) throw new AppError("NOT_FOUND", "That protocol was not found.", 404);
+    const formsBefore = await intakeFormsBefore(tx, working.id);
     const updated = await tx.protocol.update({
       where: { id: protocolId },
       data: {
@@ -92,6 +94,8 @@ export async function updateSharedDetails(protocolId: string, userId: string, in
       diff: diffOf(snapshotOf(before), snapshotOf(updated)),
       meta,
     });
+    // F-27, F-28 and F-30 of an intake version print these details: refresh their prints and signatures.
+    await refreshIntakeForms(tx, { versionId: working.id, before: formsBefore, protocolId, actorUserId: userId, meta });
     return updated;
   });
 }

@@ -17,8 +17,14 @@ export async function referenceDate(db: Db, protocolId: string | null | undefine
   return protocol?.createdAt ?? fallback;
 }
 
+/** In effect at `at`: started on or before it, and not retired for protocols created by then. */
 function inEffect(at: Date): Prisma.FormDefinitionWhereInput {
-  return { OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: at } }] };
+  return {
+    AND: [
+      { OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: at } }] },
+      { OR: [{ retiredFrom: null }, { retiredFrom: { gt: at } }] },
+    ],
+  };
 }
 
 /** The published form definition a protocol uses for a code. */

@@ -15,7 +15,7 @@ import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { convertDocxToPdf } from "@/server/docs/pdf";
-import { sharedSnapshot } from "@/server/protocols/snapshot";
+import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { getObjectBytes, putObject } from "@/server/storage";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -55,14 +55,9 @@ async function chairName(): Promise<string> {
 async function boundValuesFor(versionId: string | null): Promise<Record<string, unknown>> {
   const chair = await chairName();
   if (!versionId) return { ...PREVIEW_BOUND_VALUES, "rec.chairName": chair };
-  const version = await prisma.protocolVersion.findUnique({
-    where: { id: versionId },
-    include: { protocol: { include: { members: { include: { user: true, contactEmail: true } } } } },
-  });
-  if (!version) return { ...PREVIEW_BOUND_VALUES, "rec.chairName": chair };
-  const live = sharedSnapshot(version.protocol, version.label, version.submittedAt);
-  const frozen = version.state === "SUBMITTED" && isRecord(version.snapshot) ? version.snapshot : live;
-  return { ...frozen, "rec.chairName": chair };
+  const values = await versionBoundValues(prisma, versionId);
+  if (Object.keys(values).length === 0) return { ...PREVIEW_BOUND_VALUES, "rec.chairName": chair };
+  return { ...values, "rec.chairName": chair };
 }
 
 async function loadMap(code: string, stored: unknown): Promise<PlaceholderMap> {
@@ -222,8 +217,9 @@ export async function renderFormDocument(input: {
   const check = validateSchema(instance.formDefinition.schema);
   const schema: FormSchema | undefined = check.ok ? check.schema : undefined;
   const map = await loadMap(instance.formDefinition.code, instance.formDefinition.placeholderMap);
-  const data = isRecord(instance.data) ? instance.data : {};
   const bound = { ...(await boundValuesFor(protocol?.versionId ?? null)), ...(input.extraBound ?? {}) };
+  // An intake-sourced form prints the intake and the Details page in its proponent fields.
+  const data = await effectiveFormData(prisma, instance, bound);
   const signatures = await signatureRenders(instance.id);
   const model = buildRenderModel({
     map,

@@ -47,8 +47,18 @@ export async function clientTypeFacts(db: Db, protocolId: string): Promise<Clien
   });
   const data = application?.data && typeof application.data === "object" && !Array.isArray(application.data) ? (application.data as Record<string, unknown>) : {};
   const rawFunds = source ? data[source.field] : undefined;
-  const funds = Array.isArray(rawFunds) ? rawFunds.filter((item): item is string => typeof item === "string") : typeof rawFunds === "string" ? [rawFunds] : [];
+  const formFunds = Array.isArray(rawFunds) ? rawFunds.filter((item): item is string => typeof item === "string") : typeof rawFunds === "string" ? [rawFunds] : [];
+  // Intake versions keep the source of funds on the protocol (Details), not on the application form.
+  const funds = formFunds.length > 0 ? formFunds : await protocolFunds(db, protocolId);
   return { ...leader, academicLevel: leader.academicLevel ?? null, affiliationKind: leader.affiliationKind ?? null, funds };
+}
+
+async function protocolFunds(db: Db, protocolId: string): Promise<string[]> {
+  const protocol = await db.protocol.findUnique({ where: { id: protocolId }, select: { fundingSources: true } });
+  const sources = Array.isArray(protocol?.fundingSources) ? protocol.fundingSources : [];
+  return sources.flatMap((item) =>
+    item && typeof item === "object" && !Array.isArray(item) && typeof (item as { code?: unknown }).code === "string" ? [(item as { code: string }).code] : [],
+  );
 }
 
 /**

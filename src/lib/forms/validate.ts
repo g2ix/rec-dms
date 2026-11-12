@@ -133,8 +133,11 @@ function checkAssessment(
       continue;
     }
     if (!assessmentRowShown(field, row, record, data)) continue;
-    const required = mode === "complete" && assessmentRowRequired(field, row, data);
+    // A point the proponent's scoping answers mark N/A (overlaid as `_na`) can still be commented on, but nothing is required.
+    const required = mode === "complete" && !record._na && assessmentRowRequired(field, row, data);
     for (const column of field.columns ?? []) {
+      // Bound columns come from the intake; the intake has its own checks.
+      if (column.bind) continue;
       const cell = record[column.id];
       const shape = columnShape(column, cell, field);
       if (shape) issues.push({ path: `${path}.${row.id}.${column.id}`, message: shape });
@@ -148,7 +151,7 @@ function checkAssessment(
       ) {
         issues.push({ path: `${path}.${row.id}.${column.id}`, message: `${row.code} ${column.label} is required.` });
       }
-      if (mode === "complete" && column.type === "checkbox" && column.requireExplicitIf) {
+      if (mode === "complete" && !record._na && column.type === "checkbox" && column.requireExplicitIf) {
         const trigger = field.columns?.find((item) => item.id === column.requireExplicitIf?.column);
         if (
           trigger &&

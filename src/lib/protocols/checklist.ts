@@ -1,6 +1,6 @@
 /** Shapes and wording for the "Before you can submit" checklist. The server builds the data; this file only describes it. */
 
-export type ChecklistTab = "account" | "details" | "members" | "forms" | "uploads";
+export type ChecklistTab = "account" | "details" | "intake" | "members" | "forms" | "uploads";
 
 export type ChecklistItem = {
   key: string;

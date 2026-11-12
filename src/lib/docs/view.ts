@@ -93,7 +93,7 @@ export function buildRenderModel(input: {
   const data: Record<string, unknown> = {};
   const zone = input.timeZone ?? "Asia/Manila";
   const source = redacted(input, input.options?.redact ?? []);
-  const budget = layoutBudget(source.data);
+  const budget = layoutBudget(source.data, input.schema?.source === "intake");
   for (const [tag, raw] of Object.entries(input.map)) {
     const entry = normalize(raw);
     if (!entry) continue;
@@ -172,6 +172,7 @@ function resolveEntry(
   }
   if (helper === "money") return formatMoney(read(input, entry.path));
   if (helper === "rows") return rowLoop(tag, entry, input, images);
+  if (helper === "signers") return signersLoop(tag, entry, input, images, zone);
   if (helper === "assessmentRows") return assessmentLoop(entry, input);
   if (helper === "budgetCell") return budgetCell(entry, budget);
   if (helper === "budgetRest") return budgetRest(entry, budget);
@@ -264,6 +265,30 @@ function rowLoop(
   });
 }
 
+/**
+ * One row per researcher (`team.researchers`, roster order) with the signature of that researcher
+ * on the signature field `path` and its own date. Columns: no, name, sig, date.
+ */
+function signersLoop(
+  tag: string,
+  entry: { path?: string; width?: number; height?: number },
+  input: { data: Record<string, unknown>; bound: Record<string, unknown>; signatures: SignatureRender[] },
+  images: RenderImage[],
+  zone: string,
+): Record<string, unknown>[] {
+  const team = input.bound["team.researchers"];
+  const researchers = Array.isArray(team) ? team.filter(isRecord) : [];
+  return researchers.map((researcher, index) => {
+    const event = input.signatures.find((signature) => signature.fieldPath === `${entry.path}.researchers[${index}]`);
+    return {
+      no: String(index + 1),
+      name: display(researcher.name),
+      sig: putImage(images, `${tag}-${index}`, event?.image ?? null, entry.width ?? 120, entry.height ?? 40),
+      date: event ? formatDate(event.signedAt, zone) : "",
+    };
+  });
+}
+
 function assessmentLoop(
   entry: { path?: string; columns?: string[]; onlyFilled?: string[]; highlightIf?: string },
   input: { data: Record<string, unknown>; bound: Record<string, unknown>; schema?: FormSchema; options?: RenderOptions },
@@ -296,7 +321,14 @@ function assessmentCellFilled(value: unknown): boolean {
   return Boolean(display(value));
 }
 
-function layoutBudget(data: Record<string, unknown>): BudgetLayout {
+/**
+ * Places budget rows on the official F-30 lines. A row whose item matches a named line (salaries,
+ * honoraria, travel, supplies, incentive) goes there; the Ethics Review Fee row (`_fee`) goes on
+ * "d. Ethics Review Fee". `strict` (intake forms, where items are free text guided by the named
+ * lines) keeps every other row on the <details> lines; otherwise an unmatched row fills an empty
+ * named line, as the 2025 forms printed.
+ */
+function layoutBudget(data: Record<string, unknown>, strict = false): BudgetLayout {
   const named = new Map<string, Record<string, unknown> | null>();
   const rest = new Map<string, Record<string, unknown>[]>();
   const plan: Record<string, string[]> = {
@@ -308,6 +340,11 @@ function layoutBudget(data: Record<string, unknown>): BudgetLayout {
   for (const [section, matches] of Object.entries(plan)) {
     const rows = arrayRows(data[section]);
     const used = new Set<number>();
+    const feeIndex = rows.findIndex((row) => row._fee === true);
+    if (feeIndex >= 0) {
+      used.add(feeIndex);
+      named.set(`${section}:fee`, rows[feeIndex] ?? null);
+    }
     for (const match of matches) {
       const pattern = BUDGET_MATCH[match];
       const found = pattern
@@ -320,7 +357,7 @@ function layoutBudget(data: Record<string, unknown>): BudgetLayout {
         named.set(`${section}:${match}`, null);
       }
     }
-    for (const match of matches) {
+    for (const match of strict ? [] : matches) {
       if (named.get(`${section}:${match}`)) continue;
       const found = rows.findIndex((_, index) => !used.has(index));
       if (found < 0) continue;

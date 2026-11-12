@@ -125,12 +125,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.identityDefaultView = view;
       }
       if (userId) {
-        const row = await prisma.user.findUnique({
-          where: { id: String(userId) },
-          select: { status: true, mergedIntoId: true, totpEnabledAt: true },
-        });
-        token.status = !row || row.mergedIntoId ? "MERGED" : row.status;
-        token.needsTotp = Boolean(row?.totpEnabledAt) || (await isCommitteeStaff(String(userId)));
+        try {
+          const row = await prisma.user.findUnique({
+            where: { id: String(userId) },
+            select: { status: true, mergedIntoId: true, totpEnabledAt: true },
+          });
+          token.status = !row || row.mergedIntoId ? "MERGED" : row.status;
+          token.needsTotp = Boolean(row?.totpEnabledAt) || (await isCommitteeStaff(String(userId)));
+        } catch (error) {
+          // A busy or unreachable database must not end the session: Auth.js treats a throw here
+          // as a broken token and clears the cookie (or, while a page renders, fails the page).
+          // Keep the status from the last good check; a sign-in without one still fails.
+          if (user || typeof token.status !== "string") throw error;
+          console.warn("[auth] status refresh failed; keeping the last known status", error);
+        }
       }
       return token;
     },

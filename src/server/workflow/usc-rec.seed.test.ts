@@ -307,7 +307,11 @@ describe("USC REC seed, November 2026 process", () => {
       affiliation: { kind: "STUDENT", course: "BS Biology", yearLabel: "4th year", institution: "University of San Carlos", contactEmailId: email.id },
     });
     const started = await prisma.workflowInstance.findFirstOrThrow({ where: { protocolId: created.protocol.id }, include: { version: true } });
-    expect(started.version.effectiveFrom).toBeNull();
+    // The November process starts on PROCESS_START (12 Nov 2026), so a protocol created today runs it.
+    expect(started.version.effectiveFrom?.getTime()).toBe(PROCESS_START.getTime());
+    // A protocol created before the start keeps the 2025 versions.
+    const earlier = new Date(PROCESS_START.getTime() - 24 * 60 * 60 * 1000);
+    await prisma.protocol.update({ where: { id: created.protocol.id }, data: { createdAt: earlier } });
     const counts = async () => [await prisma.workflowVersion.count(), await prisma.formDefinition.count(), await prisma.settingSchedule.count(), await prisma.feeSchedule.count()];
     const before = await counts();
     await installUscRec(db);
@@ -321,11 +325,15 @@ describe("USC REC seed, November 2026 process", () => {
       expect((await workflowVersionFor(prisma, key, later))?.effectiveFrom?.getTime()).toBe(PROCESS_START.getTime());
     }
     expect((await formDefinitionFor(prisma, "F-35", createdAt))?.version).toBe("10-01");
-    expect((await formDefinitionFor(prisma, "F-35", later))?.version).toBe("10-02");
+    expect((await formDefinitionFor(prisma, "F-35", later))?.version).toBe("11-01");
+    expect((await formDefinitionFor(prisma, "F-37", later))?.version).toBe("10-02");
+    expect(await formDefinitionFor(prisma, "F-29", later)).toBeNull();
+    expect((await formDefinitionFor(prisma, "F-29", createdAt))?.version).toBe("09-01");
     expect(await formDefinitionFor(prisma, "F-40", createdAt)).toBeNull();
     expect((await formDefinitionFor(prisma, "F-40", later))?.templateFileId).toBeTruthy();
     expect(await settingValue(prisma, "protocol.codePattern", later)).toBe("{YYYY}-{###}-{LEADER_FAMILY}{ET_AL}");
-    expect(await settingValue(prisma, "protocol.versionLabel", later)).toBe("{N}-{DDMMMYYYY}");
+    expect(await settingValue(prisma, "protocol.versionLabel", later)).toBe("{N}/{DDMMMYYYY}");
+    expect(await settingValue(prisma, "intake.scopingRules")).toHaveLength(7);
     expect(await settingValue(prisma, "meetings.schedule", later)).toMatchObject({ panels: { P1: { week: 1 }, P2: { week: 2 }, P3: { week: 3 } } });
     const schedule = await prisma.feeSchedule.findFirstOrThrow({ where: { effectiveFrom: new Date("2026-01-01T00:00:00Z"), approvedRef: FEE_SCHEDULE_REF }, include: { rates: true, rules: true } });
     expect(schedule.rates).toHaveLength(27);

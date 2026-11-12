@@ -5,7 +5,8 @@ import { ProtocolForm } from "@/components/protocols/protocol-form";
 import { CrumbLeaf } from "@/components/shell/crumbs";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { loadAuthoredRows } from "@/server/forms/authored";
-import { boundValues, formForEdit, manuscriptForForm } from "@/server/protocols/read";
+import { formForEdit, manuscriptForForm } from "@/server/protocols/read";
+import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { prisma } from "@/server/db";
 import { loadSignaturePanel } from "@/server/signatures/views";
 import { requireUser } from "@/server/session";
@@ -17,11 +18,9 @@ export default async function ProtocolFormPage({
 }) {
   const { id, instanceId } = await params;
   const user = await requireUser();
-  const [form, bound, manuscript] = await Promise.all([
-    formForEdit(user.id, id, instanceId),
-    boundValues(id),
-    manuscriptForForm(user.id, id, instanceId),
-  ]);
+  const [form, manuscript] = await Promise.all([formForEdit(user.id, id, instanceId), manuscriptForForm(user.id, id, instanceId)]);
+  // Bound values of this copy's own version: frozen once submitted, live while working.
+  const bound = await versionBoundValues(prisma, form.version.id);
   const roles = form.roles.filter(isRoleKey) as RoleKey[];
   const editing =
     form.instance.status !== "COMPLETE" &&
@@ -37,9 +36,8 @@ export default async function ProtocolFormPage({
     schema: form.schema,
     roles,
   });
-  const data = form.instance.data && typeof form.instance.data === "object" && !Array.isArray(form.instance.data)
-    ? (form.instance.data as Record<string, unknown>)
-    : {};
+  // An intake-sourced form shows the intake and the Details page in its proponent fields, read-only.
+  const data = await effectiveFormData(prisma, form.instance, bound);
   const showSplit = Boolean(manuscript && form.stepKey);
 
   const formBlock = (
@@ -72,7 +70,7 @@ export default async function ProtocolFormPage({
         roles={roles}
         stepKey={form.stepKey}
         allowedRows={allowedRows}
-        boundValues={bound}
+        boundValues={{ ...bound, "system.protocolId": id }}
         signatureSlots={signatures.byField}
         signing={{
           instanceId: form.instance.id,

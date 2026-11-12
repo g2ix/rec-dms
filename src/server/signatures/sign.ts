@@ -17,6 +17,7 @@ import { recordNotice } from "@/server/notifications/deliver";
 import { prisma, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { assertFreshSigningStepUp } from "@/server/stepup";
+import { effectiveFormData } from "@/server/intake/bound";
 import { editingStepFor } from "@/server/workflow/access";
 
 type Tx = Prisma.TransactionClient;
@@ -141,7 +142,24 @@ export async function signField(input: {
     });
     if (current) throw new AppError("ALREADY_SIGNED", "This field is already signed.", 409);
 
-    const dataHash = formDataHash(instance.data, signatureFieldIds(schema));
+    // On an intake-sourced form the researcher first agrees on the intake; the signature then points at that agreement.
+    const agreementKind = target.field.signer?.agreement;
+    const agreement =
+      agreementKind && membership
+        ? await tx.intakeAgreement.findFirst({
+            where: { memberId: membership.id, kind: agreementKind, intake: { protocolVersionId: version.id } },
+          })
+        : null;
+    if (agreementKind && !agreement) {
+      throw new AppError(
+        "AGREEMENT_REQUIRED",
+        agreementKind === "DECLARATIONS"
+          ? "Agree to the declarations on the intake before you sign F-27."
+          : "Agree to the data privacy consents on the intake before you sign F-28.",
+        400,
+      );
+    }
+    const dataHash = formDataHash(await effectiveFormData(tx, instance), signatureFieldIds(schema));
     const verifyRef = await uniqueRef(tx);
     const event = await tx.signatureEvent.create({
       data: {
@@ -158,6 +176,7 @@ export async function signField(input: {
         method: "IMAGE",
       },
     });
+    if (agreement) await tx.intakeAgreement.update({ where: { id: agreement.id }, data: { signatureEventId: event.id } });
     await audit.record(tx, {
       actorUserId: input.userId,
       actingRole: actorRoles(membership)[0] ?? null,
@@ -252,7 +271,7 @@ export async function describeVerification(ref: string) {
   if (!event) return null;
   const parsed = validateSchema(event.formInstance.formDefinition.schema);
   const ids = parsed.ok ? signatureFieldIds(parsed.schema) : [];
-  const current = formDataHash(event.formInstance.data, ids);
+  const current = formDataHash(await effectiveFormData(prisma, event.formInstance), ids);
   const matches = event.voidedAt == null && current === event.dataHash;
   return {
     formCode: event.formInstance.formDefinition.code,

@@ -8,8 +8,15 @@ import { withTaskNotices } from "./workflows";
  * earlier keeps the 2025 graphs in workflows.ts.
  */
 
-/** The REC answered on 10 Nov 2026: the new process takes effect on 1 Jan 2027 (Asia/Manila). */
-export const PROCESS_START = new Date("2027-01-01T00:00:00+08:00");
+/**
+ * When the November 2026 process starts (Asia/Manila). The REC first gave 1 Jan 2027; on 12 Nov
+ * 2026 it asked for the process to apply at once, because the system is demonstrated now and used
+ * for real next year (INTAKE-01). Protocols created before this date keep the 2025 process.
+ */
+export const PROCESS_START = new Date("2026-11-12T00:00:00+08:00");
+
+/** The start M14 first seeded. Scheduled rows still on it, and unused, are moved to PROCESS_START. */
+export const M14_START = new Date("2027-01-01T00:00:00+08:00");
 
 const staff = { kind: "ROLE" as const, role: "REC_STAFF" as const };
 const leader = { kind: "PROTOCOL_LEADER" as const };
@@ -89,7 +96,12 @@ const screeningOutcomes = [
   { key: "RETURN_INCOMPLETE", label: "Return incomplete" },
 ];
 
-/** F-26 version 10-00 rows; there is no fee at submission, so row 12 (processing fee) is left to staff. */
+/**
+ * F-26 rows suggested from the submission, Yes or No (NA for "any other documents"); staff confirm.
+ * F-27 and F-28 count only when every researcher signed. Rows 5 to 10 (ICF, assent form,
+ * instrument and its permission, CVs) sit inside the manuscript PDF, so staff answer them (REC
+ * answer, 12 Nov 2026). Row 12 (processing fee) and row 13 (amendments) are left to staff too.
+ */
 const receiptPrefill = {
   kind: "PREFILL" as const,
   hook: "onEnter" as const,
@@ -99,11 +111,12 @@ const receiptPrefill = {
     field: "documents",
     column: "present",
     rules: [
-      { row: "p1", upload: "COVER_LETTER" },
-      { row: "p2", form: "F-27" },
-      { row: "p3", form: "F-28" },
-      { row: "p4", upload: "MANUSCRIPT" },
-      { row: "p11", form: "F-30" },
+      { row: "p1", upload: "COVER_LETTER", otherwise: "NO" },
+      { row: "p2", form: "F-27", signed: true, otherwise: "NO" },
+      { row: "p3", form: "F-28", signed: true, otherwise: "NO" },
+      { row: "p4", upload: "MANUSCRIPT", otherwise: "NO" },
+      { row: "p11", form: "F-30", otherwise: "NO" },
+      { row: "p14", upload: "SUPPORTING", otherwise: "NA" },
     ],
   },
 };

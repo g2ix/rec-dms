@@ -25,6 +25,7 @@ const SELF_ROUTES = new Set([
   "src/app/api/notifications/route.ts",
   "src/app/api/account/export/route.ts",
   "src/app/app/reports/export/route.ts",
+  "src/app/api/session/end/route.ts",
 ]);
 
 const GATES = [

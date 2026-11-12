@@ -4,6 +4,7 @@ import { parseGraph, type Step } from "@/lib/workflow/graph";
 import type { ChecklistGroup, ChecklistItem, SubmissionChecklist } from "@/lib/protocols/checklist";
 import { prisma } from "@/server/db";
 import { protocolDetailsSchema } from "@/server/protocols/details";
+import { intakeState } from "@/server/intake/state";
 import { listWorkingForms, requireView } from "@/server/protocols/read";
 
 const UPLOAD_LABEL: Record<string, string> = {
@@ -90,6 +91,39 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
       },
     ],
   });
+
+  // Intake versions: the proponents answer the intake once; F-27, F-28, F-30, F-35, F-36 and F-38 are printed from it.
+  const intake = working ? await intakeState(prisma, working.id) : null;
+  if (intake?.usesIntake) {
+    const sections: { key: string; label: string; section: string }[] = [
+      { key: "intake.scoping", label: "Scoping questions", section: "scoping" },
+      { key: "intake.coi", label: "Conflict of interest", section: "coi" },
+      { key: "intake.budget", label: "Budget (F-30)", section: "budget" },
+      ...(intake.groups.length > 0 && intake.versionNumber === 1 ? [{ key: "intake.references", label: "Page and line references (F-35, F-36)", section: "references" }] : []),
+      ...(intake.actionPoints.length > 0 ? [{ key: "intake.actions", label: "Actions taken (F-38)", section: "actions" }] : []),
+      { key: "intake.agreements", label: "Declarations and consents of every researcher", section: "agreements" },
+    ];
+    groups.push({
+      tab: "intake",
+      label: "Intake",
+      href: `${base}/intake`,
+      items: sections.map((item) => {
+        const gap = intake.gaps.find((entry) => entry.section === item.section);
+        return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };
+      }),
+    });
+    const study = intake.gaps.filter((gap) => gap.section === "study");
+    const detailsGroup = groups.find((group) => group.tab === "details");
+    if (detailsGroup) {
+      detailsGroup.items.push({
+        key: "details.study",
+        label: "Duration, participants, site and funding",
+        done: study.length === 0,
+        hint: study[0]?.message ?? null,
+        href: `${base}/details`,
+      });
+    }
+  }
 
   const formItems: ChecklistItem[] = [];
   for (const form of step.forms ?? []) {

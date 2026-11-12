@@ -3,6 +3,7 @@ import { join } from "node:path";
 import PizZip from "pizzip";
 import { uscForms, type UscForm } from "../prisma/seed/usc-rec/forms";
 import { uscForms2026 } from "../prisma/seed/usc-rec/forms-2026-11";
+import { uscForms11 } from "../prisma/seed/usc-rec/forms-11-01";
 import { checkPlaceholderMap, placeholderMapSchema, tagsFromDocumentXml } from "../src/lib/docs/tags";
 import type { FormSchema } from "../src/lib/forms/schema";
 
@@ -13,6 +14,7 @@ let failed = false;
 const sets: { label: string; dir: string; forms: UscForm[] }[] = [
   { label: "2025", dir: join(root, "templates"), forms: uscForms },
   { label: "2026-11", dir: join(root, "templates", "2026-11"), forms: uscForms2026 },
+  { label: "11-01", dir: join(root, "templates", "11-01"), forms: uscForms11 },
 ];
 
 for (const set of sets) {
@@ -42,9 +44,9 @@ for (const set of sets) {
     }
   }
   const missing = set.forms.filter((form) => !existsSync(join(maps, `${form.code}.json`))).map((form) => form.code);
-  if (set.label === "2026-11" && missing.length > 0) {
+  if ((set.label === "2026-11" || set.label === "11-01") && missing.length > 0) {
     failed = true;
-    console.error(`2026-11 forms without a template: ${missing.join(", ")}`);
+    console.error(`${set.label} forms without a template: ${missing.join(", ")}`);
   }
 }
 

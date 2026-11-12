@@ -1,0 +1,1021 @@
+{
+  "protocol.code": {
+    "path": "protocol.code",
+    "helper": "text",
+    "covers": [
+      "instructions"
+    ]
+  },
+  "protocol.title": {
+    "path": "protocol.title",
+    "helper": "text"
+  },
+  "protocol.versionLabel": {
+    "path": "protocol.versionLabel",
+    "helper": "text"
+  },
+  "protocol.researchers": {
+    "path": "protocol.researchers",
+    "helper": "join"
+  },
+  "p101_page": {
+    "path": "points.p101.page",
+    "helper": "text"
+  },
+  "cb_p101_UNABLE": {
+    "path": "points.p101.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p101_YES": {
+    "path": "points.p101.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p101_NO": {
+    "path": "points.p101.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p101_comments": {
+    "path": "points.p101.comments",
+    "helper": "text"
+  },
+  "p101_recommendations": {
+    "path": "points.p101.recommendations",
+    "helper": "text",
+    "covers": [
+      "points"
+    ]
+  },
+  "p102_page": {
+    "path": "points.p102.page",
+    "helper": "text"
+  },
+  "cb_p102_UNABLE": {
+    "path": "points.p102.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p102_YES": {
+    "path": "points.p102.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p102_NO": {
+    "path": "points.p102.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p102_comments": {
+    "path": "points.p102.comments",
+    "helper": "text"
+  },
+  "p102_recommendations": {
+    "path": "points.p102.recommendations",
+    "helper": "text"
+  },
+  "p103_page": {
+    "path": "points.p103.page",
+    "helper": "text"
+  },
+  "cb_p103_UNABLE": {
+    "path": "points.p103.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p103_YES": {
+    "path": "points.p103.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p103_NO": {
+    "path": "points.p103.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p103_comments": {
+    "path": "points.p103.comments",
+    "helper": "text"
+  },
+  "p103_recommendations": {
+    "path": "points.p103.recommendations",
+    "helper": "text"
+  },
+  "p104_page": {
+    "path": "points.p104.page",
+    "helper": "text"
+  },
+  "cb_p104_UNABLE": {
+    "path": "points.p104.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p104_YES": {
+    "path": "points.p104.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p104_NO": {
+    "path": "points.p104.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p104_comments": {
+    "path": "points.p104.comments",
+    "helper": "text"
+  },
+  "p104_recommendations": {
+    "path": "points.p104.recommendations",
+    "helper": "text"
+  },
+  "p105_page": {
+    "path": "points.p105.page",
+    "helper": "text"
+  },
+  "cb_p105_UNABLE": {
+    "path": "points.p105.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p105_YES": {
+    "path": "points.p105.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p105_NO": {
+    "path": "points.p105.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p105_comments": {
+    "path": "points.p105.comments",
+    "helper": "text"
+  },
+  "p105_recommendations": {
+    "path": "points.p105.recommendations",
+    "helper": "text"
+  },
+  "p106_page": {
+    "path": "points.p106.page",
+    "helper": "text"
+  },
+  "cb_p106_UNABLE": {
+    "path": "points.p106.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p106_YES": {
+    "path": "points.p106.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p106_NO": {
+    "path": "points.p106.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p106_comments": {
+    "path": "points.p106.comments",
+    "helper": "text"
+  },
+  "p106_recommendations": {
+    "path": "points.p106.recommendations",
+    "helper": "text"
+  },
+  "p201_page": {
+    "path": "points.p201.page",
+    "helper": "text"
+  },
+  "cb_p201_UNABLE": {
+    "path": "points.p201.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p201_YES": {
+    "path": "points.p201.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p201_NO": {
+    "path": "points.p201.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p201_comments": {
+    "path": "points.p201.comments",
+    "helper": "text"
+  },
+  "p201_recommendations": {
+    "path": "points.p201.recommendations",
+    "helper": "text"
+  },
+  "p202_page": {
+    "path": "points.p202.page",
+    "helper": "text"
+  },
+  "cb_p202_UNABLE": {
+    "path": "points.p202.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p202_YES": {
+    "path": "points.p202.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p202_NO": {
+    "path": "points.p202.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p202_comments": {
+    "path": "points.p202.comments",
+    "helper": "text"
+  },
+  "p202_recommendations": {
+    "path": "points.p202.recommendations",
+    "helper": "text"
+  },
+  "p203_page": {
+    "path": "points.p203.page",
+    "helper": "text"
+  },
+  "cb_p203_UNABLE": {
+    "path": "points.p203.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p203_YES": {
+    "path": "points.p203.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p203_NO": {
+    "path": "points.p203.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p203_comments": {
+    "path": "points.p203.comments",
+    "helper": "text"
+  },
+  "p203_recommendations": {
+    "path": "points.p203.recommendations",
+    "helper": "text"
+  },
+  "p204_page": {
+    "path": "points.p204.page",
+    "helper": "text"
+  },
+  "cb_p204_UNABLE": {
+    "path": "points.p204.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p204_YES": {
+    "path": "points.p204.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p204_NO": {
+    "path": "points.p204.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p204_comments": {
+    "path": "points.p204.comments",
+    "helper": "text"
+  },
+  "p204_recommendations": {
+    "path": "points.p204.recommendations",
+    "helper": "text"
+  },
+  "p205_page": {
+    "path": "points.p205.page",
+    "helper": "text"
+  },
+  "cb_p205_UNABLE": {
+    "path": "points.p205.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p205_YES": {
+    "path": "points.p205.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p205_NO": {
+    "path": "points.p205.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p205_comments": {
+    "path": "points.p205.comments",
+    "helper": "text"
+  },
+  "p205_recommendations": {
+    "path": "points.p205.recommendations",
+    "helper": "text"
+  },
+  "p206_page": {
+    "path": "points.p206.page",
+    "helper": "text"
+  },
+  "cb_p206_UNABLE": {
+    "path": "points.p206.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p206_YES": {
+    "path": "points.p206.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p206_NO": {
+    "path": "points.p206.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p206_comments": {
+    "path": "points.p206.comments",
+    "helper": "text"
+  },
+  "p206_recommendations": {
+    "path": "points.p206.recommendations",
+    "helper": "text"
+  },
+  "p2071_page": {
+    "path": "points.p2071.page",
+    "helper": "text"
+  },
+  "cb_p2071_UNABLE": {
+    "path": "points.p2071.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p2071_YES": {
+    "path": "points.p2071.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p2071_NO": {
+    "path": "points.p2071.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p2071_comments": {
+    "path": "points.p2071.comments",
+    "helper": "text"
+  },
+  "p2071_recommendations": {
+    "path": "points.p2071.recommendations",
+    "helper": "text"
+  },
+  "p2072_page": {
+    "path": "points.p2072.page",
+    "helper": "text"
+  },
+  "cb_p2072_UNABLE": {
+    "path": "points.p2072.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p2072_YES": {
+    "path": "points.p2072.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p2072_NO": {
+    "path": "points.p2072.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p2072_comments": {
+    "path": "points.p2072.comments",
+    "helper": "text"
+  },
+  "p2072_recommendations": {
+    "path": "points.p2072.recommendations",
+    "helper": "text"
+  },
+  "p208_page": {
+    "path": "points.p208.page",
+    "helper": "text"
+  },
+  "cb_p208_UNABLE": {
+    "path": "points.p208.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p208_YES": {
+    "path": "points.p208.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p208_NO": {
+    "path": "points.p208.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p208_comments": {
+    "path": "points.p208.comments",
+    "helper": "text"
+  },
+  "p208_recommendations": {
+    "path": "points.p208.recommendations",
+    "helper": "text"
+  },
+  "p209_page": {
+    "path": "points.p209.page",
+    "helper": "text"
+  },
+  "cb_p209_UNABLE": {
+    "path": "points.p209.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p209_YES": {
+    "path": "points.p209.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p209_NO": {
+    "path": "points.p209.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p209_comments": {
+    "path": "points.p209.comments",
+    "helper": "text"
+  },
+  "p209_recommendations": {
+    "path": "points.p209.recommendations",
+    "helper": "text"
+  },
+  "p210_page": {
+    "path": "points.p210.page",
+    "helper": "text"
+  },
+  "cb_p210_UNABLE": {
+    "path": "points.p210.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p210_YES": {
+    "path": "points.p210.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p210_NO": {
+    "path": "points.p210.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p210_comments": {
+    "path": "points.p210.comments",
+    "helper": "text"
+  },
+  "p210_recommendations": {
+    "path": "points.p210.recommendations",
+    "helper": "text"
+  },
+  "p211_page": {
+    "path": "points.p211.page",
+    "helper": "text"
+  },
+  "cb_p211_UNABLE": {
+    "path": "points.p211.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p211_YES": {
+    "path": "points.p211.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p211_NO": {
+    "path": "points.p211.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p211_comments": {
+    "path": "points.p211.comments",
+    "helper": "text"
+  },
+  "p211_recommendations": {
+    "path": "points.p211.recommendations",
+    "helper": "text"
+  },
+  "p212_page": {
+    "path": "points.p212.page",
+    "helper": "text"
+  },
+  "cb_p212_UNABLE": {
+    "path": "points.p212.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p212_YES": {
+    "path": "points.p212.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p212_NO": {
+    "path": "points.p212.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p212_comments": {
+    "path": "points.p212.comments",
+    "helper": "text"
+  },
+  "p212_recommendations": {
+    "path": "points.p212.recommendations",
+    "helper": "text"
+  },
+  "p213_page": {
+    "path": "points.p213.page",
+    "helper": "text"
+  },
+  "cb_p213_UNABLE": {
+    "path": "points.p213.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p213_YES": {
+    "path": "points.p213.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p213_NO": {
+    "path": "points.p213.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p213_comments": {
+    "path": "points.p213.comments",
+    "helper": "text"
+  },
+  "p213_recommendations": {
+    "path": "points.p213.recommendations",
+    "helper": "text"
+  },
+  "p214_page": {
+    "path": "points.p214.page",
+    "helper": "text"
+  },
+  "cb_p214_UNABLE": {
+    "path": "points.p214.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p214_YES": {
+    "path": "points.p214.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p214_NO": {
+    "path": "points.p214.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p214_comments": {
+    "path": "points.p214.comments",
+    "helper": "text"
+  },
+  "p214_recommendations": {
+    "path": "points.p214.recommendations",
+    "helper": "text"
+  },
+  "p215_page": {
+    "path": "points.p215.page",
+    "helper": "text"
+  },
+  "cb_p215_UNABLE": {
+    "path": "points.p215.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p215_YES": {
+    "path": "points.p215.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p215_NO": {
+    "path": "points.p215.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p215_comments": {
+    "path": "points.p215.comments",
+    "helper": "text"
+  },
+  "p215_recommendations": {
+    "path": "points.p215.recommendations",
+    "helper": "text"
+  },
+  "p216_page": {
+    "path": "points.p216.page",
+    "helper": "text"
+  },
+  "cb_p216_UNABLE": {
+    "path": "points.p216.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p216_YES": {
+    "path": "points.p216.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p216_NO": {
+    "path": "points.p216.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p216_comments": {
+    "path": "points.p216.comments",
+    "helper": "text"
+  },
+  "p216_recommendations": {
+    "path": "points.p216.recommendations",
+    "helper": "text"
+  },
+  "p217_page": {
+    "path": "points.p217.page",
+    "helper": "text"
+  },
+  "cb_p217_UNABLE": {
+    "path": "points.p217.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p217_YES": {
+    "path": "points.p217.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p217_NO": {
+    "path": "points.p217.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p217_comments": {
+    "path": "points.p217.comments",
+    "helper": "text"
+  },
+  "p217_recommendations": {
+    "path": "points.p217.recommendations",
+    "helper": "text"
+  },
+  "p218_page": {
+    "path": "points.p218.page",
+    "helper": "text"
+  },
+  "cb_p218_UNABLE": {
+    "path": "points.p218.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p218_YES": {
+    "path": "points.p218.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p218_NO": {
+    "path": "points.p218.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p218_comments": {
+    "path": "points.p218.comments",
+    "helper": "text"
+  },
+  "p218_recommendations": {
+    "path": "points.p218.recommendations",
+    "helper": "text"
+  },
+  "p301_page": {
+    "path": "points.p301.page",
+    "helper": "text"
+  },
+  "cb_p301_UNABLE": {
+    "path": "points.p301.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p301_YES": {
+    "path": "points.p301.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p301_NO": {
+    "path": "points.p301.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p301_comments": {
+    "path": "points.p301.comments",
+    "helper": "text"
+  },
+  "p301_recommendations": {
+    "path": "points.p301.recommendations",
+    "helper": "text"
+  },
+  "p302_page": {
+    "path": "points.p302.page",
+    "helper": "text"
+  },
+  "cb_p302_UNABLE": {
+    "path": "points.p302.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p302_YES": {
+    "path": "points.p302.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p302_NO": {
+    "path": "points.p302.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p302_comments": {
+    "path": "points.p302.comments",
+    "helper": "text"
+  },
+  "p302_recommendations": {
+    "path": "points.p302.recommendations",
+    "helper": "text"
+  },
+  "p303_page": {
+    "path": "points.p303.page",
+    "helper": "text"
+  },
+  "cb_p303_UNABLE": {
+    "path": "points.p303.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p303_YES": {
+    "path": "points.p303.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p303_NO": {
+    "path": "points.p303.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p303_comments": {
+    "path": "points.p303.comments",
+    "helper": "text"
+  },
+  "p303_recommendations": {
+    "path": "points.p303.recommendations",
+    "helper": "text"
+  },
+  "p304_page": {
+    "path": "points.p304.page",
+    "helper": "text"
+  },
+  "cb_p304_UNABLE": {
+    "path": "points.p304.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p304_YES": {
+    "path": "points.p304.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p304_NO": {
+    "path": "points.p304.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p304_comments": {
+    "path": "points.p304.comments",
+    "helper": "text"
+  },
+  "p304_recommendations": {
+    "path": "points.p304.recommendations",
+    "helper": "text"
+  },
+  "p305_page": {
+    "path": "points.p305.page",
+    "helper": "text"
+  },
+  "cb_p305_UNABLE": {
+    "path": "points.p305.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p305_YES": {
+    "path": "points.p305.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p305_NO": {
+    "path": "points.p305.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p305_comments": {
+    "path": "points.p305.comments",
+    "helper": "text"
+  },
+  "p305_recommendations": {
+    "path": "points.p305.recommendations",
+    "helper": "text"
+  },
+  "p306_page": {
+    "path": "points.p306.page",
+    "helper": "text"
+  },
+  "cb_p306_UNABLE": {
+    "path": "points.p306.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p306_YES": {
+    "path": "points.p306.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p306_NO": {
+    "path": "points.p306.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p306_comments": {
+    "path": "points.p306.comments",
+    "helper": "text"
+  },
+  "p306_recommendations": {
+    "path": "points.p306.recommendations",
+    "helper": "text"
+  },
+  "p307_page": {
+    "path": "points.p307.page",
+    "helper": "text"
+  },
+  "cb_p307_UNABLE": {
+    "path": "points.p307.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p307_YES": {
+    "path": "points.p307.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p307_NO": {
+    "path": "points.p307.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p307_comments": {
+    "path": "points.p307.comments",
+    "helper": "text"
+  },
+  "p307_recommendations": {
+    "path": "points.p307.recommendations",
+    "helper": "text"
+  },
+  "p308_page": {
+    "path": "points.p308.page",
+    "helper": "text"
+  },
+  "cb_p308_UNABLE": {
+    "path": "points.p308.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p308_YES": {
+    "path": "points.p308.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p308_NO": {
+    "path": "points.p308.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p308_comments": {
+    "path": "points.p308.comments",
+    "helper": "text"
+  },
+  "p308_recommendations": {
+    "path": "points.p308.recommendations",
+    "helper": "text"
+  },
+  "p309_page": {
+    "path": "points.p309.page",
+    "helper": "text"
+  },
+  "cb_p309_UNABLE": {
+    "path": "points.p309.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p309_YES": {
+    "path": "points.p309.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p309_NO": {
+    "path": "points.p309.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p309_comments": {
+    "path": "points.p309.comments",
+    "helper": "text"
+  },
+  "p309_recommendations": {
+    "path": "points.p309.recommendations",
+    "helper": "text"
+  },
+  "p310_page": {
+    "path": "points.p310.page",
+    "helper": "text"
+  },
+  "cb_p310_UNABLE": {
+    "path": "points.p310.assessment",
+    "helper": "checkbox",
+    "equals": "UNABLE"
+  },
+  "cb_p310_YES": {
+    "path": "points.p310.assessment",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p310_NO": {
+    "path": "points.p310.assessment",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "p310_comments": {
+    "path": "points.p310.comments",
+    "helper": "text"
+  },
+  "p310_recommendations": {
+    "path": "points.p310.recommendations",
+    "helper": "text"
+  },
+  "p4_comments": {
+    "path": "points.p4.comments",
+    "helper": "text"
+  },
+  "p4_recommendations": {
+    "path": "points.p4.recommendations",
+    "helper": "text"
+  },
+  "cb_action_APPROVED": {
+    "path": "recommended_action",
+    "helper": "checkbox",
+    "equals": "APPROVED",
+    "covers": [
+      "recommended_action"
+    ]
+  },
+  "cb_action_MINOR": {
+    "path": "recommended_action",
+    "helper": "checkbox",
+    "equals": "MINOR"
+  },
+  "cb_action_MAJOR": {
+    "path": "recommended_action",
+    "helper": "checkbox",
+    "equals": "MAJOR"
+  },
+  "cb_action_DISAPPROVED": {
+    "path": "recommended_action",
+    "helper": "checkbox",
+    "equals": "DISAPPROVED"
+  },
+  "justification": {
+    "path": "justification",
+    "helper": "text"
+  },
+  "sig_reviewer": {
+    "path": "reviewer_signature",
+    "helper": "signature",
+    "width": 150,
+    "height": 44
+  },
+  "reviewer_name": {
+    "path": "reviewer_name",
+    "helper": "text"
+  },
+  "review_date": {
+    "path": "review_date",
+    "helper": "date"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

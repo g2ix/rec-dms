@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isKnownBinding } from "@/lib/forms/bindings";
+import { isKnownBinding, isKnownColumnBinding } from "@/lib/forms/bindings";
 import { parseFormula } from "@/lib/forms/compute";
 import { ROLE_KEYS } from "@/lib/forms/roles";
 
@@ -78,6 +78,8 @@ const signerSchema = z
   .object({
     role: z.enum(ROLE_KEYS),
     each: z.literal("researchers").optional(),
+    /** Intake forms: each researcher agrees on the intake first; the signature is linked to that agreement. */
+    agreement: z.enum(["DECLARATIONS", "F28_CONSENT"]).optional(),
   })
   .strict();
 
@@ -95,6 +97,11 @@ const columnSchema = z
     defaultValue: z.union([z.string(), z.boolean(), z.number()]).optional(),
     /** When set, only these roles see the column. Others do not see it at all. */
     visibleToRoles: z.array(z.enum(ROLE_KEYS)).optional(),
+    /**
+     * Assessment tables of an intake-sourced form: the cell is read from this path, a map keyed by
+     * point code (`intake.references`, `intake.actions`), and is read-only everywhere.
+     */
+    bind: z.string().min(1).optional(),
     /**
      * For a checkbox: if the named column differs from its default (or is non-empty when it has no
      * default), this box must be explicitly true or false before the form can be completed.
@@ -130,6 +137,8 @@ const rowSchema = z
     help: z.string().optional(),
     visibleIf: jsonLogicSchema.optional(),
     requiredIf: jsonLogicSchema.optional(),
+    /** false: the official form has no page and line cell on this point, so the proponent gives no reference. */
+    reference: z.literal(false).optional(),
   })
   .strict();
 
@@ -150,6 +159,8 @@ export const fieldSchema = z
     showRowsWhenFilled: z.array(z.string().min(1)).optional(),
     formula: z.string().optional(),
     signer: signerSchema.optional(),
+    /** When set, only these roles see the field. Others do not see it at all. */
+    visibleToRoles: z.array(z.enum(ROLE_KEYS)).optional(),
   })
   .strict();
 
@@ -165,6 +176,12 @@ export const sectionSchema = z
 
 export const formSchema = z
   .object({
+    /**
+     * "intake": the proponents answer the intake and the Details page once; every proponent field
+     * of this form is a binding to protocol.*, intake.*, team.* or system.* and is read-only.
+     * Reviewer, staff and chair fields work as usual.
+     */
+    source: z.literal("intake").optional(),
     sections: z.array(sectionSchema),
   })
   .strict();
@@ -229,7 +246,7 @@ export function validateSchema(input: unknown): SchemaCheck {
   schema.sections.forEach((section, sectionIndex) => {
     section.fields.forEach((field, fieldIndex) => {
       const path = `sections.${sectionIndex}.fields.${fieldIndex}`;
-      issues.push(...fieldIssues(field, path, binds));
+      issues.push(...fieldIssues(field, path, binds, schema.source === "intake"));
     });
   });
 
@@ -237,15 +254,22 @@ export function validateSchema(input: unknown): SchemaCheck {
   return { ok: true, schema, issues: [] };
 }
 
-function fieldIssues(field: FormField, path: string, binds: Map<string, string>): SchemaIssue[] {
+function fieldIssues(field: FormField, path: string, binds: Map<string, string>, intake = false): SchemaIssue[] {
   const issues: SchemaIssue[] = [];
+  if (intake && !field.bind && field.type !== "signature" && field.type !== "staticText" && field.fillers.includes("PROPONENT") && field.type !== "assessmentTable") {
+    issues.push({ path: `${path}.bind`, message: "On an intake form a proponent field binds to the protocol or the intake." });
+  }
   if (field.bind) {
-    if (field.type === "computed" || field.type === "staticText") {
+    if (field.type === "computed" || field.type === "staticText" || field.type === "signature") {
       issues.push({ path: `${path}.bind`, message: "This field type cannot bind to a protocol field." });
-    } else if (!isKnownBinding(field.bind)) {
+    } else if (!intake && (field.type === "repeatingTable" || field.type === "assessmentTable")) {
+      issues.push({ path: `${path}.bind`, message: "Only an intake form binds a table." });
+    } else if (!isKnownBinding(field.bind, intake)) {
       issues.push({
         path: `${path}.bind`,
-        message: `"${field.bind}" is not a shared protocol field. Use one of the protocol.* paths.`,
+        message: intake
+          ? `"${field.bind}" is not a protocol, intake, team or system field.`
+          : `"${field.bind}" is not a shared protocol field. Use one of the protocol.* paths.`,
       });
     } else if (binds.has(field.bind)) {
       issues.push({ path: `${path}.bind`, message: `${field.bind} is already bound on ${binds.get(field.bind)}.` });
@@ -393,6 +417,17 @@ function fieldIssues(field: FormField, path: string, binds: Map<string, string>)
     }
     if (column.visibleToRoles && column.visibleToRoles.length === 0) {
       issues.push({ path: `${path}.columns.${index}.visibleToRoles`, message: "List at least one role, or omit visibleToRoles." });
+    }
+    if (column.bind) {
+      if (!intake) {
+        issues.push({ path: `${path}.columns.${index}.bind`, message: "Only an intake form binds a column." });
+      } else if (field.type !== "assessmentTable") {
+        issues.push({ path: `${path}.columns.${index}.bind`, message: "Only an assessment column binds to the intake." });
+      } else if (!isKnownColumnBinding(column.bind)) {
+        issues.push({ path: `${path}.columns.${index}.bind`, message: `"${column.bind}" is not an intake column.` });
+      }
+    } else if (intake && field.type === "assessmentTable" && column.fillers.includes("PROPONENT")) {
+      issues.push({ path: `${path}.columns.${index}.bind`, message: "On an intake form a proponent column binds to the intake." });
     }
     if (column.authoredFrom && field.type !== "assessmentTable") {
       issues.push({ path: `${path}.columns.${index}.authoredFrom`, message: "Only an assessment column can be limited to earlier comments." });

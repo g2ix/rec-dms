@@ -10,6 +10,7 @@ import type { ChecklistTab } from "@/lib/protocols/checklist";
 export const PROTOCOL_TABS: { href: string; label: string; checklist?: ChecklistTab }[] = [
   { href: "", label: "Overview" },
   { href: "/details", label: "Details", checklist: "details" },
+  { href: "/intake", label: "Intake", checklist: "intake" },
   { href: "/members", label: "Members", checklist: "members" },
   { href: "/forms", label: "Forms", checklist: "forms" },
   { href: "/uploads", label: "Uploads", checklist: "uploads" },

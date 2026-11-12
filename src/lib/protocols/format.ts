@@ -26,8 +26,12 @@ export function isAllCapsTitle(title: string): boolean {
   return letters.length >= 2 && letters === letters.toUpperCase();
 }
 
+/**
+ * The REC names a revised proposal "version 2-<date of revision>" (REC workflow note), while the
+ * forms print the label as 2/01Jan2027 (F-38 Word file). The file name uses the dash.
+ */
 export function suggestedManuscriptName(label: string): string {
-  const safe = label.replaceAll("/", "_").replace(/[^A-Za-z0-9._-]+/g, "_");
+  const safe = label.replaceAll("/", "-").replace(/[^A-Za-z0-9._-]+/g, "_");
   return `Manuscript_${safe}.pdf`;
 }
 

@@ -212,7 +212,11 @@ export function keepaliveSavePayload(input: {
 }
 
 export function postKeepaliveSave(instanceId: string, body: string): void {
-  const url = `/api/forms/${instanceId}/fields`;
+  postKeepalive(`/api/forms/${instanceId}/fields`, body);
+}
+
+/** sendBeacon, or a keepalive fetch, to a save route. */
+export function postKeepalive(url: string, body: string): void {
   const blob = typeof Blob !== "undefined" ? new Blob([body], { type: "application/json" }) : null;
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function" && blob) {
     if (navigator.sendBeacon(url, blob)) return;

@@ -24,6 +24,11 @@ function rowShown(field: FormField, cells: unknown): boolean {
   return rowHasFilled(asCellRecord(cells), keys);
 }
 
+export function fieldVisibleToRoles(field: Pick<FormField, "visibleToRoles">, roles: readonly string[]): boolean {
+  if (!field.visibleToRoles || field.visibleToRoles.length === 0) return true;
+  return field.visibleToRoles.some((role) => roles.includes(role));
+}
+
 export function columnVisibleToRoles(column: FormColumn, roles: readonly string[]): boolean {
   if (!column.visibleToRoles || column.visibleToRoles.length === 0) return true;
   return column.visibleToRoles.some((role) => roles.includes(role));
@@ -80,6 +85,7 @@ function addField(
   allowedRows?: Record<string, readonly string[]>,
 ): void {
   if (field.bind || NEVER_EDITABLE.has(field.type)) return;
+  if (!fieldVisibleToRoles(field, roles)) return;
   if (field.type === "assessmentTable") {
     const table = record(record(data)[field.id]);
     const revealKeys = new Set(field.showRowsWhenFilled ?? []);
@@ -88,6 +94,7 @@ function addField(
       const cells = table[row.id];
       const shown = rowShown(field, cells);
       for (const column of field.columns ?? []) {
+        if (column.bind) continue;
         if (!columnVisibleToRoles(column, roles)) continue;
         if (!columnEditable(field, column, roles, currentStepKey)) continue;
         if (column.authoredFrom && allowedRows && !(allowedRows[`${field.id}.${column.id}`] ?? []).includes(row.id)) continue;

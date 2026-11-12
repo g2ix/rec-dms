@@ -1,0 +1,126 @@
+{
+  "protocol.code": {
+    "path": "protocol.code",
+    "helper": "text"
+  },
+  "protocol.title": {
+    "path": "protocol.title",
+    "helper": "text"
+  },
+  "protocol.versionLabel": {
+    "path": "protocol.versionLabel",
+    "helper": "text"
+  },
+  "accomplished_on": {
+    "path": "researcher_signature",
+    "helper": "date"
+  },
+  "sig_adviser": {
+    "path": "adviser_signature",
+    "helper": "signature",
+    "width": 140,
+    "height": 40
+  },
+  "sig_icf_reviewer": {
+    "path": "icf_reviewer_signature",
+    "helper": "signature",
+    "width": 150,
+    "height": 44
+  },
+  "icf_reviewer_name": {
+    "path": "icf_reviewer_name",
+    "helper": "text"
+  },
+  "icf_review_date": {
+    "path": "icf_review_date",
+    "helper": "date"
+  },
+  "icf": {
+    "path": "icf",
+    "helper": "assessmentRows",
+    "columns": [
+      "code",
+      "label",
+      "panel_comments",
+      "actions_taken",
+      "panel_remarks"
+    ],
+    "onlyFilled": [
+      "needs_action",
+      "panel_comments"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "icf_action": {
+    "path": "icf_action",
+    "helper": "choice"
+  },
+  "icf_justification": {
+    "path": "icf_justification",
+    "helper": "text"
+  },
+  "sig_praf_reviewer": {
+    "path": "reviewer_signature",
+    "helper": "signature",
+    "width": 150,
+    "height": 44
+  },
+  "reviewer_name": {
+    "path": "reviewer_name",
+    "helper": "text"
+  },
+  "review_date": {
+    "path": "review_date",
+    "helper": "date"
+  },
+  "praf": {
+    "path": "praf",
+    "helper": "assessmentRows",
+    "columns": [
+      "code",
+      "label",
+      "panel_comments",
+      "actions_taken",
+      "panel_remarks"
+    ],
+    "onlyFilled": [
+      "needs_action",
+      "panel_comments"
+    ],
+    "highlightIf": "needs_action"
+  },
+  "recommended_action": {
+    "path": "recommended_action",
+    "helper": "choice"
+  },
+  "justification": {
+    "path": "justification",
+    "helper": "text"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  },
+  "cb_type_FULL": {
+    "helper": "checkbox",
+    "path": "system.reviewType",
+    "equals": "FULL"
+  },
+  "cb_type_EXPEDITED": {
+    "helper": "checkbox",
+    "path": "system.reviewType",
+    "equals": "EXPEDITED"
+  },
+  "signers": {
+    "helper": "signers",
+    "path": "researcher_signature",
+    "columns": [
+      "name",
+      "sig"
+    ],
+    "covers": [
+      "researcher_signature"
+    ],
+    "width": 120,
+    "height": 36
+  }
+}

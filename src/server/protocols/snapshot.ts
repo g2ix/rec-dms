@@ -74,6 +74,7 @@ export function sharedSnapshot(
     "protocol.institution": protocol.institution,
     "protocol.institutionAddress": protocol.institutionAddress,
     "protocol.submissionDate": submittedAt ? formatManila(submittedAt, "yyyy-MM-dd") : null,
+    ...studyBindings(protocol),
     researchType: protocol.researchType,
     researchTypeCodes: protocol.researchTypeCodes ?? [],
     researchTypeOther: protocol.researchTypeOther ?? "",
@@ -83,6 +84,37 @@ export function sharedSnapshot(
     fundingSources: protocol.fundingSources,
     disciplineId: protocol.disciplineId,
     panelId: protocol.panelId,
+  };
+}
+
+/** The Details page as intake bindings (protocol.*), for forms with `source: "intake"`. */
+export function studyBindings(protocol: {
+  researchTypeCodes?: string[];
+  researchTypeOther?: string;
+  durationMonths: number | null;
+  expectedParticipants: number | null;
+  studySite: string;
+  fundingSources: Prisma.JsonValue;
+}): Record<string, unknown> {
+  const funding = Array.isArray(protocol.fundingSources)
+    ? protocol.fundingSources.filter((item): item is { code: string; detail?: string } =>
+        Boolean(item) && typeof item === "object" && !Array.isArray(item) && typeof (item as { code?: unknown }).code === "string",
+      )
+    : [];
+  const detail = (code: string) => {
+    const found = funding.find((item) => item.code === code);
+    return found ? String(found.detail ?? "") : "";
+  };
+  return {
+    "protocol.researchTypeCodes": protocol.researchTypeCodes ?? [],
+    "protocol.researchTypeOther": protocol.researchTypeOther ?? "",
+    "protocol.durationMonths": protocol.durationMonths,
+    "protocol.expectedParticipants": protocol.expectedParticipants,
+    "protocol.studySite": protocol.studySite,
+    "protocol.fundingCodes": funding.map((item) => item.code),
+    "protocol.fundingDetail.INSTITUTION": detail("INSTITUTION"),
+    "protocol.fundingDetail.AGENCY": detail("AGENCY"),
+    "protocol.fundingDetail.OTHER": detail("OTHER"),
   };
 }
 

@@ -87,6 +87,11 @@ async function main() {
 
   await installUscOrg(prisma);
   await installUscRec(prisma);
+  // INTAKE-01: copy F-27 answers of existing protocols into Details and the intake, and log them.
+  const { runBackfill } = await import("../scripts/backfill-intake");
+  await runBackfill();
+  const { prisma: appDb } = await import("../src/server/db");
+  await appDb.$disconnect();
   for (const template of TEMPLATES) {
     await prisma.notificationTemplate.upsert({
       where: { key: template.key },

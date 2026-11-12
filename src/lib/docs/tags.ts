@@ -16,6 +16,7 @@ export const HELPERS = [
   "budgetCell",
   "budgetRest",
   "budgetSum",
+  "signers",
 ] as const;
 
 const entryObject = z

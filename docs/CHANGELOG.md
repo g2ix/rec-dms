@@ -1,5 +1,107 @@
 # Changelog
 
+## INTAKE-01 — One intake per version; forms generated from it (2026-11-12)
+
+The proponents answer one **intake** per protocol version, on the new **Intake** tab. F-26, F-27, F-28, F-30 and the proponent columns of F-35, F-36 and F-38 are generated from it and from **Details**, which is now labelled as the intake's Study section. Proponents no longer fill those forms one by one. Their form copies keep only what reviewers, staff and the chair enter, plus the researchers' signatures.
+
+**Intake model.** `protocol_intakes` holds one row per `protocol_versions` row, with:
+- `scoping`: consent needed and waiver reason, minors, vulnerable, focus groups, online consent, non-English ICF, faculty-initiated, personal data;
+- `coi`: none, or specify with text;
+- `budget_lines`: section PS / MOOE / CAPITAL / ADMIN, item, personal / external / internal in centavos, and one Ethics Review Fee line;
+- `references`: point code → `{ page, line }` or `"NA"`;
+- `actions`: F-38 actions taken, per open point.
+
+`intake_agreements` records each researcher's agreement to the F-27 declarations and the F-28 consents, with its time. It points at the signature in `signature_events` and stores no copy of it. A trigger freezes the intake and its agreements with a submitted version; only linking a signature is still allowed. Study fields stay on the protocol and are not duplicated.
+
+**Saving.** `saveIntakeAction` (and `POST /api/protocols/[id]/intake` for sendBeacon) saves one section at a time:
+- It uses the forms' autosave queue: debounce, `flushAll` before actions, keepalive on hide.
+- It handles conflicts per section ("changed by … a moment ago", with Use theirs / Keep mine).
+- Each save is audited as `intake.section_saved`.
+
+Only proponents on the protocol can write. `protocol.edit` is checked first, then the service admits proponents only, so advisers cannot write. Each researcher agrees or withdraws for their own account (`intake.agreed`, `intake.agreement_withdrawn`). Withdrawing voids that researcher's linked signature. Only the leader can submit, as before. The proponents' submit step on an intake version needs the intake complete: Details study fields, every scoping answer, COI, at least one budget line, a reference or NA for every applicable point, every researcher's agreements, and on a resubmission an action for every open F-38 point. The submission checklist lists the same items under Intake.
+
+**Forms as outputs (version 11-01).**
+- Form definitions accept `source: "intake"`. On such a form every proponent field is a `bind` to `protocol.*`, `intake.*`, `team.*` or `system.*`, and is read-only. An assessment column can bind `intake.references` or `intake.actions`. The schema validator refuses an unbound proponent field on an intake form.
+- Fields gain `visibleToRoles`, as columns already had. On F-35 and F-36, proponents see the point and their Page & Line No. only: no reviewer columns, no recommended action, no reviewer names. F-38 hides the reviewer block from them the same way.
+- The renderer, step validation, signature hashes, the verify page and printing all read the stored copy with the bound values laid over it (`overlayBound`, `effectiveFormData`).
+- A Details or intake change that alters what an intake form prints gives that copy a new revision, so a stored print is not reused. It also voids the signatures on it.
+- Before signing F-27 or F-28, a researcher must have agreed on the intake. The signature is then linked to that agreement.
+
+The 11-01 versions:
+- **F-26:** header bound. The workflow suggests rows 1–4 and 11 as Yes or No; F-27 and F-28 count as Yes only when every researcher signed. Row 14 is Yes or NA from supporting uploads. Staff confirm every row and fill the rest. Remarks, received by and date stay staff fields.
+- **F-27:** header, research type, duration, participants, site and funds come from Details. The six declarations and the COI block use the exact wording of the Word file. `fund_amounts` is gone. There is one signature row per researcher, each with its own date.
+- **F-28:** the official privacy statement and the two consents. One row per researcher from the team, with signature and date.
+- **F-30:** the Personal / External / Internal / Total columns come from `budget_lines`, and the totals are computed. A column opens only for a matching source of funds: researcher-funded opens Personal only. The Ethics Review Fee line starts from the expedited rate for the protocol's client type in the fee schedule. The proponent can change the amount and choose its column.
+- **F-35:** the November points. The proponent column is "Page & Line No. (p. __, line __)", bound to `intake.references`. Point 4 takes no reference.
+- **F-36:** every point of the November Word file in order: the gateway, A.01–A.26, B.01–B.02, C.01–C.04, D. The proponent column is bound to `intake.references`. The gateway rows and D take no reference: on the Word file they are the reviewer's.
+- **F-38:** only the flagged F-35 and F-36 rows. Actions Taken (page and paragraph) is the only proponent column, bound to `intake.actions`. The type of review prints from the protocol. Every researcher signs, then the adviser.
+- **F-29:** retired. A new `form_definitions.retired_from` keeps it from protocols created on or after the start. Protocols created earlier keep it, and old copies stay readable.
+
+The M14 versions of these seven codes (F-26 10-00; F-27, F-28 and F-30 09-02; F-35, F-36 and F-38 10-02) are retired where unused. F-31, F-37 and F-39 to F-42 keep their M14 versions.
+
+**Scoping rules as data.** The `intake.scopingRules` setting is seeded from `prisma/seed/usc-rec/scoping-11.ts`. Each rule is a JSONLogic condition on `{ scoping }`, the points it covers, and a reason. A rule holds only on a "no", never on an unanswered question. Points it covers are left out of the proponent's reference list, print `NA`, and show reviewers "N/A (proponent: …)". Reviewers can still comment there, and nothing is required on those points. The seeded rules:
+- `minors=false` → F-36 A.07;
+- `focusGroups=false` → A.17;
+- `onlineConsent=false` → A.25;
+- `nonEnglishIcf=false` → B.02;
+- `facultyInitiated=false` → F-35 2.02;
+- `personalData=false` → F-35 3.02–3.10;
+- `consentNeeded=false` → all of F-36 after the gateway, with the proponent's waiver reason as the reason.
+
+**Start date.** On 12 Nov 2026 the REC asked for the November process to apply at once: the system is demonstrated now and used for real next year. `PROCESS_START` is therefore 12 Nov 2026 (Asia/Manila) for the whole November process: the M14 workflows, the scheduled settings and the forms. Protocols created before that keep the 2025 process (09-01, 10-01) to the end. The seed moves or retires rows M14 had scheduled for 1 Jan 2027 that nothing uses yet:
+- form versions move to the new start;
+- workflow versions are archived;
+- unapplied setting schedules are cancelled.
+
+**Version label.** Forms print `2/01Jan2027`, as the F-38 Word file shows. The `protocol.versionLabel` schedule is now `{N}/{DDMMMYYYY}`. The suggested manuscript file name uses the dash the REC workflow note asks for (`Manuscript_2-01Jan2027.pdf`).
+
+**Backfill.** `pnpm db:backfill-intake` (also run by `pnpm db:seed`) copies the F-27 answers of existing protocols where the protocol field is empty:
+- duration and participants from a leading number;
+- site;
+- research type codes;
+- sources of funds with their names.
+
+The COI goes into the intake of the latest version unless that version is frozen. Each protocol touched is logged on the console and as an `intake.backfilled` audit event, which lists what was copied and what could not be read (for example "about thirty learners", or `fund_amounts`). Form copies are not changed. A second run copies and logs nothing new.
+
+Also:
+- The client-type rules read the source of funds from Details when the application form no longer holds it.
+- `layoutBudget` takes a strict mode for intake forms.
+- The `signers` print helper prints one row per researcher.
+- The new templates are in `templates/11-01/` (see `docs/TEMPLATES.md`).
+- Bound values nobody types (protocol code, version label, submission date, review type) say when they are set instead of linking to Details (`SET_BY_SYSTEM`).
+- Sessions survive a busy database. When the per-request status check in the `jwt` callback fails on an existing session, the last known status is kept. Before, Auth.js cleared the session, which signed people out; while a page rendered, it failed the page with a 500. A sign-in still fails if the check fails.
+- A session that can no longer be used (suspended, merged or signed out) goes to `/api/session/end`, which clears its cookie. Before, the signed-in shell tried to sign out while rendering, which failed every page with a 500.
+
+Migration: `20261112090000_protocol_intake`. Tests:
+- `src/lib/intake/intake.unit.test.ts`: bindings and validation, Details changes reaching the F-27 print, the F-27/F-28/F-30/F-38 prints, F-36 point for point against the Word file, reviewer columns hidden from proponents, every scoping rule, intake gaps, and number parsing.
+- `src/server/intake/intake.db.test.ts`: a new protocol on 11-01 without F-29, section saves with audit, adviser refused, conflicts, N/A in the bound values and the reference list, a Details change voiding an F-27 signature, withdrawal voiding a linked signature, and the backfill with its log and second run.
+- The 2026 cycle test fills the intake and checks the F-26 suggestions. The seed test checks the new start, 11-01, F-29 retired for new protocols, and the slash label. The 2025 cycle test is unchanged and passes.
+
+### Answers the REC gave on 12 Nov 2026
+
+1. 11-01 applies at once, with the rest of the November process.
+2. Funding stays on Details (the protocol), not in the intake.
+3. F-30 items are free text, with the official items as a guide. The fee is an estimate, and the proponent picks its column.
+4. Scoping follows only what the Word files say. F-35 2.10 also covers vulnerable participants, low literacy and indigenous peoples, so `minors=false` does not mark it N/A.
+5. F-36 is the reviewer's checklist. Proponents only point to the paragraph and line, so the gateway has no proponent cell and nothing proponent-entered prints on it.
+6. Version label: see above.
+7. F-26 rows 5–10 are left to staff.
+8. F-27 prints every researcher, each with their own sign-off date.
+
+### Deviation from the request
+
+- The acceptance item "hides A.07, 2.10 and 3.02–3.10" now hides A.07 and 3.02–3.10 and keeps 2.10, per answer 4.
+- The intake gained `actions` (F-38 actions taken, per open point) and `section_revisions` (for conflicts). Without `actions`, the proponent would still type into F-38.
+- The backfill runs as a script and from the seed, not inside the SQL migration. Its log is a hash-chained audit event, which only the application can write.
+- The intake page shows the F-28 consents and links to the full privacy statement on F-28 rather than repeating it.
+- The F-36 gateway is not bound to `scoping.consentNeeded`, per answer 5. A "no" still marks the rest of F-36 N/A, with the waiver reason as the reason.
+- PDF output was not checked here: no Gotenberg service is configured locally. DOCX output is checked by the unit tests, and PDF converts that same DOCX.
+- Checked by hand on 12 Nov 2026 with a new researcher-funded protocol on the dev database:
+  - F-27 shows every Details value with nothing to type.
+  - F-30 opens only the Personal column.
+  - "No" to minors removes A.07 from the reference list, and F-36 prints NA for it.
+  - The F-27, F-28, F-30, F-35 and F-36 Word downloads print those values in the official layout.
+
 ## Google sign-in for any account, and the client type from the leader's profile (2026-11-11)
 
 **Google sign-in.** "Continue with Google" no longer asks Google for @usc.edu.ph accounts only (`hd`). Any Google account works: USC, another organization's Google Workspace, or a personal Gmail account. Accounts outside `auth.autoApproveDomains` still wait for an administrator's approval, as accounts made with a password do. The line under the button says so.

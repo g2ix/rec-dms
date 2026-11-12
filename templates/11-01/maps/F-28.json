@@ -1,0 +1,63 @@
+{
+  "protocol.code": {
+    "helper": "text",
+    "path": "protocol.code",
+    "covers": [
+      "protocol_code"
+    ]
+  },
+  "protocol.title": {
+    "helper": "text",
+    "path": "protocol.title",
+    "covers": [
+      "protocol_title"
+    ]
+  },
+  "protocol.versionLabel": {
+    "helper": "text",
+    "path": "protocol.versionLabel",
+    "covers": [
+      "version"
+    ]
+  },
+  "protocol.researchers": {
+    "helper": "join",
+    "path": "protocol.researchers",
+    "covers": [
+      "researchers"
+    ]
+  },
+  "cb_consent_collect": {
+    "helper": "checkbox",
+    "path": "intake.consents",
+    "covers": [
+      "consent_1",
+      "policy"
+    ]
+  },
+  "cb_consent_share": {
+    "helper": "checkbox",
+    "path": "intake.consents",
+    "covers": [
+      "consent_2"
+    ]
+  },
+  "signers": {
+    "helper": "signers",
+    "path": "signatures",
+    "columns": [
+      "no",
+      "name",
+      "sig",
+      "date"
+    ],
+    "covers": [
+      "signatures"
+    ],
+    "width": 140,
+    "height": 42
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}

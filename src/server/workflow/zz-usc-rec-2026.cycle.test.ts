@@ -9,7 +9,7 @@ import { setClientType } from "@/server/fees/client-type";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 import { startRevision } from "@/server/protocols/versions";
 import { getObjectBytes } from "@/server/storage";
-import { finish, formOn, grant, openTask, running, sign, upload, writeForm } from "@/server/test/usc-cycle";
+import { fillIntake, finish, formOn, grant, openTask, running, sign, upload, writeForm } from "@/server/test/usc-cycle";
 import { makeUser } from "@/server/test/users";
 import { declareConflict, startInstance, timeoutOverdueTasks } from "@/server/workflow/engine";
 import { FEE_RULES, installProcess2026, memoRates } from "../../../prisma/seed/usc-rec/install-2026-11";
@@ -77,12 +77,18 @@ async function newProtocol(who: People, title: string) {
 }
 
 async function submitAndScreen(who: People, run: { protocolId: string; versionId: string; instanceId: string }) {
+  await fillIntake(run.protocolId, run.versionId);
   for (const code of ["F-27", "F-28", "F-30", "F-35", "F-36"]) {
     await writeForm({ ...run, code, stepKey: "proponent_submit", roles: LEADER, userId: who.leader.id });
   }
   await upload(run.versionId, who.leader.id, "MANUSCRIPT");
   await upload(run.versionId, who.leader.id, "COVER_LETTER");
   expect((await finish(run.instanceId, "proponent_submit", who.leader.id)).currentStepKeys).toEqual(["staff_screening"]);
+  // F-26 is suggested from the submission; rows 5 to 10 and 12 to 13 are left to staff.
+  const receipt = (await formOn(run.versionId, "F-26")).data as { documents?: Record<string, { present?: { choice?: string } }> };
+  const choice = (row: string) => receipt.documents?.[row]?.present?.choice ?? null;
+  expect([choice("p1"), choice("p2"), choice("p3"), choice("p4"), choice("p11"), choice("p14")]).toEqual(["YES", "YES", "YES", "YES", "YES", "NA"]);
+  expect([choice("p5"), choice("p9"), choice("p12")]).toEqual([null, null, null]);
   await writeForm({ ...run, code: "F-26", stepKey: "staff_screening", roles: STAFF, userId: who.staff.id, overrides: { submission_type: "INITIAL" } });
   expect((await finish(run.instanceId, "staff_screening", who.staff.id, { outcome: "ACCEPT" })).currentStepKeys).toEqual(["determine_review"]);
 }
@@ -203,9 +209,10 @@ describe("USC REC November 2026 workflows", () => {
     const run = await newProtocol(who, `Client type ${crypto.randomUUID().slice(0, 6)}`);
     await prisma.protocol.update({ where: { id: run.protocolId }, data: { clientTypeKey: null } });
     await prisma.protocolMember.updateMany({ where: { protocolId: run.protocolId, isLeader: true }, data: { profileKind: "USC_ACADEMIC", academicLevel: null } });
+    // The source of funds is on Details now; F-27 prints it from there.
+    await fillIntake(run.protocolId, run.versionId, { funding: [{ code: "AGENCY", detail: "DOST-PCHRD" }] });
     for (const code of ["F-27", "F-28", "F-30", "F-35", "F-36"]) {
-      const overrides = code === "F-27" ? { funds: ["AGENCY"], fund_agency: "DOST-PCHRD" } : {};
-      await writeForm({ ...run, code, stepKey: "proponent_submit", roles: LEADER, userId: who.leader.id, overrides });
+      await writeForm({ ...run, code, stepKey: "proponent_submit", roles: LEADER, userId: who.leader.id });
     }
     await upload(run.versionId, who.leader.id, "MANUSCRIPT");
     await upload(run.versionId, who.leader.id, "COVER_LETTER");
@@ -374,6 +381,7 @@ describe("USC REC November 2026 workflows", () => {
       const open = Object.values((actions.data as { praf?: Record<string, { needs_action?: boolean }> }).praf ?? {});
       expect(open.length).toBeGreaterThan(0);
       expect(open.every((row) => row.needs_action === true)).toBe(true);
+      await fillIntake(run.protocolId, revised.id);
       await writeForm({ ...next, code: "F-38", stepKey: "proponent_revise", roles: LEADER, userId: who.leader.id });
       await upload(revised.id, who.leader.id, "MANUSCRIPT");
       expect((await finish(next.instanceId, "proponent_revise", who.leader.id)).currentStepKeys).toEqual(["staff_screening"]);

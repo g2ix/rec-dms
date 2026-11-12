@@ -1,4 +1,6 @@
 import "server-only";
+import { effectiveFormData } from "@/server/intake/bound";
+import { intakeState } from "@/server/intake/state";
 import type { Prisma, ProtocolMemberRole } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { getPath } from "@/lib/forms/paths";
@@ -924,9 +926,10 @@ async function assertStepReady(
 ) {
   const member = await tx.protocolMember.findFirst({
     where: { protocolId, userId, status: "ACTIVE" },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, role: true },
   });
   const mySlot = step.assignee?.kind === "ASSIGNED_IN_STEP" ? slotOf(slots, step.assignee.stepKey, userId) : null;
+  let intakeForms = false;
   for (const form of step.forms ?? []) {
     if (!form.required || form.mode === "VIEW") continue;
     if (form.slot && form.slot !== mySlot) continue;
@@ -946,8 +949,11 @@ async function assertStepReady(
     if (!parsed.ok) throw new AppError("INVALID", `${form.code} has a schema that cannot be checked.`, 400);
     const actorRoles = await actorRoleKeys(tx, protocolId, userId);
     const allowedRows = await loadAuthoredRows(tx, userId, protocolVersionId, parsed.schema);
+    if (parsed.schema.source === "intake" && form.mode === "FILL") intakeForms = true;
     if (form.mode === "FILL" || form.mode === "SIGN") {
-      const issues = validateInstance({ schema: parsed.schema }, instance.data, { roles: actorRoles, stepKey: step.key, allowedRows });
+      // Intake forms are checked with their bound values, so N/A points from scoping need no answer.
+      const data = await effectiveFormData(tx, { ...instance, formDefinition: definition });
+      const issues = validateInstance({ schema: parsed.schema }, data, { roles: actorRoles, stepKey: step.key, allowedRows });
       if (issues.length > 0) throw new AppError("INCOMPLETE", `Finish ${form.code} before completing this step.`, 400);
     }
     if (form.mode === "SIGN" || form.mode === "FILL") {
@@ -969,6 +975,12 @@ async function assertStepReady(
         throw new AppError("INCOMPLETE", `Sign ${form.code} before completing this step.`, 400);
       }
     }
+  }
+  // The proponents' step on an intake version also needs the intake complete.
+  if (intakeForms && member?.role === "PROPONENT") {
+    const state = await intakeState(tx, protocolVersionId);
+    const gap = state?.gaps[0];
+    if (gap) throw new AppError("INCOMPLETE", `Finish the intake before completing this step: ${gap.message}`, 400);
   }
   for (const upload of step.uploads ?? []) {
     if (!upload.required) continue;

@@ -1,0 +1,302 @@
+{
+  "protocol.code": {
+    "path": "protocol.code",
+    "helper": "text"
+  },
+  "protocol.title": {
+    "path": "protocol.title",
+    "helper": "text"
+  },
+  "protocol.versionLabel": {
+    "path": "protocol.versionLabel",
+    "helper": "text"
+  },
+  "protocol.researchers": {
+    "path": "protocol.researchers",
+    "helper": "join"
+  },
+  "protocol.contactNumbers": {
+    "path": "protocol.contactNumbers",
+    "helper": "join"
+  },
+  "protocol.emails": {
+    "path": "protocol.emails",
+    "helper": "join"
+  },
+  "protocol.institution": {
+    "path": "protocol.institution",
+    "helper": "text"
+  },
+  "cb_sub_INITIAL": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "INITIAL",
+    "covers": [
+      "submission_type"
+    ]
+  },
+  "cb_sub_COMPLETION": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "COMPLETION"
+  },
+  "cb_sub_RESUBMISSION": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "RESUBMISSION"
+  },
+  "cb_sub_CONTINUING": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "CONTINUING"
+  },
+  "cb_sub_AMENDMENT": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "AMENDMENT"
+  },
+  "cb_sub_TERMINATION": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "TERMINATION"
+  },
+  "cb_sub_OTHER": {
+    "path": "submission_type",
+    "helper": "checkbox",
+    "equals": "OTHER"
+  },
+  "submission_other": {
+    "path": "submission_other",
+    "helper": "text"
+  },
+  "cb_p1_YES": {
+    "path": "documents.p1.present",
+    "helper": "checkbox",
+    "equals": "YES",
+    "covers": [
+      "documents"
+    ]
+  },
+  "cb_p1_NO": {
+    "path": "documents.p1.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p1_NA": {
+    "path": "documents.p1.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p2_YES": {
+    "path": "documents.p2.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p2_NO": {
+    "path": "documents.p2.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p2_NA": {
+    "path": "documents.p2.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p3_YES": {
+    "path": "documents.p3.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p3_NO": {
+    "path": "documents.p3.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p3_NA": {
+    "path": "documents.p3.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p4_YES": {
+    "path": "documents.p4.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p4_NO": {
+    "path": "documents.p4.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p4_NA": {
+    "path": "documents.p4.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p5_YES": {
+    "path": "documents.p5.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p5_NO": {
+    "path": "documents.p5.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p5_NA": {
+    "path": "documents.p5.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p6_YES": {
+    "path": "documents.p6.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p6_NO": {
+    "path": "documents.p6.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p6_NA": {
+    "path": "documents.p6.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p7_YES": {
+    "path": "documents.p7.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p7_NO": {
+    "path": "documents.p7.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p7_NA": {
+    "path": "documents.p7.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p8_YES": {
+    "path": "documents.p8.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p8_NO": {
+    "path": "documents.p8.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p8_NA": {
+    "path": "documents.p8.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p9_YES": {
+    "path": "documents.p9.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p9_NO": {
+    "path": "documents.p9.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p9_NA": {
+    "path": "documents.p9.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p10_YES": {
+    "path": "documents.p10.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p10_NO": {
+    "path": "documents.p10.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p10_NA": {
+    "path": "documents.p10.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p11_YES": {
+    "path": "documents.p11.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p11_NO": {
+    "path": "documents.p11.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p11_NA": {
+    "path": "documents.p11.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p12_YES": {
+    "path": "documents.p12.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p12_NO": {
+    "path": "documents.p12.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p12_NA": {
+    "path": "documents.p12.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p13_YES": {
+    "path": "documents.p13.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p13_NO": {
+    "path": "documents.p13.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p13_NA": {
+    "path": "documents.p13.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "cb_p14_YES": {
+    "path": "documents.p14.present",
+    "helper": "checkbox",
+    "equals": "YES"
+  },
+  "cb_p14_NO": {
+    "path": "documents.p14.present",
+    "helper": "checkbox",
+    "equals": "NO"
+  },
+  "cb_p14_NA": {
+    "path": "documents.p14.present",
+    "helper": "checkbox",
+    "equals": "NA"
+  },
+  "remarks": {
+    "path": "remarks",
+    "helper": "text"
+  },
+  "sig_received": {
+    "path": "received_by",
+    "helper": "signature",
+    "width": 160,
+    "height": 48
+  },
+  "received_date": {
+    "path": "received_date",
+    "helper": "date"
+  },
+  "signedFooter": {
+    "helper": "signedFooter"
+  }
+}
