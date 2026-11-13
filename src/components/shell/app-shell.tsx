@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { motion } from "motion/react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useState } from "react";
@@ -25,6 +25,8 @@ export function AppShell({
   navCapabilities = EMPTY_NAV_CAPABILITIES,
   account,
   counts,
+  locked = false,
+  pathnameOverride,
 }: {
   collapsed: boolean;
   children: React.ReactNode;
@@ -34,8 +36,13 @@ export function AppShell({
   navCapabilities?: NavCapabilities;
   account?: { name: string; email: string };
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
+  /** Drawn behind the authenticator check: no search, no live bell, nothing that fetches data. */
+  locked?: boolean;
+  /** The page the person was heading to, so the nav and crumbs match it while the check is open. */
+  pathnameOverride?: string;
 }) {
-  const pathname = usePathname();
+  const currentPathname = usePathname();
+  const pathname = pathnameOverride ?? currentPathname;
   const [collapsed, setCollapsed] = useState(collapsedInitial);
   const [open, setOpen] = useState(false);
   const [crumbs, setCrumbs] = useState<CrumbState>(EMPTY_CRUMBS);
@@ -125,7 +132,7 @@ export function AppShell({
               </ol>
             )}
           </nav>
-          {roleView === "staff" || roleView === "chair" || roleView === "panel-chair" ? (
+          {!locked && (roleView === "staff" || roleView === "chair" || roleView === "panel-chair") ? (
             <form className="rec-search" action="/app/search" method="get" role="search">
               <label className="rec-sr" htmlFor="protocol-search">
                 Search protocols
@@ -136,7 +143,15 @@ export function AppShell({
           <div className="rec-top__end">
             <ThemeIconSwitch />
             <span className="rec-top__rule" aria-hidden="true" />
-            <NotificationBell />
+            {locked ? (
+              <span className="rec-btn rec-btn--ghost rec-btn--icon" aria-hidden="true">
+                <span>
+                  <Icon icon={Bell} />
+                </span>
+              </span>
+            ) : (
+              <NotificationBell />
+            )}
             <AccountMenu name={account?.name ?? "Account"} role={ROLE_LABEL[roleView]} />
           </div>
         </header>

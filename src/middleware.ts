@@ -73,7 +73,9 @@ export default async function middleware(request: NextRequest) {
     if (request.headers.has("next-action")) {
       return NextResponse.json({ error: "Enter the authenticator code first." }, { status: 403 });
     }
-    return NextResponse.redirect(new URL("/app/account/security", request.nextUrl));
+    const check = new URL("/app/account/security", request.nextUrl);
+    if (pathname !== "/app" || search) check.searchParams.set("next", `${pathname}${search}`);
+    return NextResponse.redirect(check);
   }
 
   if (!userId && isProtectedPath(pathname)) {

@@ -1,9 +1,12 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Clock } from "lucide-react";
 import { Icon } from "@/components/icons";
+import { TotpGate } from "@/components/auth/totp-gate";
 import { AppShell } from "@/components/shell/app-shell";
-import { EMPTY_NAV_CAPABILITIES, type NavCapabilities } from "@/components/shell/nav";
+import { EMPTY_NAV_CAPABILITIES, ROLE_LABEL, type NavCapabilities } from "@/components/shell/nav";
+import { PagePlaceholder } from "@/components/shell/page-placeholder";
 import { redirect } from "next/navigation";
+import { TOTP_PATH, totpCheckPending, totpNextPath, totpRequiredRoles } from "@/server/auth/totp-gate";
 import { resolveRoleView } from "@/server/auth/view";
 import {
   canEditForms,
@@ -52,6 +55,32 @@ export async function SignedInChrome({
   }
   const jar = await cookies();
   const { view: roleView, views: roleViews } = await resolveRoleView(user.id, jar.get("activeView")?.value);
+  const headerList = await headers();
+  if (headerList.get("x-rec-pathname") === TOTP_PATH && (await totpCheckPending(user))) {
+    // The authenticator check: draw the shell for the page the person was heading to, with a
+    // skeleton in place of the page. Nothing below loads counts, admin facts or page data.
+    const next = totpNextPath(new URLSearchParams(headerList.get("x-rec-search") ?? "").get("next"));
+    return (
+      <TotpGate
+        next={next}
+        roles={totpRequiredRoles()}
+        name={user.displayName}
+        role={ROLE_LABEL[roleView]}
+        background={
+          <AppShell
+            locked
+            collapsed={jar.get("sidebar")?.value === "rail"}
+            pathnameOverride={next.split("?")[0]}
+            roleView={roleView}
+            roleViews={roleViews}
+            account={{ name: user.displayName, email: user.email ?? "" }}
+          >
+            <PagePlaceholder />
+          </AppShell>
+        }
+      />
+    );
+  }
   const showAdminNav = roleView === "staff" || roleView === "chair";
   const [waiting, adminFacts] = await Promise.all([
     inboxTotal(user.id, roleView),

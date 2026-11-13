@@ -4,11 +4,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AuditAction } from "@/lib/audit-log";
+import { cleanTotpCode, TOTP_CHALLENGE_LIMIT } from "@/lib/totp-challenge";
 import { signTotpCookie } from "@/lib/totp-cookie";
 import { env } from "@/lib/env";
 import { audit, diffOf } from "@/server/audit";
 import { rateLimiter } from "@/server/auth/rate-limit";
 import { newTotpSecret, openSecret, sealSecret, totpCodeMatches, totpQrSvg, totpUri } from "@/server/auth/totp";
+import { totpNextPath } from "@/server/auth/totp-gate";
 import { prisma } from "@/server/db";
 import { requireUser } from "@/server/session";
 
@@ -73,17 +75,24 @@ export async function confirmTotpAction(formData: FormData): Promise<void> {
   redirect("/app");
 }
 
-export async function challengeTotpAction(formData: FormData): Promise<void> {
+export type TotpChallengeResult =
+  | { status: "ok"; next: string }
+  | { status: "mismatch"; locked: boolean }
+  | { status: "locked" }
+  | { status: "not-enrolled" };
+
+export async function challengeTotpAction(code: string, next: string): Promise<TotpChallengeResult> {
   const user = await requireUser({ totp: false });
-  const hit = await rateLimiter.hit(`totp:${user.id}`, 5, 5 * 60_000);
-  if (!hit.ok) fail("Too many codes. Wait a few minutes and try again.");
-  const parsed = z.string().trim().min(1).safeParse(formData.get("code"));
-  if (!parsed.success) fail("Enter the 6-digit code.");
-  if (!user.totpSecret) fail("Set up an authenticator first.");
+  if (!user.totpSecret) return { status: "not-enrolled" };
+  const hit = await rateLimiter.hit(`totp-challenge:${user.id}`, TOTP_CHALLENGE_LIMIT.limit, TOTP_CHALLENGE_LIMIT.windowMs);
+  if (!hit.ok) return { status: "locked" };
+  const parsed = z.string().regex(/^\d{6}$/).safeParse(cleanTotpCode(String(code)));
   const secret = openSecret(user.totpSecret);
-  if (!secret || !totpCodeMatches(secret, parsed.data)) fail("That code did not match.");
+  if (!parsed.success || !secret || !totpCodeMatches(secret, parsed.data)) {
+    return { status: "mismatch", locked: hit.remaining === 0 };
+  }
   await rememberSession(user.id);
-  redirect("/app");
+  return { status: "ok", next: totpNextPath(next) };
 }
 
 type TotpSetup = { enrolled: boolean; uri: string | null; secret: string | null; qrSvg: string | null };

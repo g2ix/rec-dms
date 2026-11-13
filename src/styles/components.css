@@ -2638,3 +2638,150 @@ html.theme-fade * {
   .rec-intake-rail__item { transition: background-color 120ms linear; }
   .rec-intake-rail__bar > span { transition: none; }
 }
+
+/* ---------- authenticator check (modal over the locked shell) ---------- */
+.rec-totp__behind { position: fixed; inset: 0; overflow: hidden; }
+.rec-totp__shell {
+  height: 100%;
+  overflow: hidden;
+  filter: blur(6px);
+  /* Scaling past the edges hides the soft border the blur leaves. */
+  transform: scale(1.02);
+  transition:
+    filter var(--dur-base) var(--ease-out-soft),
+    transform var(--dur-base) var(--ease-out-soft);
+}
+.rec-totp[data-state="closing"] .rec-totp__shell { filter: none; transform: none; }
+.rec-totp__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: rec-totp-fade-in var(--dur-base) var(--ease-out-soft) both;
+}
+.rec-totp__viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+.rec-totp__card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: rec-totp-rise var(--dur-slow) var(--ease-out-soft) both;
+}
+.rec-totp__card::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: var(--brand-green);
+}
+.rec-totp[data-state="closing"] .rec-totp__scrim,
+.rec-totp[data-state="closing"] .rec-totp__card {
+  animation: rec-totp-fade-out var(--dur-base) var(--ease-out-soft) forwards;
+}
+.rec-totp__body { padding: var(--space-8); }
+.rec-totp__head { display: grid; justify-items: center; text-align: center; gap: var(--space-2); margin-bottom: var(--space-6); }
+.rec-totp__badge {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: var(--space-2);
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
+.rec-totp__title { margin: 0; font: 600 24px/30px var(--font-serif); color: var(--ink); }
+.rec-totp__intro { margin: 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
+.rec-totp__form { display: grid; gap: var(--space-3); }
+.rec-totp__error { margin: 0; text-align: center; font: 500 13px/18px var(--font-sans); color: var(--danger-ink); }
+.rec-totp__hint { margin: 0; text-align: center; font: 400 12px/16px var(--font-sans); color: var(--ink-muted); }
+.rec-totp__submit { width: 100%; height: 44px; margin-top: var(--space-3); }
+.rec-totp__submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.rec-totp__foot {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-8) var(--space-6);
+  border-top: 1px solid var(--border);
+  font: 400 13px/18px var(--font-sans);
+  color: var(--ink-muted);
+}
+.rec-totp__who { margin: 0; }
+.rec-totp__who strong { color: var(--ink); font-weight: 600; }
+.rec-totp__links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.rec-totp__links form { display: contents; }
+.rec-totp__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 500 13px/18px var(--font-sans);
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.rec-totp__link--muted { margin-left: auto; color: var(--ink-muted); }
+.rec-totp__link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.rec-totp__lost p { margin: 0; padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink); }
+
+.rec-otp { margin: 0; padding: 0; border: 0; min-width: 0; }
+.rec-otp__boxes { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.rec-otp__slot { display: contents; }
+.rec-otp__dash { flex: none; width: 10px; height: 2px; border-radius: 1px; background: var(--border-control); }
+.rec-otp__box {
+  flex: none;
+  box-sizing: border-box;
+  width: 48px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 24px/1 var(--font-mono);
+  text-align: center;
+  caret-color: var(--primary);
+  /* Transparent so forced-colors mode still draws a focus outline. */
+  outline: 2px solid transparent;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+.rec-otp__box[data-filled] { border-color: var(--border-control); }
+.rec-otp__box:focus { border: 1.5px solid var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.rec-otp[data-error] .rec-otp__box { border: 1.5px solid var(--danger); }
+.rec-otp[data-error] .rec-otp__box:focus { box-shadow: 0 0 0 3px var(--danger-soft); }
+.rec-otp:disabled .rec-otp__box { opacity: 0.55; background: var(--surface-sunken); cursor: not-allowed; }
+
+@media (max-width: 420px) {
+  .rec-totp__body { padding: var(--space-6) 20px; }
+  .rec-totp__foot { padding: var(--space-4) 20px var(--space-6); }
+  .rec-otp__boxes { gap: 6px; }
+  .rec-otp__box { width: 44px; height: 52px; }
+}
+
+@keyframes rec-totp-fade-in { from { opacity: 0; } }
+@keyframes rec-totp-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes rec-totp-fade-out { to { opacity: 0; } }
+@keyframes rec-totp-fade-plain { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-totp__scrim,
+  .rec-totp__card { animation: rec-totp-fade-plain 120ms linear both; }
+  .rec-totp[data-state="closing"] .rec-totp__scrim,
+  .rec-totp[data-state="closing"] .rec-totp__card { animation: rec-totp-fade-out 120ms linear forwards; }
+  .rec-totp__shell { transition-duration: 120ms; }
+}

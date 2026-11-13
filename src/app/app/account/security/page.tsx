@@ -1,5 +1,7 @@
 import { BusyButton } from "@/components/ui/busy-button";
-import { beginTotpAction, challengeTotpAction, confirmTotpAction, totpSetup } from "@/server/auth/totp-actions";
+import { beginTotpAction, confirmTotpAction, totpSetup } from "@/server/auth/totp-actions";
+import { totpCheckPending } from "@/server/auth/totp-gate";
+import { requireUser } from "@/server/session";
 
 export const metadata = { title: "Authenticator" };
 
@@ -8,6 +10,9 @@ export default async function SecurityPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  // While the post-sign-in check is pending, the signed-in layout draws it as a modal over the
+  // locked shell and does not render this page.
+  if (await totpCheckPending(await requireUser({ totp: false }))) return null;
   const setup = await totpSetup();
   const query = await searchParams;
   return (
@@ -21,7 +26,9 @@ export default async function SecurityPage({
           {query.error}
         </p>
       ) : null}
-      {setup.enrolled ? <ChallengeForm /> : setup.secret ? <ConfirmForm uri={setup.uri} secret={setup.secret} qrSvg={setup.qrSvg} /> : <StartForm />}
+      {setup.enrolled ? (
+        <p className="body-sm">Your authenticator is on. You enter a code from it each time you sign in.</p>
+      ) : setup.secret ? <ConfirmForm uri={setup.uri} secret={setup.secret} qrSvg={setup.qrSvg} /> : <StartForm />}
     </article>
   );
 }
@@ -67,21 +74,6 @@ function ConfirmForm({ uri, secret, qrSvg }: { uri: string | null; secret: strin
       </label>
       <BusyButton type="submit" variant="primary">
         Turn on authenticator
-      </BusyButton>
-    </form>
-  );
-}
-
-function ChallengeForm() {
-  return (
-    <form action={challengeTotpAction} className="rec-form">
-      <p className="body-sm">Enter the current code to continue.</p>
-      <label className="rec-field">
-        <span className="label">Code</span>
-        <input className="rec-input" name="code" inputMode="numeric" autoComplete="one-time-code" required />
-      </label>
-      <BusyButton type="submit" variant="primary">
-        Continue
       </BusyButton>
     </form>
   );
