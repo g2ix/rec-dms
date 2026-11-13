@@ -303,8 +303,8 @@ function Samples() {
 
       <section className="dev-block">
         <h3 className="subheading">Sign-in</h3>
-        <AuthFrame titleAs="p">
-          <p className="body">Sign-in arrives in the next milestone.</p>
+        <AuthFrame title="Sign in to REC-DMS" titleAs="p" standalone>
+          <p className="body">The sign-in card sits here.</p>
         </AuthFrame>
       </section>
     </>

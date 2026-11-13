@@ -94,7 +94,7 @@ export function SignInForm({
   const formError = mode === "password" ? errorOf(passwordState) : errorOf(linkState);
 
   return (
-    <div className="signin-card">
+    <div className="signin-stack">
       {notice ? <p className="signin-banner">{notice}</p> : null}
       <form action={googleAction}>
         <input type="hidden" name="callbackUrl" value={callbackUrl} />
@@ -144,6 +144,7 @@ export function SignInForm({
               name="email"
               type="email"
               autoComplete="email"
+              placeholder="name@example.com"
               autoCapitalize="none"
               spellCheck={false}
               required
@@ -206,6 +207,7 @@ export function SignInForm({
               name="email"
               type="email"
               autoComplete="email"
+              placeholder="name@example.com"
               autoCapitalize="none"
               spellCheck={false}
               required

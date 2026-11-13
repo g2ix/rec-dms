@@ -1,7 +1,6 @@
 import Link from "next/link";
+import { AuthFrame, AuthLegal } from "@/components/auth/auth-frame";
 import { SignInForm } from "@/components/auth/sign-in-form";
-import { Seal } from "@/components/brand/seal";
-import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 import { safeCallbackPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { env } from "@/lib/env";
 import { redirectAwayFromAuthEntry } from "@/server/auth/gate";
@@ -29,32 +28,24 @@ export default async function SignInPage({
   const pageError = query.error ? (NOTICES[query.error] ?? "Sign-in did not complete.") : undefined;
 
   return (
-    <div className="signin">
-      <div className="site-rule" aria-hidden="true" />
-      <Link className="signin-back" href="/">
-        ← Back to REC-DMS
-      </Link>
-      <main className="signin-main">
-        <Seal size={80} alt="" priority />
-        <h1 className="signin-title">Sign in to REC-DMS</h1>
-        <p className="signin-sub">University of San Carlos Research Ethics Committee</p>
-        <SignInForm
-          notice={notice}
-          pageError={pageError}
-          linkSent={Boolean(query.sent)}
-          googleEnabled={Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)}
-          callbackUrl={callbackUrl}
-        />
-        <p className="signin-join">
-          New to REC-DMS? <Link href="/sign-up">Create an account</Link>
-        </p>
-        <p className="signin-legal">
-          By signing in you agree to the <Link href="/privacy">Privacy notice</Link>. Trouble signing in? Contact the REC office.
-        </p>
-      </main>
-      <div className="signin-theme">
-        <ThemeIconSwitch />
-      </div>
-    </div>
+    <AuthFrame
+      title="Sign in to REC-DMS"
+      footer={
+        <>
+          <p className="signin-join">
+            New to REC-DMS? <Link href="/sign-up">Create an account</Link>
+          </p>
+          <AuthLegal />
+        </>
+      }
+    >
+      <SignInForm
+        notice={notice}
+        pageError={pageError}
+        linkSent={Boolean(query.sent)}
+        googleEnabled={Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)}
+        callbackUrl={callbackUrl}
+      />
+    </AuthFrame>
   );
 }
