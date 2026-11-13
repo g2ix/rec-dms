@@ -8,6 +8,8 @@ import { isNextRedirect } from "@/server/action-state";
 import { authorize } from "@/server/authz";
 import { saveInputError } from "@/server/forms/save-input";
 import { saveIntakeSection, setAgreement, type IntakeSaveSuccess } from "@/server/intake/service";
+import { studyPatchSchema, updateStudyFields } from "@/server/protocols/details";
+import { generatedFormPreview, type GeneratedForm } from "@/server/intake/page";
 import { requireUser } from "@/server/session";
 
 const saveSchema = z.object({
@@ -56,5 +58,41 @@ export async function setAgreementAction(input: unknown): Promise<{ ok: true; ag
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     return saveInputError(error, "Your answer could not be saved.");
+  }
+}
+
+const studySchema = z.object({ protocolId: z.string().uuid(), patch: studyPatchSchema });
+
+export type StudySaveResult = { ok: true } | { ok: false; code: string; message: string };
+
+/**
+ * Autosave of the intake's Study and Funding fields, which live on the protocol (the Details page).
+ * Only the fields sent are written. There is no revision check: the Details form never had one.
+ */
+export async function saveStudyAction(input: unknown): Promise<StudySaveResult> {
+  try {
+    const user = await requireUser();
+    const parsed = studySchema.parse(input);
+    await authorize(user, "protocol.edit", { type: "protocol", id: parsed.protocolId });
+    await updateStudyFields(parsed.protocolId, user.id, parsed.patch);
+    return { ok: true };
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    return saveInputError(error, "Check this answer and try again.");
+  }
+}
+
+const previewSchema = z.object({ protocolId: z.string().uuid(), instanceId: z.string().uuid() });
+
+/** The read-only preview of one generated form, loaded when the proponent opens it. */
+export async function formPreviewAction(input: unknown): Promise<{ ok: true; form: GeneratedForm } | { ok: false; code: string; message: string }> {
+  try {
+    const user = await requireUser();
+    const parsed = previewSchema.parse(input);
+    await authorize(user, "protocol.view", { type: "protocol", id: parsed.protocolId });
+    return { ok: true, form: await generatedFormPreview(user.id, parsed.protocolId, parsed.instanceId) };
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    return saveInputError(error, "The preview could not be opened.");
   }
 }

@@ -172,4 +172,4 @@ export function budgetColumnsFor(fundingCodes: readonly string[]): BudgetColumn[
   return BUDGET_COLUMNS.filter((column) => open.has(column));
 }
 
-export type IntakeGap = { section: IntakeSection | "study" | "agreements"; message: string };
+export type IntakeGap = { section: IntakeSection | "study" | "funding" | "agreements"; message: string };

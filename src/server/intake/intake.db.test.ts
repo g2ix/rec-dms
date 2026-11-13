@@ -8,6 +8,11 @@ import { backfillIntake } from "@/server/intake/backfill";
 import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { saveIntakeSection, setAgreement } from "@/server/intake/service";
 import { intakeState } from "@/server/intake/state";
+import { generatedFormList, generatedFormPreview, intakePageExtras } from "@/server/intake/page";
+import { getSubmissionChecklist } from "@/server/protocols/checklist";
+import { railSections } from "@/lib/intake/rail";
+import { submitSummary } from "@/lib/protocols/checklist";
+import { updateStudyFields } from "@/server/protocols/details";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 import { updateSharedDetails } from "@/server/protocols/details";
 import { ensureWorkingForms } from "@/server/protocols/versions";
@@ -154,6 +159,66 @@ describe("intake", () => {
     await setAgreement({ protocolId: run.protocolId, userId: run.leader.id, kind: "F28_CONSENT", agreed: false });
     expect((await prisma.signatureEvent.findUniqueOrThrow({ where: { id: event.id } })).voidReason).toBe("AGREEMENT_WITHDRAWN");
     expect(await prisma.intakeAgreement.count({ where: { intakeId: intake.id } })).toBe(0);
+  }, 120_000);
+
+  it("Intake page: the rail's missing counts equal the submit check, and drop as the Study and Funding fields save", async () => {
+    const run = await newProtocol("rail");
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: run.leader.id } });
+    const started = Date.now();
+    const extras = await intakePageExtras(user, run.protocolId, 1);
+    const elapsed = Date.now() - started;
+    const checklist = await getSubmissionChecklist(run.leader.id, run.protocolId);
+    expect(checklist).not.toBeNull();
+    const railTotal = extras.rail.reduce((sum, section) => sum + section.missing.length, 0);
+    expect(railTotal).toBe(extras.missing.length);
+    expect(submitSummary(checklist!)).toMatch(new RegExp(`^${extras.missing.length} items? left`));
+    expect(extras.rail.map((section) => section.key)).toEqual(["study", "team", "funding", "participants", "coi", "references", "documents", "sign"]);
+    expect(extras.submit?.to).toBe("REC");
+    // Loads one row per generated form; the previews load on demand.
+    expect(extras.forms.map((form) => form.code)).toEqual(["F-27", "F-28", "F-30", "F-35", "F-36"]);
+    console.info(`intakePageExtras took ${elapsed} ms`);
+
+    const fundingBefore = extras.rail.find((section) => section.key === "funding")!.missing.length;
+    await updateStudyFields(run.protocolId, run.leader.id, { title: "Study habits of Grade 10 learners, edited", funding: [{ code: "RESEARCHER", detail: "" }] });
+    await updateStudyFields(run.protocolId, run.leader.id, { durationMonths: 6, expectedParticipants: 30, studySite: "Talamban campus" });
+    const after = railSections(await getSubmissionChecklist(run.leader.id, run.protocolId), { revision: false });
+    expect(after.find((section) => section.key === "funding")!.missing.length).toBe(fundingBefore - 1);
+    expect(after.find((section) => section.key === "study")!.missing.map((item) => item.key)).not.toContain("details.study");
+
+    // The title edit reaches the F-27 preview.
+    const f27 = (await generatedFormList(run.versionId)).find((form) => form.code === "F-27")!;
+    const preview = await generatedFormPreview(run.leader.id, run.protocolId, f27.instanceId);
+    expect(JSON.stringify(preview.data)).toContain("Study habits of Grade 10 learners, edited");
+    expect(preview.roles).toContain("PROPONENT");
+  }, 120_000);
+
+  it("autosaves one Study field without touching the others, and refuses an empty title", async () => {
+    const run = await newProtocol("study-patch");
+    await updateStudyFields(run.protocolId, run.leader.id, { studySite: "Downtown campus" });
+    const protocol = await prisma.protocol.findUniqueOrThrow({ where: { id: run.protocolId } });
+    expect(protocol.studySite).toBe("Downtown campus");
+    expect(protocol.title).toMatch(/^Intake study-patch/);
+    await expect(updateStudyFields(run.protocolId, run.leader.id, { title: "  " })).rejects.toThrow();
+    await expect(updateStudyFields(run.protocolId, run.leader.id, { funding: [{ code: "AGENCY", detail: "" }] })).rejects.toThrow();
+  }, 120_000);
+
+  it("refuses deleting an agreement of a submitted version, and still deletes a whole protocol", async () => {
+    const run = await newProtocol("frozen-delete");
+    await setAgreement({ protocolId: run.protocolId, userId: run.leader.id, kind: "DECLARATIONS", agreed: true });
+    const intake = await prisma.protocolIntake.findUniqueOrThrow({ where: { protocolVersionId: run.versionId }, include: { agreements: true } });
+    const agreement = intake.agreements[0]!;
+    await prisma.protocolVersion.update({ where: { id: run.versionId }, data: { state: "SUBMITTED", submittedAt: new Date(), submittedById: run.leader.id } });
+
+    await expect(prisma.intakeAgreement.delete({ where: { id: agreement.id } })).rejects.toThrow(/immutable/);
+    await expect(prisma.$executeRaw`DELETE FROM intake_agreements WHERE intake_id = ${intake.id}`).rejects.toThrow(/immutable/);
+    expect(await prisma.intakeAgreement.count({ where: { intakeId: intake.id } })).toBe(1);
+
+    // The protocol cleanup src/lib/reports/load-data.ts uses: workflow rows are RESTRICT, the versions cascade.
+    await prisma.task.deleteMany({ where: { instance: { protocolId: run.protocolId } } });
+    await prisma.workflowInstance.deleteMany({ where: { protocolId: run.protocolId } });
+    await prisma.protocol.delete({ where: { id: run.protocolId } });
+    expect(await prisma.protocolIntake.count({ where: { id: intake.id } })).toBe(0);
+    expect(await prisma.intakeAgreement.count({ where: { id: agreement.id } })).toBe(0);
   }, 120_000);
 
   it("backfills F-27 answers into empty protocol fields and the intake, logs them, and leaves the form copy alone", async () => {

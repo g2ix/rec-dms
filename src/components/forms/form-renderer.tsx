@@ -44,6 +44,7 @@ export function FormRenderer({
   signatureSlots,
   signing = null,
   allowedRows,
+  boundHref,
 }: {
   schema: FormSchema;
   data: Record<string, unknown>;
@@ -58,6 +59,11 @@ export function FormRenderer({
   signatureSlots?: Record<string, SignatureSlotView[]>;
   signing?: SigningPrompt | null;
   allowedRows?: Record<string, readonly string[]>;
+  /**
+   * The read-only preview on the Intake page: where each bound value is answered. When it returns
+   * a link, the value itself links there instead of the "Edit in …" note.
+   */
+  boundHref?: (bind: string) => string | null;
 }) {
   const editable = getEditableFields(
     { schema },
@@ -95,6 +101,7 @@ export function FormRenderer({
               onKeepMine={onKeepMine}
               signatureSlots={signatureSlots}
               signing={signing}
+              boundHref={boundHref}
             />
           ))}
         </section>
@@ -117,6 +124,7 @@ function FieldBlock(props: {
   onKeepMine?: (path: string) => void;
   signatureSlots?: Record<string, SignatureSlotView[]>;
   signing?: SigningPrompt | null;
+  boundHref?: (bind: string) => string | null;
 }) {
   const { field, data, boundValues } = props;
   if (!fieldVisibleToRoles(field, props.roles)) return null;
@@ -152,17 +160,27 @@ function FieldBlock(props: {
     const onDetails = field.bind.startsWith("protocol.");
     const systemNote = SET_BY_SYSTEM[field.bind];
     const href = protocolId ? `/app/protocols/${protocolId}/${intake && !onDetails ? "intake" : "details"}` : "/app/protocols";
+    const previewHref = props.boundHref?.(field.bind) ?? null;
     if (field.type === "repeatingTable") {
       return (
         <div className="rec-stack">
           <RepeatingTable {...props} editing={false} />
           <p className="caption">
-            <a href={href}>Edit in the intake</a>
+            <a href={previewHref ?? href}>Edit in the intake</a>
           </p>
         </div>
       );
     }
     const value = intake ? data[field.id] : boundValues[field.bind];
+    if (previewHref) {
+      return (
+        <Field label={field.label} help={field.help}>
+          <a className="rec-bound-link" href={previewHref}>
+            {boundText(field, value)}
+          </a>
+        </Field>
+      );
+    }
     return (
       <Field
         label={field.label}
@@ -780,11 +798,13 @@ function AssessmentTable({
   fieldState,
   onUseTheirs,
   onKeepMine,
+  boundHref,
 }: {
   field: FormField;
   data: Record<string, unknown>;
   editing: boolean;
   editable: Set<string>;
+  boundHref?: (bind: string) => string | null;
   roles: RoleKey[];
   onChange?: (path: string, value: unknown) => void;
   fieldState?: Record<string, FieldUi>;
@@ -863,6 +883,17 @@ function AssessmentTable({
                       : cells[column.id] == null && typeof column.defaultValue === "string"
                         ? column.defaultValue
                         : cells[column.id];
+                    const cellHref = column.bind && !open ? (boundHref?.(column.bind) ?? null) : null;
+                    if (cellHref) {
+                      return (
+                        <td key={column.id} className="rec-cell--locked" data-label={column.label}>
+                          <span className="rec-assess__label label">{column.label}</span>
+                          <a className="rec-bound-link" href={cellHref}>
+                            {displayValue == null || displayValue === "" ? "Not entered yet" : String(displayValue)}
+                          </a>
+                        </td>
+                      );
+                    }
                     return (
                       <td key={column.id} className={open ? undefined : "rec-cell--locked"} data-label={column.label}>
                         <span className="rec-assess__label label">{column.label}</span>

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { OpenStoredFileButton } from "@/components/docs/document-open";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
-import { confirmUploadAction, prepareUploadAction } from "@/server/protocols/actions";
+import { acceptFor, formatUploadLimit, useProtocolUpload } from "@/components/protocols/use-upload";
 
 type FileRow = {
   id: string;
@@ -40,47 +39,16 @@ export function UploadsPanel({
   feeStatus: string | null;
   maxBytes: number;
 }) {
-  const router = useRouter();
   const [kind, setKind] = useState<(typeof KINDS)[number]["value"]>("MANUSCRIPT");
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { upload, busy, message, setMessage } = useProtocolUpload(protocolId);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("file");
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("file");
     const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
     if (!file) return;
-    setBusy(true);
-    setMessage(null);
-    const prepared = await prepareUploadAction({
-      protocolId,
-      kind,
-      originalName: file.name,
-      mime: file.type || "application/octet-stream",
-    });
-    if (!prepared.ok) {
-      setBusy(false);
-      setMessage(prepared.message);
-      return;
-    }
-    const response = await fetch(prepared.url, {
-      method: "PUT",
-      headers: prepared.headers,
-      body: file,
-    });
-    if (!response.ok) {
-      setBusy(false);
-      setMessage("The file could not be stored.");
-      return;
-    }
-    const confirmed = await confirmUploadAction({ intentId: prepared.intentId, protocolId });
-    setBusy(false);
-    if (!confirmed.ok) {
-      setMessage(confirmed.message);
-      return;
-    }
-    event.currentTarget.reset();
-    router.refresh();
+    if (await upload(kind, file)) form.reset();
   }
 
   return (
@@ -148,7 +116,7 @@ export function UploadsPanel({
             </select>
           </Field>
           <Field label="File" htmlFor="upload-file">
-            <input id="upload-file" name="file" className="rec-input" type="file" required accept={kind === "FEE_RECEIPT" || kind === "SUPPORTING" ? "application/pdf,image/jpeg,image/png,image/webp" : "application/pdf"} />
+            <input id="upload-file" name="file" className="rec-input" type="file" required accept={acceptFor(kind)} />
           </Field>
           <BusyButton type="submit" variant="primary" busy={busy} busyLabel="Uploading…">
             Upload file
@@ -161,12 +129,6 @@ export function UploadsPanel({
 
 function labelFor(kind: string): string {
   return KINDS.find((item) => item.value === kind)?.label ?? kind;
-}
-
-function formatUploadLimit(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  const rounded = Number.isInteger(mb) ? String(mb) : mb.toFixed(1).replace(/\.0$/, "");
-  return `${rounded} MB`;
 }
 
 function feeLabel(status: string): string {

@@ -2408,3 +2408,153 @@ html.theme-fade * {
 .rec-totp-qr svg { display: block; width: 100%; height: auto; }
 .rec-totp-manual summary { cursor: pointer; }
 .rec-totp-manual > * + * { margin-top: 8px; }
+
+/* ---------------------------------------------------------------------------------------------
+   INTAKE-02: the single-glance Intake page. Rail on the left (a strip at the top under 1024px),
+   one scrolling column of sections, and a submit bar that sticks to the bottom of the viewport
+   while it stays in the flow, so it never covers the last section and never sits on the sidebar.
+   --------------------------------------------------------------------------------------------- */
+.rec-touch { display: inline-flex; align-items: center; min-height: 44px; }
+
+.rec-intake { display: grid; gap: var(--space-4); min-width: 0; }
+.rec-intake__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rec-intake__intro { max-width: 760px; }
+.rec-intake__grid {
+  display: grid;
+  grid-template-columns: calc(var(--sidebar-width) - var(--space-8)) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.rec-intake__body { min-width: 0; }
+.rec-intake__section { scroll-margin-top: calc(var(--topbar-height) + var(--space-4)); min-width: 0; }
+.rec-intake__section h2[tabindex="-1"]:focus { outline: none; }
+.rec-intake__sign { padding-top: var(--space-3); border-top: 1px solid var(--border); }
+
+.rec-intake-rail {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-4));
+  min-width: 0;
+}
+.rec-intake-rail__list { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.rec-intake-rail__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "step label" "step status";
+  column-gap: var(--space-2);
+  align-items: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.rec-intake-rail__item:hover { background: var(--surface-sunken); }
+.rec-intake-rail__item[aria-current="location"] { background: var(--primary-soft); color: var(--primary-ink); }
+.rec-intake-rail__marker {
+  position: absolute;
+  inset-block: var(--space-2);
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+}
+.rec-intake-rail__step {
+  grid-area: step;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+.rec-intake-rail__label { grid-area: label; }
+.rec-intake-rail__item .rec-intake-status { grid-area: status; }
+
+.rec-intake-status { display: inline-flex; align-items: center; gap: var(--space-1); margin: 0; }
+.rec-intake-status--done { color: var(--primary-ink); }
+.rec-intake-status--missing { color: var(--warning); }
+
+.rec-missing {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+.rec-missing ul { margin: 0; padding-inline-start: var(--space-4); }
+
+.rec-doc-rows, .rec-preview-rows { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.rec-doc-row, .rec-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+.rec-doc-row__main { display: grid; gap: var(--space-1); min-width: 0; }
+.rec-doc-row__name { overflow-wrap: anywhere; }
+.rec-doc-row__actions, .rec-preview-row__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.rec-preview-row__name { display: grid; gap: var(--space-1); min-width: 0; }
+.rec-doc-row .rec-btn, .rec-preview-row .rec-btn { min-height: 44px; }
+
+.rec-bound-link {
+  color: var(--primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.rec-dialog.rec-dialog--sheet { width: min(var(--content-max), 100%); }
+
+.rec-submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: var(--space-3) 0 max(var(--space-3), env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.rec-submit-bar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: var(--content-max);
+}
+.rec-step__form--compact .rec-step__foot { padding-top: 0; }
+
+@media (max-width: 1023px) {
+  .rec-intake__grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .rec-intake-rail {
+    z-index: 4;
+    padding: var(--space-1) 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .rec-intake-rail__list {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  .rec-intake-rail__marker { inset-block: auto 0; inset-inline: var(--space-2); width: auto; height: 3px; }
+  .rec-intake__section { scroll-margin-top: calc(var(--topbar-height) + var(--space-16) + var(--space-4)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-intake-rail__item { transition: background-color 120ms linear; }
+}

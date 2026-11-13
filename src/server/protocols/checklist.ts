@@ -4,7 +4,8 @@ import { parseGraph, type Step } from "@/lib/workflow/graph";
 import type { ChecklistGroup, ChecklistItem, SubmissionChecklist } from "@/lib/protocols/checklist";
 import { prisma } from "@/server/db";
 import { protocolDetailsSchema } from "@/server/protocols/details";
-import { intakeState } from "@/server/intake/state";
+import { intakeStateOf } from "@/server/intake/state";
+import { RESEARCH_TYPE_GAP } from "@/lib/intake/gaps";
 import { listWorkingForms, requireView } from "@/server/protocols/read";
 
 const UPLOAD_LABEL: Record<string, string> = {
@@ -30,6 +31,32 @@ async function proponentStep(protocolId: string): Promise<Step | null> {
   for (const task of instance.tasks) {
     const step = graph.graph.steps.find((item) => item.key === task.stepKey);
     if (step?.assignee?.kind === "PROTOCOL_LEADER") return step;
+  }
+  return null;
+}
+
+/**
+ * The leader's open proponent task and where submitting it sends the protocol: to the adviser
+ * when the next step is the adviser's and the protocol has an active adviser, else to the REC.
+ */
+export async function proponentSubmitTarget(protocolId: string): Promise<{ taskId: string; to: "ADVISER" | "REC" } | null> {
+  const instance = await prisma.workflowInstance.findFirst({
+    where: { protocolId, status: "RUNNING" },
+    orderBy: { startedAt: "desc" },
+    include: { version: true, tasks: { where: { status: { in: ["OPEN", "CLAIMED"] }, kind: "MAIN" } } },
+  });
+  if (!instance) return null;
+  const graph = parseGraph(instance.version.graph);
+  if (!graph.ok) return null;
+  for (const task of instance.tasks) {
+    const step = graph.graph.steps.find((item) => item.key === task.stepKey);
+    if (step?.assignee?.kind !== "PROTOCOL_LEADER") continue;
+    const hasAdviser = (await prisma.protocolMember.count({ where: { protocolId, role: "ADVISER", status: "ACTIVE" } })) > 0;
+    const next = graph.graph.transitions
+      .filter((transition) => transition.from === step.key)
+      .map((transition) => graph.graph.steps.find((item) => item.key === transition.to));
+    const toAdviser = hasAdviser && next.some((item) => item?.assignee?.kind === "PROTOCOL_ADVISER");
+    return { taskId: task.id, to: toAdviser ? "ADVISER" : "REC" };
   }
   return null;
 }
@@ -93,13 +120,14 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
   });
 
   // Intake versions: the proponents answer the intake once; F-27, F-28, F-30, F-35, F-36 and F-38 are printed from it.
-  const intake = working ? await intakeState(prisma, working.id) : null;
+  const intake = working ? await intakeStateOf(working.id) : null;
   if (intake?.usesIntake) {
     const sections: { key: string; label: string; section: string }[] = [
       { key: "intake.scoping", label: "Scoping questions", section: "scoping" },
       { key: "intake.coi", label: "Conflict of interest", section: "coi" },
       { key: "intake.budget", label: "Budget (F-30)", section: "budget" },
-      ...(intake.groups.length > 0 && intake.versionNumber === 1 ? [{ key: "intake.references", label: "Page and line references (F-35, F-36)", section: "references" }] : []),
+      // Required exactly when the gaps ask for them: the first version, or a resubmission that carries F-35 and F-36 again.
+      ...(intake.referencesRequired ? [{ key: "intake.references", label: "Page and line references (F-35, F-36)", section: "references" }] : []),
       ...(intake.actionPoints.length > 0 ? [{ key: "intake.actions", label: "Actions taken (F-38)", section: "actions" }] : []),
       { key: "intake.agreements", label: "Declarations and consents of every researcher", section: "agreements" },
     ];
@@ -112,16 +140,29 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
         return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };
       }),
     });
-    const study = intake.gaps.filter((gap) => gap.section === "study");
+    // The research type has its own item above, so it is not counted twice.
+    const study = intake.gaps.filter((gap) => gap.section === "study" && gap.message !== RESEARCH_TYPE_GAP);
+    const funding = intake.gaps.filter((gap) => gap.section === "funding");
     const detailsGroup = groups.find((group) => group.tab === "details");
     if (detailsGroup) {
-      detailsGroup.items.push({
-        key: "details.study",
-        label: "Duration, participants, site and funding",
-        done: study.length === 0,
-        hint: study[0]?.message ?? null,
-        href: `${base}/details`,
-      });
+      // On an intake version the proponents answer these on the Intake tab (Study, Funding and budget).
+      for (const item of detailsGroup.items) item.href = `${base}/intake#study`;
+      detailsGroup.items.push(
+        {
+          key: "details.study",
+          label: "Duration, participants and site",
+          done: study.length === 0,
+          hint: study[0]?.message ?? null,
+          href: `${base}/intake#study`,
+        },
+        {
+          key: "details.funding",
+          label: "Source of funds",
+          done: funding.length === 0,
+          hint: funding[0]?.message ?? null,
+          href: `${base}/intake#funding`,
+        },
+      );
     }
   }
 

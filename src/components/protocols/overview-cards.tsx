@@ -57,7 +57,20 @@ function roleText(member: TeamMember): string {
   return "Co-proponent";
 }
 
-export function TeamCard({ protocolId, members, viewerId }: { protocolId: string; members: TeamMember[]; viewerId: string }) {
+export function TeamCard({
+  protocolId,
+  members,
+  viewerId,
+  manage = true,
+  note,
+}: {
+  protocolId: string;
+  members: TeamMember[];
+  viewerId: string;
+  /** Show the "Manage members" link. The Intake page shows it to the leader only. */
+  manage?: boolean;
+  note?: React.ReactNode;
+}) {
   const team = members.filter((member) => member.role === "PROPONENT" || member.role === "ADVISER");
   return (
     <section className="rec-card rec-stack" aria-labelledby="team-heading">
@@ -65,10 +78,13 @@ export function TeamCard({ protocolId, members, viewerId }: { protocolId: string
         <h2 id="team-heading" className="heading">
           Team
         </h2>
-        <Link className="label" href={`/app/protocols/${protocolId}/members`}>
-          Manage members
-        </Link>
+        {manage ? (
+          <Link className="label rec-touch" href={`/app/protocols/${protocolId}/members`}>
+            Manage members
+          </Link>
+        ) : null}
       </div>
+      {note}
       <ul className="rec-team">
         {team.map((member) => {
           const name = member.user?.displayName ?? member.invitedEmail ?? "Invited member";

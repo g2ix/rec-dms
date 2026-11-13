@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { isRoleKey } from "@/lib/forms/roles";
 import { validateSchema } from "@/lib/forms/schema";
 import { formProgress, type FormProgress } from "@/lib/protocols/format";
@@ -32,7 +33,8 @@ export async function requireView(userId: string, protocolId: string) {
   }
 }
 
-export async function protocolHeader(userId: string, protocolId: string) {
+/** Cached per request: the layout, the page and the loaders read the same header. */
+export const protocolHeader = cache(async (userId: string, protocolId: string) => {
   await requireView(userId, protocolId);
   const protocol = await prisma.protocol.findUnique({
     where: { id: protocolId },
@@ -54,7 +56,7 @@ export async function protocolHeader(userId: string, protocolId: string) {
     mine: protocol.members[0] ?? null,
     staff: await isCommitteeStaff(userId),
   };
-}
+});
 
 export async function listForRole(userId: string, role: "PROPONENT" | "ADVISER") {
   const rows = await prisma.protocolMember.findMany({

@@ -18,6 +18,7 @@ export function SubmitStepForm({
   ready,
   summary,
   submitLabel,
+  compact = false,
 }: {
   action: (formData: FormData) => Promise<ActionOutcome>;
   taskId: string;
@@ -25,6 +26,8 @@ export function SubmitStepForm({
   ready: boolean;
   summary: string;
   submitLabel: string;
+  /** The Intake page's submit bar: no note field, the button only. */
+  compact?: boolean;
 }) {
   const show = useActionResult();
   const [error, setError] = useState<string | null>(null);
@@ -52,22 +55,26 @@ export function SubmitStepForm({
   }
 
   return (
-    <form onSubmit={submit} className="rec-step__form">
+    <form onSubmit={submit} className={compact ? "rec-step__form rec-step__form--compact" : "rec-step__form"}>
       <input type="hidden" name="taskId" value={taskId} />
       <input type="hidden" name="protocolId" value={protocolId} />
-      <label className="rec-field rec-field--wide">
-        <span className="label">Note to REC Staff (optional)</span>
-        <textarea className="rec-input" name="comment" rows={3} />
-      </label>
+      {compact ? null : (
+        <label className="rec-field rec-field--wide">
+          <span className="label">Note to REC Staff (optional)</span>
+          <textarea className="rec-input" name="comment" rows={3} />
+        </label>
+      )}
       {error ? (
         <p className="rec-alert" role="alert">
           {error}
         </p>
       ) : null}
       <div className="rec-step__foot">
-        <p className={ready ? "label rec-step__summary rec-step__summary--ready" : "label rec-step__summary"} aria-live="polite">
-          {summary}
-        </p>
+        {compact ? null : (
+          <p className={ready ? "label rec-step__summary rec-step__summary--ready" : "label rec-step__summary"} aria-live="polite">
+            {summary}
+          </p>
+        )}
         <BusyButton type="submit" variant="primary" busy={pending} busyLabel="Submitting…">
           {submitLabel}
         </BusyButton>

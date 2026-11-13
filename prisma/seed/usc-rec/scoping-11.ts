@@ -32,12 +32,18 @@ export const SCOPING_RULES_11: ScopingRule[] = [
     codes: ["3.02", "3.03", "3.04", "3.05", "3.06", "3.07", "3.08", "3.09", "3.10"],
     reason: "no personal or sensitive data is collected",
   },
-  // F-36 gateway: "If YES, proceed to all items below."
+  // F-36 gateway: "If YES, proceed to all items below." D ("Do you have any other concerns?") is the
+  // reviewer's own field and stays open: a waiver can raise concerns too (INTAKE-02).
   {
     id: "no-consent",
     when: no("consentNeeded"),
     form: "F-36",
-    allExcept: ["1", "1.NO"],
+    allExcept: ["1", "1.NO", "D"],
     reason: "informed consent is not sought ({waiverReason})",
   },
 ];
+
+/** The INTAKE-01 seed, which also marked F-36 D N/A. A setting still holding it is brought up to date. */
+export const SCOPING_RULES_11_INTAKE01: ScopingRule[] = SCOPING_RULES_11.map((rule) =>
+  rule.id === "no-consent" ? { ...rule, allExcept: ["1", "1.NO"] } : rule,
+);

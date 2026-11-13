@@ -7,7 +7,7 @@ import { validateGraph } from "../../../src/lib/workflow/validate";
 import type { UscForm } from "./forms";
 import { uscForms2026 } from "./forms-2026-11";
 import { REPLACED_BY_11, RETIRED_FORMS, uscForms11 } from "./forms-11-01";
-import { SCOPING_RULES_11 } from "./scoping-11";
+import { SCOPING_RULES_11, SCOPING_RULES_11_INTAKE01 } from "./scoping-11";
 import { initialSubmission2026, M14_START, PROCESS_START, resubmission2026 } from "./workflows-2026-11";
 
 /**
@@ -73,7 +73,7 @@ async function immediateSettings(prisma: PrismaClient): Promise<void> {
     // The 2025 process met on the second Friday with a 14-day cutoff; it stays until the 2027 schedule starts.
     { key: "meetings.schedule", value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
     // INTAKE-01: scoping answers that mark F-35 and F-36 points N/A. Read only by 11-01 forms.
-    { key: "intake.scopingRules", value: SCOPING_RULES_11 },
+    { key: "intake.scopingRules", value: SCOPING_RULES_11, replaces: [SCOPING_RULES_11_INTAKE01] },
   ];
   for (const row of rows) {
     const existing = await prisma.setting.findUnique({ where: { key: row.key } });

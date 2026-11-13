@@ -8,6 +8,7 @@ import { loadAuthoredRows } from "@/server/forms/authored";
 import { formForEdit, manuscriptForForm } from "@/server/protocols/read";
 import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { prisma } from "@/server/db";
+import { GENERATED_FORMS } from "@/server/intake/page";
 import { loadSignaturePanel } from "@/server/signatures/views";
 import { requireUser } from "@/server/session";
 
@@ -22,7 +23,14 @@ export default async function ProtocolFormPage({
   // Bound values of this copy's own version: frozen once submitted, live while working.
   const bound = await versionBoundValues(prisma, form.version.id);
   const roles = form.roles.filter(isRoleKey) as RoleKey[];
+  // Proponents answer the generated forms on the Intake tab (INTAKE-02): their copies open read-only.
+  const generatedForProponent =
+    form.schema.source === "intake" &&
+    (GENERATED_FORMS as readonly string[]).includes(form.instance.formDefinition.code) &&
+    roles.some((role) => role === "PROPONENT" || role === "ADVISER") &&
+    roles.every((role) => role === "PROPONENT" || role === "PROJECT_LEADER" || role === "ADVISER");
   const editing =
+    !generatedForProponent &&
     form.instance.status !== "COMPLETE" &&
     form.roles.length > 0 &&
     (form.version.state === "WORKING" || form.stepKey != null) &&
@@ -60,6 +68,11 @@ export default async function ProtocolFormPage({
           protocolCode={manuscript?.protocolCode ?? null}
         />
       </div>
+      {generatedForProponent ? (
+        <p className="body-sm rec-muted">
+          Filled from the intake. Change an answer on the <Link href={`/app/protocols/${id}/intake`}>Intake</Link> tab.
+        </p>
+      ) : null}
       {manuscript && showSplit ? <ManuscriptOpenButton manuscript={manuscript} /> : null}
       <ProtocolForm
         instanceId={form.instance.id}

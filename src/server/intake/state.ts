@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import type { Prisma } from "@prisma/client";
 import { asCellRecord } from "@/lib/forms/cells";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
@@ -25,6 +26,8 @@ export type IntakeState = {
   groups: PointGroup[];
   actionPoints: { code: string; label: string; comments: string }[];
   fundingCodes: string[];
+  /** Whether page and line references block submission on this version (see referencePoints below). */
+  referencesRequired: boolean;
   gaps: IntakeGap[];
 };
 
@@ -135,5 +138,8 @@ export async function intakeState(db: Db, versionId: string): Promise<IntakeStat
         actionPoints,
       })
     : [];
-  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, gaps };
+  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, referencesRequired: referencePoints.length > 0, gaps };
 }
+
+/** intakeState of one version, once per request: the page, the checklist and the layout share it. */
+export const intakeStateOf = cache((versionId: string) => intakeState(prisma, versionId));

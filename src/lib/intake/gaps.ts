@@ -2,9 +2,12 @@ import { SCOPING_KEYS, SCOPING_QUESTIONS, budgetColumnsFor, type IntakeGap, type
 
 export type ReferencePoint = { form: string; code: string; label: string };
 
+/** The research type also has its own checklist item ("Research type"); the checklist leaves this gap out of the study item. */
+export const RESEARCH_TYPE_GAP = "Choose the research type.";
+
 /**
- * What still blocks submission on an intake version. The Details page counts too, because
- * F-27 prints it. Each gap names its section so the intake page can link to it.
+ * What still blocks submission on an intake version. The study fields (on the protocol) count too,
+ * because F-27 prints them; the source of funds is its own section because it opens the F-30 columns. Each gap names its section so the intake page can link to it.
  */
 export function intakeGaps(input: {
   intake: IntakeValues;
@@ -24,11 +27,11 @@ export function intakeGaps(input: {
   const gaps: IntakeGap[] = [];
   const { intake, study } = input;
 
-  if (study.researchTypeCodes.length === 0) gaps.push({ section: "study", message: "Choose the research type on Details." });
-  if (study.durationMonths == null) gaps.push({ section: "study", message: "Enter the duration in months on Details." });
-  if (study.expectedParticipants == null) gaps.push({ section: "study", message: "Enter the expected number of participants on Details." });
-  if (!study.studySite.trim()) gaps.push({ section: "study", message: "Enter the study site on Details." });
-  if (study.fundingCodes.length === 0) gaps.push({ section: "study", message: "Choose the source of funds on Details." });
+  if (study.researchTypeCodes.length === 0) gaps.push({ section: "study", message: RESEARCH_TYPE_GAP });
+  if (study.durationMonths == null) gaps.push({ section: "study", message: "Enter the duration in months." });
+  if (study.expectedParticipants == null) gaps.push({ section: "study", message: "Enter the expected number of participants." });
+  if (!study.studySite.trim()) gaps.push({ section: "study", message: "Enter the study site." });
+  if (study.fundingCodes.length === 0) gaps.push({ section: "funding", message: "Choose the source of funds." });
 
   for (const key of SCOPING_KEYS) {
     if (typeof intake.scoping[key] !== "boolean") gaps.push({ section: "scoping", message: `Answer: ${SCOPING_QUESTIONS[key]}` });

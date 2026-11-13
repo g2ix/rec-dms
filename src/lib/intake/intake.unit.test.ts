@@ -245,8 +245,30 @@ describe("scoping rules", () => {
   it("marks all of F-36 after the gateway when consent is not sought, with the proponent's reason", () => {
     const na = naFor({ consentNeeded: false, waiverReason: "Secondary analysis of anonymized records" })["F-36"];
     const codes = codesOf(form("F-36"));
-    expect(Object.keys(na)).toEqual(codes.filter((code) => code !== "1" && code !== "1.NO"));
+    expect(Object.keys(na)).toEqual(codes.filter((code) => code !== "1" && code !== "1.NO" && code !== "D"));
     expect(na["A.01"]).toEqual(["informed consent is not sought (Secondary analysis of anonymized records)"]);
+  });
+
+  it("keeps F-36 D open for the reviewer on a waiver: it is their own field and a waiver can raise concerns", () => {
+    const na = naFor({ consentNeeded: false, waiverReason: "Secondary analysis of anonymized records" });
+    expect(na["F-36"]["D"]).toBeUndefined();
+    const schema = form("F-36");
+    const data = overlayBound(schema, {}, { ...BOUND, "intake.na": na }, "F-36");
+    const points = data.points as Record<string, Record<string, unknown>>;
+    const d = Object.entries(points).find(([key]) => key.toLowerCase() === "pd")?.[1];
+    expect(codesOf(schema)).toContain("D");
+    expect(d?._na).toBeUndefined();
+    const a01 = Object.entries(points).find(([key]) => key.toLowerCase() === "pa01")?.[1];
+    expect(a01?._na).toMatch(/^N\/A \(proponent: informed consent is not sought/);
+  });
+
+  it("brings the INTAKE-01 seeded rules up to date: only the consent rule changes, to leave D open", async () => {
+    const { SCOPING_RULES_11_INTAKE01 } = await import("../../../prisma/seed/usc-rec/scoping-11");
+    const before = SCOPING_RULES_11_INTAKE01.find((rule) => rule.id === "no-consent");
+    const after = SCOPING_RULES_11.find((rule) => rule.id === "no-consent");
+    expect(before?.allExcept).toEqual(["1", "1.NO"]);
+    expect(after?.allExcept).toEqual(["1", "1.NO", "D"]);
+    expect(SCOPING_RULES_11_INTAKE01.filter((rule) => rule.id !== "no-consent")).toEqual(SCOPING_RULES_11.filter((rule) => rule.id !== "no-consent"));
   });
 
   it("marks nothing for unanswered questions or yes answers", () => {
