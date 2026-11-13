@@ -164,7 +164,13 @@ async function writeDetails(protocolId: string, userId: string, data: Prisma.Pro
       meta,
     });
     // F-27, F-28 and F-30 of an intake version print these details: refresh their prints and signatures.
-    await refreshIntakeForms(tx, { versionId: working.id, before: formsBefore, protocolId, actorUserId: userId, meta });
+    const reason =
+      before.title !== updated.title
+        ? "the study title changed"
+        : JSON.stringify(before.fundingSources) !== JSON.stringify(updated.fundingSources)
+          ? "the sources of funds changed"
+          : "the study details changed";
+    await refreshIntakeForms(tx, { versionId: working.id, before: formsBefore, protocolId, actorUserId: userId, meta, reason });
     return updated;
   });
 }

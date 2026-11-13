@@ -3,12 +3,15 @@ import { cache } from "react";
 import type { Prisma } from "@prisma/client";
 import { asCellRecord } from "@/lib/forms/cells";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
-import { intakeGaps, type ReferencePoint } from "@/lib/intake/gaps";
+import { intakeGaps, type ReferencePoint, type ResearcherSignatures } from "@/lib/intake/gaps";
 import { readIntake, type IntakeGap, type IntakeValues } from "@/lib/intake/model";
 import { notApplicablePoints } from "@/lib/intake/scoping";
+import { parseGraph } from "@/lib/workflow/graph";
 import { prisma } from "@/server/db";
 import { formDefinitionForVersion } from "@/server/effective";
 import { scopingRules } from "@/server/intake/bound";
+import { INTAKE_SIGNED_FORMS, intakeSigningForms, researcherSigning } from "@/server/intake/signing";
+import { toRoster } from "@/server/signatures/sign";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -28,7 +31,19 @@ export type IntakeState = {
   fundingCodes: string[];
   /** Whether page and line references block submission on this version (see referencePoints below). */
   referencesRequired: boolean;
+  /** The active researchers in roster order, with their agreements and F-27 / F-28 signatures. */
+  researchers: IntakeResearcher[];
   gaps: IntakeGap[];
+};
+
+export type IntakeResearcher = {
+  memberId: string;
+  userId: string | null;
+  name: string;
+  declarationsAt: string | null;
+  consentsAt: string | null;
+  /** Only the forms this version has a copy of. Empty on older versions. */
+  signatures: ResearcherSignatures;
 };
 
 async function intakeSchema(db: Db, code: string, versionId: string): Promise<{ schema: FormSchema; title: string } | null> {
@@ -103,12 +118,31 @@ export async function intakeState(db: Db, versionId: string): Promise<IntakeStat
         item && typeof item === "object" && !Array.isArray(item) && typeof (item as { code?: unknown }).code === "string" ? [(item as { code: string }).code] : [],
       )
     : [];
-  const researchers = version.protocol.members
+  // Each researcher's agreements and their signature on F-27 and F-28: one checklist item each.
+  // Signatures count only on forms the open proponent step requires (the first submission, not a
+  // revision that fills F-38 only), as the step's own form check does.
+  const signingForms = uses ? await intakeSigningForms(db, versionId) : [];
+  const requiredHere = uses ? await formsRequiredInOpenStep(db, versionId) : new Set<string>();
+  const signing = await researcherSigning(db, signingForms, toRoster(version.protocol.members.filter((member) => member.status === "ACTIVE" || member.status === "INVITED")));
+  const researchers: IntakeResearcher[] = version.protocol.members
     .filter((member) => member.role === "PROPONENT" && member.status === "ACTIVE" && member.user)
     .sort((a, b) => a.rosterOrder - b.rosterOrder)
     .map((member) => {
       const agreed = (kind: string) => version.intake?.agreements.find((item) => item.memberId === member.id && item.kind === kind)?.agreedAt.toISOString() ?? null;
-      return { name: member.user?.displayName ?? "", declarationsAt: agreed("DECLARATIONS"), consentsAt: agreed("F28_CONSENT") };
+      const forms = (member.userId ? signing.get(member.userId)?.forms : undefined) ?? {};
+      const signatures: ResearcherSignatures = {};
+      for (const code of INTAKE_SIGNED_FORMS) {
+        const entry = forms[code];
+        if (entry) signatures[code] = entry.status;
+      }
+      return {
+        memberId: member.id,
+        userId: member.userId,
+        name: member.user?.displayName ?? "",
+        declarationsAt: agreed("DECLARATIONS"),
+        consentsAt: agreed("F28_CONSENT"),
+        signatures,
+      };
     });
   // References are required on a version that carries F-35 and F-36: the first submission, or a
   // resubmission whose workflow asks for them again. A resubmission answers F-38 instead.
@@ -133,12 +167,36 @@ export async function intakeState(db: Db, versionId: string): Promise<IntakeStat
           studySite: version.protocol.studySite,
           fundingCodes,
         },
-        researchers,
+        researchers: researchers.map((researcher) => ({
+          ...researcher,
+          signatures: Object.fromEntries(Object.entries(researcher.signatures).filter(([code]) => requiredHere.has(code))),
+        })),
         referencePoints,
         actionPoints,
       })
     : [];
-  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, referencesRequired: referencePoints.length > 0, gaps };
+  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, referencesRequired: referencePoints.length > 0, researchers, gaps };
+}
+
+/**
+ * The forms the leader's open step on this version requires to be filled or signed: what the
+ * engine checks before that step completes. Empty when no proponent step is open.
+ */
+async function formsRequiredInOpenStep(db: Db, versionId: string): Promise<Set<string>> {
+  const instance = await db.workflowInstance.findFirst({
+    where: { protocolVersionId: versionId, status: "RUNNING" },
+    orderBy: { startedAt: "desc" },
+    include: { version: true, tasks: { where: { status: { in: ["OPEN", "CLAIMED"] }, kind: "MAIN" } } },
+  });
+  const graph = instance ? parseGraph(instance.version.graph) : null;
+  if (!instance || !graph?.ok) return new Set();
+  const codes = new Set<string>();
+  for (const task of instance.tasks) {
+    const step = graph.graph.steps.find((item) => item.key === task.stepKey);
+    if (step?.assignee?.kind !== "PROTOCOL_LEADER") continue;
+    for (const form of step.forms ?? []) if (form.required && form.mode !== "VIEW" && !form.slot) codes.add(form.code);
+  }
+  return codes;
 }
 
 /** intakeState of one version, once per request: the page, the checklist and the layout share it. */

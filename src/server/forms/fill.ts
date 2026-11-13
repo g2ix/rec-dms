@@ -324,7 +324,7 @@ export async function saveField(input: {
             protocolId: context.protocolId,
             actorUserId: input.userId,
             meta,
-          });
+          }).then((events) => events.length);
 
     return { ok: true, revision, data: next, writtenPaths, signaturesVoided: voided > 0 };
   });

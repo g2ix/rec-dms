@@ -23,7 +23,7 @@ import { editingStepFor } from "@/server/workflow/access";
 type Tx = Prisma.TransactionClient;
 type Meta = Prisma.InputJsonObject;
 
-function checkedSchema(input: unknown): FormSchema {
+export function checkedSchema(input: unknown): FormSchema {
   const check = validateSchema(input);
   if (!check.ok) throw new AppError("INVALID", check.issues[0]?.message ?? "This form schema is not valid.", 400);
   return check.schema;
@@ -50,7 +50,7 @@ export function toRoster(
   }));
 }
 
-function actorRoles(member: { role: string; isLeader: boolean } | null): RoleKey[] {
+export function actorRoles(member: { role: string; isLeader: boolean } | null): RoleKey[] {
   if (!member) return [];
   const roles: RoleKey[] = [];
   if (isRoleKey(member.role)) roles.push(member.role);
@@ -159,38 +159,105 @@ export async function signField(input: {
         400,
       );
     }
-    const dataHash = formDataHash(await effectiveFormData(tx, instance), signatureFieldIds(schema));
-    const verifyRef = await uniqueRef(tx);
-    const event = await tx.signatureEvent.create({
-      data: {
-        formInstanceId: instance.id,
-        fieldPath: input.fieldPath,
-        userId: input.userId,
-        signatureId: signature.id,
-        dataHash,
-        protocolVersionId: version.id,
-        signedAt: now,
-        ip: typeof input.meta.ip === "string" ? input.meta.ip : null,
-        userAgent: typeof input.meta.userAgent === "string" ? input.meta.userAgent : null,
-        verifyRef,
-        method: "IMAGE",
-      },
-    });
-    if (agreement) await tx.intakeAgreement.update({ where: { id: agreement.id }, data: { signatureEventId: event.id } });
-    await audit.record(tx, {
-      actorUserId: input.userId,
-      actingRole: actorRoles(membership)[0] ?? null,
-      action: AuditAction.formSigned,
-      entityType: "signature_event",
-      entityId: event.id,
+    return createSignatureEvent(tx, {
+      instance,
+      schema,
+      fieldPath: input.fieldPath,
+      userId: input.userId,
+      signature,
       protocolId: version.protocolId,
-      diff: diffOf({}, { fieldPath: input.fieldPath, verifyRef, signatureVersion: signature.version }),
+      actingRole: actorRoles(membership)[0] ?? null,
+      agreementId: agreement?.id ?? null,
       meta: input.meta,
+      now,
     });
-    return event;
   });
 }
 
+/**
+ * Records one signature event on a slot the caller has already checked: the hash of the form's
+ * printed content, a verify reference, the link to the researcher's agreement, and the audit.
+ */
+export async function createSignatureEvent(
+  tx: Tx,
+  input: {
+    instance: FormInstance & { formDefinition: { code: string; schema: unknown } };
+    schema: FormSchema;
+    fieldPath: string;
+    userId: string;
+    signature: { id: string; version: number };
+    protocolId: string;
+    actingRole: RoleKey | null;
+    agreementId: string | null;
+    meta: Meta;
+    now: Date;
+  },
+) {
+  const { instance } = input;
+  const dataHash = formDataHash(await effectiveFormData(tx, instance), signatureFieldIds(input.schema));
+  const verifyRef = await uniqueRef(tx);
+  const event = await tx.signatureEvent.create({
+    data: {
+      formInstanceId: instance.id,
+      fieldPath: input.fieldPath,
+      userId: input.userId,
+      signatureId: input.signature.id,
+      dataHash,
+      protocolVersionId: instance.ownerId,
+      signedAt: input.now,
+      ip: typeof input.meta.ip === "string" ? input.meta.ip : null,
+      userAgent: typeof input.meta.userAgent === "string" ? input.meta.userAgent : null,
+      verifyRef,
+      method: "IMAGE",
+    },
+  });
+  if (input.agreementId) await tx.intakeAgreement.update({ where: { id: input.agreementId }, data: { signatureEventId: event.id } });
+  await audit.record(tx, {
+    actorUserId: input.userId,
+    actingRole: input.actingRole,
+    action: AuditAction.formSigned,
+    entityType: "signature_event",
+    entityId: event.id,
+    protocolId: input.protocolId,
+    diff: diffOf({}, { fieldPath: input.fieldPath, verifyRef, signatureVersion: input.signature.version }),
+    meta: input.meta,
+  });
+  return event;
+}
+
+/** Voids the live signature events that match, with one audit event each. Returns the voided events. */
+export async function voidLiveSignatures(
+  tx: Tx,
+  input: {
+    where: Prisma.SignatureEventWhereInput;
+    reason: "DATA_CHANGED" | "AGREEMENT_WITHDRAWN";
+    protocolId: string | null;
+    actorUserId: string;
+    meta: Meta;
+    now?: Date;
+  },
+) {
+  const events = await tx.signatureEvent.findMany({ where: { AND: [input.where, { voidedAt: null }] } });
+  const now = input.now ?? new Date();
+  for (const event of events) {
+    await tx.signatureEvent.update({ where: { id: event.id }, data: { voidedAt: now, voidReason: input.reason } });
+    await audit.record(tx, {
+      actorUserId: input.actorUserId,
+      action: AuditAction.signatureVoided,
+      entityType: "signature_event",
+      entityId: event.id,
+      protocolId: input.protocolId,
+      diff: diffOf({ voidedAt: null }, { voidedAt: now.toISOString(), voidReason: input.reason, fieldPath: event.fieldPath }),
+      meta: input.meta,
+    });
+  }
+  return events;
+}
+
+/**
+ * After an edit of a form copy: when its printed content changed, every live signature on it is
+ * void. Each signer is told, unless `notify` is false: the intake sends one notice for F-27 and F-28.
+ */
 export async function voidSignaturesForDataChange(
   tx: Tx,
   input: {
@@ -201,40 +268,28 @@ export async function voidSignaturesForDataChange(
     protocolId: string | null;
     actorUserId: string;
     meta: Meta;
+    notify?: boolean;
   },
-): Promise<number> {
+): Promise<{ userId: string }[]> {
   const ids = signatureFieldIds(input.schema);
-  if (formDataHash(input.before, ids) === formDataHash(input.after, ids)) return 0;
-  const events = await tx.signatureEvent.findMany({
-    where: { formInstanceId: input.instance.id, voidedAt: null },
+  if (formDataHash(input.before, ids) === formDataHash(input.after, ids)) return [];
+  const events = await voidLiveSignatures(tx, {
+    where: { formInstanceId: input.instance.id },
+    reason: "DATA_CHANGED",
+    protocolId: input.protocolId,
+    actorUserId: input.actorUserId,
+    meta: input.meta,
   });
-  if (events.length === 0) return 0;
-  const now = new Date();
-  const notified = new Set<string>();
-  for (const event of events) {
-    await tx.signatureEvent.update({
-      where: { id: event.id },
-      data: { voidedAt: now, voidReason: "DATA_CHANGED" },
-    });
-    await audit.record(tx, {
-      actorUserId: input.actorUserId,
-      action: AuditAction.signatureVoided,
-      entityType: "signature_event",
-      entityId: event.id,
-      protocolId: input.protocolId,
-      diff: diffOf({ voidedAt: null }, { voidedAt: now.toISOString(), voidReason: "DATA_CHANGED", fieldPath: event.fieldPath }),
-      meta: input.meta,
-    });
-    if (notified.has(event.userId)) continue;
-    notified.add(event.userId);
+  const userIds = [...new Set(events.map((event) => event.userId))];
+  if (input.notify !== false && userIds.length > 0) {
     await recordNotice(tx, {
-      userIds: [event.userId],
+      userIds,
       templateKey: "signature.voided",
       protocolId: input.protocolId,
       link: input.protocolId ? `/app/protocols/${input.protocolId}` : "/app",
     });
   }
-  return events.length;
+  return events;
 }
 
 export async function signatureMarks(

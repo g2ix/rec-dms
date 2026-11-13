@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "motion/react";
-import { SignatureFields } from "@/components/forms/signature-field";
 import { DocumentsSection } from "@/components/protocols/intake/documents-section";
 import { FormsPreview, type PreviewForm } from "@/components/protocols/intake/forms-preview";
+import { IntakeSigningSection } from "@/components/protocols/intake/signing-section";
 import { IntakeRail, STEP_EVENT } from "@/components/protocols/intake/rail";
 import { useSubmissionChecklist } from "@/components/protocols/submission-checklist";
 import { FundingSources, StudyFields, useStudySaver } from "@/components/protocols/intake/study-section";
@@ -35,9 +35,8 @@ import {
 import { naLabel } from "@/lib/intake/scoping";
 import { RESEARCH_TYPE_GAP } from "@/lib/intake/gaps";
 import { STEP_INTROS, firstMissingSection, stepOfHash, type RailKey, type RailSection } from "@/lib/intake/rail";
-import type { FormField } from "@/lib/forms/schema";
 import { groupLeft, type ChecklistItem, type ChecklistTab, type SubmissionChecklist } from "@/lib/protocols/checklist";
-import type { SignatureSlotView, SigningPrompt } from "@/lib/signatures/view";
+import type { IntakeSigningView } from "@/lib/intake/signing-view";
 import { saveIntakeAction, setAgreementAction } from "@/server/intake/actions";
 import type { PointGroup } from "@/server/intake/state";
 
@@ -51,8 +50,6 @@ const SECTION_VALUE: Record<IntakeSection, (values: IntakeValues) => unknown> = 
   actions: (values) => values.actions,
 };
 
-type Researcher = { memberId: string; name: string; declarationsAt: string | null; consentsAt: string | null };
-
 /** Which intake gaps explain a checklist item, so a section lists every message, not just the first. */
 const GAP_SECTION_OF_ITEM: Record<string, IntakeGap["section"]> = {
   "intake.scoping": "scoping",
@@ -60,7 +57,6 @@ const GAP_SECTION_OF_ITEM: Record<string, IntakeGap["section"]> = {
   "intake.budget": "budget",
   "intake.references": "references",
   "intake.actions": "actions",
-  "intake.agreements": "agreements",
   "details.study": "study",
   "details.funding": "funding",
 };
@@ -82,7 +78,6 @@ export function IntakeForm({
   gaps,
   feeEstimate,
   mine,
-  researchers,
   wording,
   page,
   team,
@@ -97,7 +92,6 @@ export function IntakeForm({
   gaps: IntakeGap[];
   feeEstimate: number | null;
   mine: { memberId: string | null; declarationsAt: string | null; consentsAt: string | null };
-  researchers: Researcher[];
   wording: { declarations: string[]; coi: { NONE: string; SPECIFY: string }; consents: string[] };
   page: IntakePageProps;
   /** The roster, rendered on the server (the Overview's Team card). */
@@ -413,23 +407,8 @@ export function IntakeForm({
 
             {current === "sign" ? (
               <>
-                <Agreements protocolId={protocolId} editable={editable} mine={mine} researchers={researchers} wording={wording} />
-                {page.signing.length > 0 ? (
-                  <div className="rec-stack" data-testid="signing">
-                    <h3 className="subheading">Sign F-27 and F-28</h3>
-                    <p className="body-sm rec-muted">After you agree above, sign each form below. Every researcher signs on their own account.</p>
-                    {page.signing.map((form) => (
-                      <div key={form.instanceId} className="rec-stack rec-intake__sign">
-                        <h4 className="label">
-                          <span className="code">{form.code}</span> {form.title}
-                        </h4>
-                        {form.fields.map((field) => (
-                          <SignatureFields key={field.id} field={field} slots={form.slots[field.id] ?? []} signing={form.signing} />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                <Agreements protocolId={protocolId} editable={editable} mine={mine} wording={wording} />
+                {page.signing ? <IntakeSigningSection protocolId={protocolId} signing={page.signing} /> : null}
               </>
             ) : null}
 
@@ -527,20 +506,15 @@ export type IntakePageProps = {
     canUpload: boolean;
   };
   forms: PreviewForm[];
-  signing: {
-    instanceId: string;
-    code: string;
-    title: string;
-    fields: FormField[];
-    slots: Record<string, SignatureSlotView[]>;
-    signing: SigningPrompt;
-  }[];
+  signing: IntakeSigningView | null;
 };
 
 /** A section's missing checklist items. An intake item lists every gap message behind it. */
 function MissingList({ items, gaps }: { items: ChecklistItem[]; gaps: IntakeGap[] }) {
   if (items.length === 0) return null;
   const lines = items.flatMap((item) => {
+    // A researcher's item: its hint already names them and says what is left.
+    if (item.key.startsWith("sign.")) return [item.hint ?? item.label];
     const section = GAP_SECTION_OF_ITEM[item.key];
     // The research type has its own item, so the study item leaves that message out (as the checklist does).
     const messages = section ? gaps.filter((gap) => gap.section === section && !(item.key === "details.study" && gap.message === RESEARCH_TYPE_GAP)).map((gap) => gap.message) : [];
@@ -807,13 +781,11 @@ function Agreements({
   protocolId,
   editable,
   mine,
-  researchers,
   wording,
 }: {
   protocolId: string;
   editable: boolean;
   mine: { memberId: string | null; declarationsAt: string | null; consentsAt: string | null };
-  researchers: Researcher[];
   wording: { declarations: string[]; consents: string[] };
 }) {
   const router = useRouter();
@@ -827,10 +799,9 @@ function Agreements({
     if (!result.ok) setError(result.message);
     router.refresh();
   }
-  const when = (at: string | null) => (at ? `Agreed ${new Date(at).toLocaleDateString("en-PH", { dateStyle: "medium" })}` : "Not yet");
   return (
     <div id="agreements" className="rec-stack">
-      <p className="body-sm rec-muted">Each researcher agrees on their own account, then signs F-27 and F-28 below. Withdrawing an answer voids your signature on that form.</p>
+      <p className="body-sm rec-muted">Each researcher agrees on their own account, then signs F-27 and F-28 below with one signature. Withdrawing either answer voids your signatures on both forms.</p>
       <h3 className="label">F-27 Declaration(s) by the Researcher(s)/Proponent(s)</h3>
       <ul className="body">
         {wording.declarations.map((text) => (
@@ -855,26 +826,6 @@ function Agreements({
           {error}
         </p>
       ) : null}
-      <div className="rec-table-wrap">
-        <table className="rec-table">
-          <thead>
-            <tr>
-              <th scope="col">Researcher</th>
-              <th scope="col">F-27 declarations</th>
-              <th scope="col">F-28 consents</th>
-            </tr>
-          </thead>
-          <tbody>
-            {researchers.map((researcher) => (
-              <tr key={researcher.memberId}>
-                <th scope="row">{researcher.name}</th>
-                <td>{when(researcher.declarationsAt)}</td>
-                <td>{when(researcher.consentsAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

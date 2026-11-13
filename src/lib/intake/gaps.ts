@@ -18,7 +18,8 @@ export function intakeGaps(input: {
     studySite: string;
     fundingCodes: readonly string[];
   };
-  researchers: { name: string; declarationsAt: string | null; consentsAt: string | null }[];
+  /** Each researcher's agreements and, where the version has F-27 and F-28 copies, their signature on each. */
+  researchers: { memberId?: string; name: string; declarationsAt: string | null; consentsAt: string | null; signatures?: ResearcherSignatures }[];
   /** Points the proponent must reference: every point with a page cell that the scoping rules leave applicable. */
   referencePoints: readonly ReferencePoint[];
   /** F-38 on a resubmission: the open points the proponent must answer. */
@@ -80,10 +81,34 @@ export function intakeGaps(input: {
     });
   }
 
-  const notDeclared = input.researchers.filter((researcher) => !researcher.declarationsAt).map((researcher) => researcher.name);
-  if (notDeclared.length > 0) gaps.push({ section: "agreements", message: `Still to agree to the F-27 declarations: ${notDeclared.join(", ")}.` });
-  const notConsented = input.researchers.filter((researcher) => !researcher.consentsAt).map((researcher) => researcher.name);
-  if (notConsented.length > 0) gaps.push({ section: "agreements", message: `Still to agree to the F-28 consents: ${notConsented.join(", ")}.` });
+  // One gap per researcher who has not agreed to both and signed both: what the rail and submit count.
+  for (const researcher of input.researchers) {
+    const message = researcherGap(researcher);
+    if (message) gaps.push({ section: "agreements", memberId: researcher.memberId, message });
+  }
 
   return gaps;
+}
+
+export type ResearcherSignatures = Partial<Record<"F-27" | "F-28", "signed" | "void" | "unsigned">>;
+
+/** "Ana Cruz still needs to agree to the F-27 declarations, then sign F-27 and F-28." Null when done. */
+export function researcherGap(researcher: { name: string; declarationsAt: string | null; consentsAt: string | null; signatures?: ResearcherSignatures }): string | null {
+  const agree: string[] = [];
+  if (!researcher.declarationsAt) agree.push("agree to the F-27 declarations");
+  if (!researcher.consentsAt) agree.push("give the F-28 consents");
+  const forms = Object.entries(researcher.signatures ?? {}) as [string, string][];
+  const unsigned = forms.filter(([, status]) => status === "unsigned").map(([code]) => code);
+  const voided = forms.filter(([, status]) => status === "void").map(([code]) => code);
+  const sign: string[] = [];
+  if (unsigned.length > 0) sign.push(`sign ${andList(unsigned)}`);
+  if (voided.length > 0) sign.push(`sign ${andList(voided)} again`);
+  if (agree.length === 0 && sign.length === 0) return null;
+  const todo = agree.length > 0 && sign.length > 0 ? `${andList(agree)}, then ${andList(sign)}` : andList([...agree, ...sign]);
+  return `${researcher.name} still needs to ${todo}.`;
+}
+
+function andList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }

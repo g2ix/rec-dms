@@ -9,7 +9,8 @@ config({ path: ".env" });
 /**
  * INTAKE-02: a proponent prepares a whole version from the Intake tab and submits it without
  * opening another tab. Along the way: the step list's missing counts equal the submit bar's, editing
- * the title reaches the F-27 preview, a preview value links back to its section, and the page has
+ * the title reaches the F-27 preview, a preview value links back to its section, one signature
+ * covers F-27 and F-28 (INTAKE-03), and the page has
  * no sideways scroll at 390px.
  */
 
@@ -174,19 +175,26 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   await expect(preview).toHaveCount(0);
   await expect(page).toHaveURL(/#study$/);
 
-  // Agree and sign: the agreements, then F-27 and F-28 one after the other.
+  // Agree and sign: the agreements, then one signature for F-27 and F-28 from the researcher's own row.
   await page.getByTestId("rail-sign").click();
+  const mine = page.getByTestId("signing").getByTestId("signing-mine");
+  await expect(mine.getByRole("button", { name: "Sign F-27 and F-28" })).toBeDisabled({ timeout: 30_000 });
   await page.getByLabel("I agree to these declarations.").check();
   await page.getByLabel("I give these consents.").check();
-  const signing = page.getByTestId("signing");
-  for (let round = 0; round < 2; round += 1) {
-    const signButton = signing.getByRole("button", { name: "Sign", exact: true }).first();
-    await expect(signButton).toBeVisible({ timeout: 30_000 });
-    const passwordField = signing.locator('input[type="password"]').first();
-    if (await passwordField.isVisible()) await passwordField.fill(password);
-    await signButton.click();
-    await page.getByTestId("action-result").getByRole("button").first().click();
-  }
+  await expect(mine.getByRole("button", { name: "Sign F-27 and F-28" })).toBeEnabled({ timeout: 30_000 });
+  await mine.getByRole("button", { name: "Sign F-27 and F-28" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("F-27");
+  await expect(dialog).toContainText("F-28");
+  const passwordField = dialog.locator('input[type="password"]');
+  if (await passwordField.isVisible()) await passwordField.fill(password);
+  await dialog.getByRole("button", { name: "Sign F-27 and F-28" }).click();
+  await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+  await page.getByTestId("action-result").getByRole("button").first().click();
+  // One act signed both: the row shows the date and Withdraw, and no other Sign button is left.
+  await expect(mine).toContainText("Signed on", { timeout: 30_000 });
+  await expect(mine.getByRole("button", { name: "Withdraw" })).toBeVisible();
+  await expect(page.getByTestId("signing").getByRole("button", { name: /^Sign/ })).toHaveCount(0);
 
   // Nothing left: the leader's submit button, with the existing confirmation.
   await expect(page.getByTestId("submit-bar")).toContainText("Ready to submit", { timeout: 60_000 });

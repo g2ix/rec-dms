@@ -28,6 +28,7 @@ export const SAMPLE_VARIABLES: Record<string, string> = {
   decision: "Minor modifications",
   roleLabel: "an adviser",
   daysLeft: "5",
+  forms: "F-27 and F-28",
 };
 
 export const TEMPLATES: NoticeTemplate[] = [
@@ -127,6 +128,14 @@ export const TEMPLATES: NoticeTemplate[] = [
     channels: ["IN_APP", "EMAIL"],
     description: "Sent to each signer when a signed form changes.",
     variables: ["recipientName", "protocolTitle", "protocolCode", "link"],
+  },
+  {
+    key: "intake.signatures_voided",
+    subject: "Sign again: {{protocolTitle}}",
+    bodyMarkdown: "Your signature on {{forms}} was voided because {{reason}}. Sign again on the Intake tab.\n\n[Open Agree and sign]({{link}})",
+    channels: ["IN_APP", "EMAIL"],
+    description: "Sent once to each researcher when an intake change voids their F-27 and/or F-28 signature.",
+    variables: ["recipientName", "protocolTitle", "protocolCode", "forms", "reason", "link"],
   },
   {
     key: "fee.rejected",

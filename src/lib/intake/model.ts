@@ -172,4 +172,5 @@ export function budgetColumnsFor(fundingCodes: readonly string[]): BudgetColumn[
   return BUDGET_COLUMNS.filter((column) => open.has(column));
 }
 
-export type IntakeGap = { section: IntakeSection | "study" | "funding" | "agreements"; message: string };
+/** An "agreements" gap is one researcher's: their agreements and their F-27 and F-28 signatures. */
+export type IntakeGap = { section: IntakeSection | "study" | "funding" | "agreements"; message: string; memberId?: string };

@@ -1,5 +1,46 @@
 # Changelog
 
+## INTAKE-03 — One signature for F-27 and F-28 (2026-11-13)
+
+Each researcher now agrees, then signs once. That one act fills their slot on both F-27 and F-28. The legal record stays per form: each form gets its own `signature_events` row, hashed over that form's own printed content, verifiable on its own reference. Protocols on the 2025 forms (09-01 / 10-01) are unchanged: each form is still signed on its own, on the Forms tab.
+
+**Signing.** `signIntakeForms(protocolId, userId)` (`src/server/intake/signing.ts`, action `signIntakeFormsAction`):
+- signs for the caller only. There is no "sign for" parameter, so the leader cannot sign for anyone else. Advisers and staff are refused;
+- needs both agreements (F-27 declarations and F-28 consents);
+- uses the same signature image and the same confirmation (password, or the emailed code) as signing a form;
+- in one transaction, locks both copies, writes one event per form, links each to its agreement, and audits each as `form.signed`. Then one `intake.signed` audit event lists both event ids and verify references;
+- leaves a form whose signature is still live alone, so "Sign again" re-signs only the voided form(s);
+- fails as a whole: if one form cannot be signed (for example it is already locked), neither is.
+
+The signature image is not copied: each event points at the researcher's saved signature version, as before. Slots are found by the researcher's account, not by their position in the roster.
+
+**Voiding stays per form.** A Details or intake change voids the signatures only on the copies whose printed content changed, as before. A title change voids both (both print it). A conflict-of-interest change voids only F-27. On 11-01, F-28 prints nothing that F-27 does not (only the shared header: code, title, version, researchers), so no change voids F-28 alone. Each researcher now gets one notice, `intake.signatures_voided` ("Your signature on F-27 and F-28 was voided because the study title changed"), instead of one notice per form. The reason comes from what was saved: the title, the sources of funds, other study details, or the intake section.
+
+**Withdrawing.** Unticking either agreement voids that researcher's signatures on both forms (`AGREEMENT_WITHDRAWN`); before, it voided only the linked form. "Withdraw" on a signed row takes back both agreements, which voids both signatures; the researcher agrees and signs again.
+
+**Agree and sign.** The agreements stay as they were. Below them, one row per researcher (Researcher, Agreed, Signed):
+- your own row: "Sign F-27 and F-28" (disabled until you agree to both), which opens a dialog with your saved signature and the confirmation. After signing: "Signed on <date>" with the image, and "Withdraw" while the version is being prepared. After a change voids a signature: "Signature void on F-27" and "Sign again";
+- other researchers' rows: "Signed" or "Not yet", never a button.
+
+The per-form slot lists are gone from the Intake tab. The form previews still show each signature.
+
+**Rail, checklist and submit.** On an intake version, the checklist has one item per researcher, "<name>: agreed and signed F-27 and F-28", in place of the shared agreements item and the per-form F-27 and F-28 items. Each item comes from a per-researcher intake gap ("Ana Cruz still needs to agree to the F-27 declarations, then sign F-27 and F-28."). The proponents' step reads the same gaps, so with three researchers the rail shows "2 missing" until the other two sign, and submit stays blocked until then. The signature part of a gap counts only the forms the open proponent step requires, as that step's own form check does. So the first submission needs F-27 and F-28 signed, and a revision that fills F-38 only still needs just the agreements, as before. F-38 is unchanged: researchers then the adviser sign it on the Forms tab.
+
+Tests:
+- `src/lib/intake/intake.unit.test.ts`: one gap per researcher naming only what is left, and agreements only on a version without F-27 and F-28 copies.
+- `src/lib/intake/rail.unit.test.ts`: researcher items in Agree and sign.
+- `src/server/intake/intake.db.test.ts`:
+  - one act makes exactly two events, each verifies, each links its agreement, with two `form.signed` and one `intake.signed`;
+  - signing twice, another researcher without agreements, and an adviser are refused;
+  - a locked F-28 leaves F-27 unsigned and nothing audited;
+  - a title change voids both with one notice; a COI change voids only F-27; signing again re-signs only F-27;
+  - unticking one agreement, or Withdraw, voids both;
+  - three researchers: 2 missing in the rail and submit blocked until both others sign, then submit goes through;
+  - a version whose F-27 is not intake-sourced refuses the one-act signing.
+- `e2e/intake-page.spec.ts`: agree, sign once from the dialog, then the row shows the date and Withdraw and no Sign button is left. Not passing yet: in the one run, the test stopped before Agree and sign, at its first count check after the Study autosave. That run used a dev server already running and the database in `.env.local`.
+
+Known: `intake.db.test.ts` "marks N/A from the scoping answers…" fails on `main` before this change. The test expects the reference gap to list point codes, but the gap gives a count by design.
+
 ## INTAKE-02 — The Intake tab is a single-glance page (2026-11-12)
 
 The proponents now prepare a version in one place, the **Intake** tab. Each piece of data stays where it was: the study fields and the sources of funds on the protocol, the answers in the intake, the files in the uploads. This is a layout change, not a new data model.

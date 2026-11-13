@@ -6,7 +6,9 @@ import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { backfillIntake } from "@/server/intake/backfill";
 import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
-import { saveIntakeSection, setAgreement } from "@/server/intake/service";
+import { saveIntakeSection, setAgreement, withdrawIntakeSigning } from "@/server/intake/service";
+import { signIntakeForms } from "@/server/intake/signing";
+import { describeVerification } from "@/server/signatures/sign";
 import { intakeState } from "@/server/intake/state";
 import { generatedFormList, generatedFormPreview, intakePageExtras } from "@/server/intake/page";
 import { getSubmissionChecklist } from "@/server/protocols/checklist";
@@ -16,7 +18,7 @@ import { updateStudyFields } from "@/server/protocols/details";
 import { createProtocolForUser } from "@/server/protocols/affiliation";
 import { updateSharedDetails } from "@/server/protocols/details";
 import { ensureWorkingForms } from "@/server/protocols/versions";
-import { signatureIdFor } from "@/server/test/usc-cycle";
+import { fillIntake, finish, running, signatureIdFor, upload, writeForm } from "@/server/test/usc-cycle";
 import { makeUser } from "@/server/test/users";
 import { installUscRec } from "../../../prisma/seed/usc-rec/install";
 
@@ -191,6 +193,139 @@ describe("intake", () => {
     expect(JSON.stringify(preview.data)).toContain("Study habits of Grade 10 learners, edited");
     expect(preview.roles).toContain("PROPONENT");
   }, 120_000);
+
+  describe("one signing act for F-27 and F-28", () => {
+    async function readyToSign(userId: string, protocolId: string) {
+      for (const kind of ["DECLARATIONS", "F28_CONSENT"] as const) await setAgreement({ protocolId, userId, kind, agreed: true });
+      await signatureIdFor(userId);
+      await prisma.signingStepUp.create({ data: { userId, confirmedAt: new Date(), expiresAt: new Date(Date.now() + 10 * 60_000) } });
+    }
+    const live = (versionId: string, userId: string) =>
+      prisma.signatureEvent.findMany({
+        where: { userId, voidedAt: null, formInstance: { ownerType: "PROTOCOL_VERSION", ownerId: versionId } },
+        include: { formInstance: { include: { formDefinition: { select: { code: true } } } } },
+      });
+    const codes = (events: Awaited<ReturnType<typeof live>>) => events.map((event) => event.formInstance.formDefinition.code).sort();
+
+    it("creates one verifiable event per form, audits both under intake.signed, and signs only for the caller", async () => {
+      const run = await newProtocol("sign1");
+      await updateSharedDetails(run.protocolId, run.leader.id, details);
+      const second = await addMember(run.protocolId, "PROPONENT", "Second");
+      const adviser = await addMember(run.protocolId, "ADVISER", "Adviser");
+      await readyToSign(run.leader.id, run.protocolId);
+
+      const { signed } = await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+      expect(signed.map((item) => item.code)).toEqual(["F-27", "F-28"]);
+      const events = await live(run.versionId, run.leader.id);
+      expect(codes(events)).toEqual(["F-27", "F-28"]);
+      for (const event of events) expect((await describeVerification(event.verifyRef))?.matches).toBe(true);
+      // Each event points at its own agreement.
+      const agreements = await prisma.intakeAgreement.findMany({ where: { intake: { protocolVersionId: run.versionId }, signatureEventId: { not: null } } });
+      expect(new Set(agreements.map((item) => item.signatureEventId))).toEqual(new Set(events.map((event) => event.id)));
+      const audited = await prisma.auditEvent.findFirstOrThrow({ where: { protocolId: run.protocolId, action: "intake.signed" } });
+      expect(JSON.stringify(audited.diff)).toContain(events[0]!.id);
+      expect(JSON.stringify(audited.diff)).toContain(events[1]!.id);
+      expect(await prisma.auditEvent.count({ where: { protocolId: run.protocolId, action: "form.signed" } })).toBe(2);
+
+      // Signing twice adds nothing; nobody signs for someone else.
+      await expect(signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} })).rejects.toMatchObject({ code: "ALREADY_SIGNED" });
+      await expect(signIntakeForms({ protocolId: run.protocolId, userId: second.id, meta: {} })).rejects.toMatchObject({ code: "AGREEMENT_REQUIRED" });
+      await expect(signIntakeForms({ protocolId: run.protocolId, userId: adviser.id, meta: {} })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(await live(run.versionId, second.id)).toHaveLength(0);
+    }, 120_000);
+
+    it("leaves nothing signed when one form cannot be signed", async () => {
+      const run = await newProtocol("sign2");
+      await readyToSign(run.leader.id, run.protocolId);
+      // F-28 is already locked (as if submitted): the whole act fails, and F-27 stays unsigned.
+      const f28 = await prisma.formInstance.findFirstOrThrow({ where: { ownerType: "PROTOCOL_VERSION", ownerId: run.versionId, formDefinition: { code: "F-28" } } });
+      await prisma.formInstance.update({ where: { id: f28.id }, data: { status: "COMPLETE" } });
+      await expect(signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} })).rejects.toMatchObject({ code: "LOCKED" });
+      expect(await live(run.versionId, run.leader.id)).toHaveLength(0);
+      expect(await prisma.auditEvent.count({ where: { protocolId: run.protocolId, action: { in: ["form.signed", "intake.signed"] } } })).toBe(0);
+    }, 120_000);
+
+    it("voids per form: the title voids both with one notice, an F-27-only change voids F-27, and signing again re-signs only that", async () => {
+      const run = await newProtocol("sign3");
+      await updateSharedDetails(run.protocolId, run.leader.id, details);
+      await readyToSign(run.leader.id, run.protocolId);
+      await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+
+      await updateStudyFields(run.protocolId, run.leader.id, { title: "Reading habits of Grade 9 learners" });
+      expect(await live(run.versionId, run.leader.id)).toHaveLength(0);
+      const notices = await prisma.notification.findMany({ where: { userId: run.leader.id, type: "intake.signatures_voided" } });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]!.body).toContain("F-27 and F-28");
+      expect(notices[0]!.body).toContain("the study title changed");
+      let state = await intakeState(prisma, run.versionId);
+      expect(state!.researchers[0]!.signatures).toEqual({ "F-27": "void", "F-28": "void" });
+
+      await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+      // F-28 does not print the conflict of interest, so only F-27 is voided.
+      await saveIntakeSection({ protocolId: run.protocolId, userId: run.leader.id, section: "coi", value: { kind: "SPECIFY", text: "Paid consultant" }, expectedRevision: 0 });
+      expect(codes(await live(run.versionId, run.leader.id))).toEqual(["F-28"]);
+      state = await intakeState(prisma, run.versionId);
+      expect(state!.researchers[0]!.signatures).toEqual({ "F-27": "void", "F-28": "signed" });
+      expect(state!.gaps.find((gap) => gap.section === "agreements")?.message).toMatch(/sign F-27 again\.$/);
+
+      const again = await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+      expect(again.signed.map((item) => item.code)).toEqual(["F-27"]);
+      expect(codes(await live(run.versionId, run.leader.id))).toEqual(["F-27", "F-28"]);
+    }, 120_000);
+
+    it("withdrawing either agreement, or Withdraw on the row, voids both signatures", async () => {
+      const run = await newProtocol("sign4");
+      await readyToSign(run.leader.id, run.protocolId);
+      await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+      await setAgreement({ protocolId: run.protocolId, userId: run.leader.id, kind: "DECLARATIONS", agreed: false });
+      expect(await live(run.versionId, run.leader.id)).toHaveLength(0);
+      expect(await prisma.signatureEvent.count({ where: { userId: run.leader.id, voidReason: "AGREEMENT_WITHDRAWN" } })).toBe(2);
+
+      await readyToSign(run.leader.id, run.protocolId);
+      await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+      await withdrawIntakeSigning({ protocolId: run.protocolId, userId: run.leader.id });
+      expect(await live(run.versionId, run.leader.id)).toHaveLength(0);
+      expect(await prisma.intakeAgreement.count({ where: { intake: { protocolVersionId: run.versionId } } })).toBe(0);
+    }, 120_000);
+
+    it("with three researchers, the rail shows 2 missing and submit is blocked until everyone has signed", async () => {
+      const run = await newProtocol("sign5");
+      const others = [await addMember(run.protocolId, "PROPONENT", "Second"), await addMember(run.protocolId, "PROPONENT", "Third")];
+      await fillIntake(run.protocolId, run.versionId);
+      const instance = await running(run.protocolId);
+      for (const code of ["F-30", "F-35", "F-36"]) {
+        await writeForm({ ...run, code, stepKey: "proponent_submit", roles: ["PROPONENT", "PROJECT_LEADER"], userId: run.leader.id });
+      }
+      await upload(run.versionId, run.leader.id, "MANUSCRIPT");
+      await upload(run.versionId, run.leader.id, "COVER_LETTER");
+      await readyToSign(run.leader.id, run.protocolId);
+      await signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} });
+
+      const sign = railSections(await getSubmissionChecklist(run.leader.id, run.protocolId), { revision: false }).find((section) => section.key === "sign")!;
+      expect(sign.total).toBe(3);
+      expect(sign.missing).toHaveLength(2);
+      await expect(finish(instance.id, "proponent_submit", run.leader.id)).rejects.toMatchObject({ code: "INCOMPLETE" });
+
+      for (const other of others) {
+        await readyToSign(other.id, run.protocolId);
+        await signIntakeForms({ protocolId: run.protocolId, userId: other.id, meta: {} });
+      }
+      const after = railSections(await getSubmissionChecklist(run.leader.id, run.protocolId), { revision: false }).find((section) => section.key === "sign")!;
+      expect(after.missing).toHaveLength(0);
+      expect((await finish(instance.id, "proponent_submit", run.leader.id)).currentStepKeys).not.toContain("proponent_submit");
+    }, 180_000);
+
+    it("leaves older protocols alone: no one-act signing on a version not printed from the intake", async () => {
+      const run = await newProtocol("sign6");
+      await readyToSign(run.leader.id, run.protocolId);
+      // Swap the F-27 copy onto a definition that is not intake-sourced, as on a 09-01 / 10-01 protocol.
+      const old = await prisma.formDefinition.findFirstOrThrow({ where: { code: "F-27", NOT: { version: "11-01" } }, orderBy: { version: "asc" } });
+      const f27 = await prisma.formInstance.findFirstOrThrow({ where: { ownerType: "PROTOCOL_VERSION", ownerId: run.versionId, formDefinition: { code: "F-27" } } });
+      await prisma.formInstance.update({ where: { id: f27.id }, data: { formDefinitionId: old.id } });
+      await expect(signIntakeForms({ protocolId: run.protocolId, userId: run.leader.id, meta: {} })).rejects.toMatchObject({ code: "INVALID" });
+      expect(await live(run.versionId, run.leader.id)).toHaveLength(0);
+    }, 120_000);
+  });
 
   it("autosaves one Study field without touching the others, and refuses an empty title", async () => {
     const run = await newProtocol("study-patch");

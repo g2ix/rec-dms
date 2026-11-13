@@ -10,7 +10,7 @@ import { overlayBound } from "@/lib/forms/bound";
 import { fieldVisibleToRoles, columnVisibleToRoles, getEditableFields } from "@/lib/forms/editable";
 import { findField, validateSchema, type FormSchema } from "@/lib/forms/schema";
 import { validateInstance } from "@/lib/forms/validate";
-import { intakeGaps } from "@/lib/intake/gaps";
+import { intakeGaps, researcherGap } from "@/lib/intake/gaps";
 import { budgetColumnsFor, emptyIntake, formatReference } from "@/lib/intake/model";
 import { notApplicablePoints, readScopingRules } from "@/lib/intake/scoping";
 import { uscForms11 } from "../../../prisma/seed/usc-rec/forms-11-01";
@@ -300,6 +300,29 @@ describe("intake completeness", () => {
       actionPoints: [],
     });
     expect(new Set(gaps.map((gap) => gap.section))).toEqual(new Set(["scoping", "coi", "budget", "references", "agreements"]));
+  });
+
+  it("gives one agree-and-sign gap per researcher, naming only what is left for them", () => {
+    const at = "2026-11-13T00:00:00.000Z";
+    const gaps = intakeGaps({
+      intake: emptyIntake(),
+      study,
+      researchers: [
+        { memberId: "a", name: "Ana", declarationsAt: at, consentsAt: at, signatures: { "F-27": "signed", "F-28": "signed" } },
+        { memberId: "b", name: "Ben", declarationsAt: null, consentsAt: at, signatures: { "F-27": "unsigned", "F-28": "unsigned" } },
+        { memberId: "c", name: "Cy", declarationsAt: at, consentsAt: at, signatures: { "F-27": "signed", "F-28": "void" } },
+      ],
+      referencePoints: [],
+      actionPoints: [],
+    }).filter((gap) => gap.section === "agreements");
+    expect(gaps.map((gap) => gap.memberId)).toEqual(["b", "c"]);
+    expect(gaps[0]!.message).toBe("Ben still needs to agree to the F-27 declarations, then sign F-27 and F-28.");
+    expect(gaps[1]!.message).toBe("Cy still needs to sign F-28 again.");
+  });
+
+  it("asks only for the agreements on a version with no F-27 and F-28 copies", () => {
+    expect(researcherGap({ name: "Ana", declarationsAt: null, consentsAt: null })).toBe("Ana still needs to agree to the F-27 declarations and give the F-28 consents.");
+    expect(researcherGap({ name: "Ana", declarationsAt: "x", consentsAt: "x" })).toBeNull();
   });
 
   it("refuses an amount in a column the sources of funds do not open", () => {

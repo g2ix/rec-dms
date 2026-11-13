@@ -35,6 +35,7 @@ export const AuditAction = {
   intakeSaved: "intake.section_saved",
   intakeAgreed: "intake.agreed",
   intakeAgreementWithdrawn: "intake.agreement_withdrawn",
+  intakeSigned: "intake.signed",
   intakeBackfilled: "intake.backfilled",
   memberInvited: "protocol.member_invited",
   memberAccepted: "protocol.member_accepted",

@@ -7,7 +7,12 @@ import { INTAKE_SECTIONS } from "@/lib/intake/model";
 import { isNextRedirect } from "@/server/action-state";
 import { authorize } from "@/server/authz";
 import { saveInputError } from "@/server/forms/save-input";
-import { saveIntakeSection, setAgreement, type IntakeSaveSuccess } from "@/server/intake/service";
+import type { ActionResult } from "@/lib/action-result";
+import { auditRequestMeta } from "@/server/audit";
+import { saveIntakeSection, setAgreement, withdrawIntakeSigning, type IntakeSaveSuccess } from "@/server/intake/service";
+import { signIntakeForms } from "@/server/intake/signing";
+import { confirmSigningStepUp } from "@/server/stepup";
+import { protocolResult } from "@/server/workflow/result";
 import { studyPatchSchema, updateStudyFields } from "@/server/protocols/details";
 import { generatedFormPreview, type GeneratedForm } from "@/server/intake/page";
 import { requireUser } from "@/server/session";
@@ -58,6 +63,61 @@ export async function setAgreementAction(input: unknown): Promise<{ ok: true; ag
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     return saveInputError(error, "Your answer could not be saved.");
+  }
+}
+
+const signSchema = z.object({
+  protocolId: z.string().uuid(),
+  password: z.string().optional(),
+  code: z.string().optional(),
+});
+
+/**
+ * "Sign F-27 and F-28": the same confirmation as signing a form (password, or the emailed code for
+ * accounts without one), then one signing act for the current researcher on both forms.
+ */
+export async function signIntakeFormsAction(
+  input: unknown,
+): Promise<{ ok: true; result: ActionResult } | { ok: false; code: string; message: string }> {
+  try {
+    const user = await requireUser();
+    const parsed = signSchema.parse(input);
+    await authorize(user, "protocol.edit", { type: "protocol", id: parsed.protocolId });
+    if (!user.passwordHash ? parsed.code : parsed.password) {
+      await confirmSigningStepUp({ userId: user.id, password: parsed.password, code: parsed.code });
+    }
+    const meta = await auditRequestMeta({ forms: ["F-27", "F-28"] });
+    const { signed } = await signIntakeForms({ protocolId: parsed.protocolId, userId: user.id, meta });
+    revalidatePath(`/app/protocols/${parsed.protocolId}`, "layout");
+    return {
+      ok: true,
+      result: await protocolResult({
+        title: signed.length === 2 ? "F-27 and F-28 signed." : `${signed[0]?.code ?? "The form"} signed again.`,
+        protocolId: parsed.protocolId,
+        viewerId: user.id,
+        target: "form",
+      }),
+    };
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    return saveInputError(error, "The forms could not be signed.");
+  }
+}
+
+const withdrawSchema = z.object({ protocolId: z.string().uuid() });
+
+/** "Withdraw" on a signed row: withdraws both agreements, which voids both signatures. */
+export async function withdrawIntakeSigningAction(input: unknown): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+  try {
+    const user = await requireUser();
+    const parsed = withdrawSchema.parse(input);
+    await authorize(user, "protocol.edit", { type: "protocol", id: parsed.protocolId });
+    await withdrawIntakeSigning({ protocolId: parsed.protocolId, userId: user.id });
+    revalidatePath(`/app/protocols/${parsed.protocolId}`, "layout");
+    return { ok: true };
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    return saveInputError(error, "The signatures could not be withdrawn.");
   }
 }
 

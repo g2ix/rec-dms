@@ -50,7 +50,6 @@ export default async function ProtocolIntakePage({ params }: { params: Promise<{
       gaps={state.gaps}
       feeEstimate={fee?.amount ?? null}
       mine={view.mine}
-      researchers={view.researchers}
       wording={{ declarations: [...F27_DECLARATIONS], coi: F27_COI, consents: [...F28_CONSENTS] }}
       team={
         <TeamCard

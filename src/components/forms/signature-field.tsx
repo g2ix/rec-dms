@@ -74,22 +74,14 @@ function SignatureSlot({ slot, signing }: { slot: SignatureSlotView; signing: Si
 function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: SigningPrompt }) {
   const router = useRouter();
   const showResult = useActionResult();
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function sign() {
+  function sign(credentials: StepUpCredentials) {
     setError(null);
     startTransition(async () => {
       await flushRegisteredAutosaves();
-      const result = await signFieldAction({
-        instanceId: signing.instanceId,
-        fieldPath: slot.fieldPath,
-        password: signing.hasPassword && !signing.fresh ? password : undefined,
-        code: !signing.hasPassword && !signing.fresh ? code : undefined,
-      });
+      const result = await signFieldAction({ instanceId: signing.instanceId, fieldPath: slot.fieldPath, ...credentials });
       if (!result.ok) {
         setError(result.message);
         return;
@@ -99,61 +91,99 @@ function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: Signi
     });
   }
 
+  return <StepUpConfirm prompt={signing} idPrefix={slot.fieldPath} busy={pending} error={error} onConfirm={sign} />;
+}
+
+export type StepUpCredentials = { password?: string; code?: string };
+
+/**
+ * The confirmation before a signature: nothing while a recent one still holds, else the password,
+ * or for accounts without one a 6-digit code emailed to the contact email.
+ */
+export function StepUpConfirm({
+  prompt,
+  idPrefix,
+  busy,
+  error,
+  label = "Sign",
+  onConfirm,
+}: {
+  prompt: { hasPassword: boolean; fresh: boolean; email: string | null };
+  idPrefix: string;
+  busy: boolean;
+  error: string | null;
+  label?: string;
+  onConfirm: (credentials: StepUpCredentials) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sending, startSending] = useTransition();
+
+  function confirm() {
+    onConfirm({
+      password: prompt.hasPassword && !prompt.fresh ? password : undefined,
+      code: !prompt.hasPassword && !prompt.fresh ? code : undefined,
+    });
+  }
+
   function sendCode() {
-    setError(null);
-    startTransition(async () => {
+    setSendError(null);
+    startSending(async () => {
       const result = await sendSigningCodeAction();
       if (result?.error) {
-        setError(result.error);
+        setSendError(result.error);
         return;
       }
       setSent(true);
     });
   }
 
+  const shown = error ?? sendError;
   return (
     <div className="rec-stack">
-      {error ? (
+      {shown ? (
         <p className="rec-alert" role="alert">
-          {error}
+          {shown}
         </p>
       ) : null}
-      {signing.fresh ? (
-        <BusyButton type="button" variant="primary" busy={pending} busyLabel="Signing…" onClick={sign}>
-          Sign
+      {prompt.fresh ? (
+        <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm}>
+          {label}
         </BusyButton>
-      ) : signing.hasPassword ? (
+      ) : prompt.hasPassword ? (
         <>
-          <Field label="Password" htmlFor={`sign-password-${slot.fieldPath}`} help="Confirm it is you. This lasts 10 minutes for signing.">
+          <Field label="Password" htmlFor={`sign-password-${idPrefix}`} help="Confirm it is you. This lasts 10 minutes for signing.">
             <Input
-              id={`sign-password-${slot.fieldPath}`}
+              id={`sign-password-${idPrefix}`}
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
-          <BusyButton type="button" variant="primary" busy={pending} busyLabel="Signing…" onClick={sign}>
-            Sign
+          <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm}>
+            {label}
           </BusyButton>
         </>
       ) : (
         <>
           <p className="body-sm rec-muted">
-            {signing.email ? `We email a code to ${signing.email}.` : "A code is emailed to your contact email."} It confirms it is you for 10 minutes.
+            {prompt.email ? `We email a code to ${prompt.email}.` : "A code is emailed to your contact email."} It confirms it is you for 10 minutes.
           </p>
           <div className="rec-actions">
-            <BusyButton type="button" busy={pending} busyLabel="Sending…" onClick={sendCode}>
+            <BusyButton type="button" busy={sending} busyLabel="Sending…" onClick={sendCode}>
               Email a code
             </BusyButton>
-            <BusyButton type="button" variant="primary" busy={pending} busyLabel="Signing…" onClick={sign} disabled={!sent || code.trim().length < 6}>
-              Sign
+            <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm} disabled={!sent || code.trim().length < 6}>
+              {label}
             </BusyButton>
           </div>
           {sent ? (
-            <Field label="Code" htmlFor={`sign-code-${slot.fieldPath}`}>
+            <Field label="Code" htmlFor={`sign-code-${idPrefix}`}>
               <Input
-                id={`sign-code-${slot.fieldPath}`}
+                id={`sign-code-${idPrefix}`}
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 minLength={6}

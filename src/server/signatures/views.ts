@@ -23,7 +23,7 @@ function waitingFor(role: string, name: string | null): string {
   return `Waiting for ${isRoleKey(role) ? ROLE_KEY_LABEL[role] : "a signature"}`;
 }
 
-async function imageDataUrl(storageKey: string, cache: Map<string, string | null>): Promise<string | null> {
+export async function imageDataUrl(storageKey: string, cache: Map<string, string | null>): Promise<string | null> {
   const cached = cache.get(storageKey);
   if (cached !== undefined) return cached;
   try {

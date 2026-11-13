@@ -129,16 +129,29 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
       // Required exactly when the gaps ask for them: the first version, or a resubmission that carries F-35 and F-36 again.
       ...(intake.referencesRequired ? [{ key: "intake.references", label: "Page and line references (F-35, F-36)", section: "references" }] : []),
       ...(intake.actionPoints.length > 0 ? [{ key: "intake.actions", label: "Actions taken (F-38)", section: "actions" }] : []),
-      { key: "intake.agreements", label: "Declarations and consents of every researcher", section: "agreements" },
     ];
+    // One item per researcher: agreed to both and signed F-27 and F-28. The submit check reads the same gaps.
+    const researcherItems: ChecklistItem[] = intake.researchers.map((researcher) => {
+      const gap = intake.gaps.find((entry) => entry.section === "agreements" && entry.memberId === researcher.memberId);
+      return {
+        key: `sign.${researcher.memberId}`,
+        label: `${researcher.name}: agreed and signed F-27 and F-28`,
+        done: !gap,
+        hint: gap?.message ?? null,
+        href: `${base}/intake#agreements`,
+      };
+    });
     groups.push({
       tab: "intake",
       label: "Intake",
       href: `${base}/intake`,
-      items: sections.map((item) => {
-        const gap = intake.gaps.find((entry) => entry.section === item.section);
-        return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };
-      }),
+      items: [
+        ...sections.map((item) => {
+          const gap = intake.gaps.find((entry) => entry.section === item.section);
+          return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };
+        }),
+        ...researcherItems,
+      ],
     });
     // The research type has its own item above, so it is not counted twice.
     const study = intake.gaps.filter((gap) => gap.section === "study" && gap.message !== RESEARCH_TYPE_GAP);
@@ -169,6 +182,8 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
   const formItems: ChecklistItem[] = [];
   for (const form of step.forms ?? []) {
     if (!form.required || form.mode === "VIEW" || form.slot) continue;
+    // On an intake version F-27 and F-28 are printed from the intake and signed together: the researcher items above count them.
+    if (intake?.usesIntake && (form.code === "F-27" || form.code === "F-28")) continue;
     const listed = forms.find((item) => item.code === form.code);
     const progress = listed?.progress ?? "Not started";
     formItems.push({

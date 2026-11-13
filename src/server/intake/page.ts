@@ -1,15 +1,19 @@
 import "server-only";
-import type { FormField, FormSchema } from "@/lib/forms/schema";
+import type { FormSchema } from "@/lib/forms/schema";
 import { isRoleKey, type RoleKey } from "@/lib/forms/roles";
 import { railSections, missingOnPage, type RailSection } from "@/lib/intake/rail";
 import type { ChecklistItem } from "@/lib/protocols/checklist";
-import type { SignatureSlotView } from "@/lib/signatures/view";
+import type { IntakeSigningView, SigningRow } from "@/lib/intake/signing-view";
+import { formatManila } from "@/lib/time";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { getSubmissionChecklist, proponentSubmitTarget } from "@/server/protocols/checklist";
 import { formForEdit, listUploads, protocolHeader, roster } from "@/server/protocols/read";
-import { loadSignaturePanel } from "@/server/signatures/views";
+import { intakeRoster, intakeSigningForms, researcherSigning } from "@/server/intake/signing";
+import { intakeStateOf } from "@/server/intake/state";
+import { imageDataUrl } from "@/server/signatures/views";
+import { contactEmail, signingStepUpFresh } from "@/server/stepup";
 
 /** The forms the intake generates. Proponents preview and print them; they never edit them. */
 export const GENERATED_FORMS = ["F-26", "F-27", "F-28", "F-30", "F-35", "F-36"] as const;
@@ -23,15 +27,6 @@ export type GeneratedForm = {
   data: Record<string, unknown>;
   roles: RoleKey[];
   boundValues: Record<string, unknown>;
-};
-
-export type SigningForm = {
-  instanceId: string;
-  code: string;
-  title: string;
-  fields: FormField[];
-  slots: Record<string, SignatureSlotView[]>;
-  signing: { instanceId: string; hasPassword: boolean; fresh: boolean; email: string | null };
 };
 
 export type GeneratedFormRow = { instanceId: string; code: string; title: string };
@@ -68,34 +63,61 @@ export async function generatedFormPreview(userId: string, protocolId: string, i
   };
 }
 
-/** F-27 and F-28 of the working version with their researcher signature slots, for "Agree and sign". */
-async function signingForms(user: { id: string; passwordHash: string | null }, protocolId: string, versionId: string): Promise<SigningForm[]> {
-  const instances = await prisma.formInstance.findMany({
-    where: { ownerType: "PROTOCOL_VERSION", ownerId: versionId, filledByMemberId: null, formDefinition: { code: { in: ["F-27", "F-28"] } } },
-    select: { id: true, formDefinition: { select: { code: true } } },
-    orderBy: { formDefinition: { code: "asc" } },
-  });
-  return Promise.all(
-    instances.map(async (row) => {
-      const form = await formForEdit(user.id, protocolId, row.id);
-      const panel = await loadSignaturePanel({
-        userId: user.id,
-        hasPassword: Boolean(user.passwordHash),
-        protocolId,
-        instanceId: row.id,
-        schema: form.schema,
-        roles: form.roles,
-      });
-      return {
-        instanceId: row.id,
-        code: form.instance.formDefinition.code,
-        title: form.instance.formDefinition.title,
-        fields: form.schema.sections.flatMap((section) => section.fields).filter((field) => field.type === "signature"),
-        slots: panel.byField,
-        signing: { instanceId: row.id, hasPassword: panel.hasPassword, fresh: panel.fresh, email: panel.email },
-      };
-    }),
-  );
+/**
+ * "Agree and sign": one row per researcher. Every row shows its status; only the viewer's own row
+ * carries the date, the image and the button, so nobody signs for someone else.
+ */
+async function intakeSigning(
+  user: { id: string; passwordHash: string | null },
+  protocolId: string,
+  versionId: string,
+  editable: boolean,
+): Promise<IntakeSigningView | null> {
+  const forms = await intakeSigningForms(prisma, versionId);
+  if (forms.length === 0) return null;
+  const [state, roster, fresh, email, saved] = await Promise.all([
+    intakeStateOf(versionId),
+    intakeRoster(prisma, protocolId),
+    signingStepUpFresh(user.id),
+    contactEmail(user.id),
+    prisma.signature.findFirst({ where: { userId: user.id, active: true }, orderBy: { version: "desc" }, select: { imageKey: true } }),
+  ]);
+  const mine = (await researcherSigning(prisma, forms, roster)).get(user.id);
+  const images = new Map<string, string | null>();
+  const rows: SigningRow[] = [];
+  for (const researcher of state?.researchers ?? []) {
+    const statuses = forms.map((form) => ({ code: form.code, status: researcher.signatures[form.code] ?? "unsigned" }));
+    const allSigned = statuses.every((item) => item.status === "signed");
+    const anyMark = statuses.some((item) => item.status !== "unsigned");
+    const isMine = researcher.userId === user.id;
+    let signedOnLabel: string | null = null;
+    let image: string | null = null;
+    if (isMine && mine && allSigned) {
+      const live = Object.values(mine.forms).filter((entry) => entry?.status === "signed");
+      const latest = live.reduce<Date | null>((at, entry) => (entry?.signedAt && (!at || entry.signedAt > at) ? entry.signedAt : at), null);
+      signedOnLabel = latest ? formatManila(latest, "d MMM yyyy") : null;
+      const signatureId = live.find((entry) => entry?.signatureId)?.signatureId ?? null;
+      const signature = signatureId ? await prisma.signature.findUnique({ where: { id: signatureId }, select: { imageKey: true } }) : null;
+      image = signature ? await imageDataUrl(signature.imageKey, images) : null;
+    }
+    rows.push({
+      memberId: researcher.memberId,
+      name: researcher.name,
+      mine: isMine,
+      agreed: Boolean(researcher.declarationsAt && researcher.consentsAt),
+      state: allSigned ? "signed" : anyMark ? "again" : "unsigned",
+      toSign: statuses.filter((item) => item.status !== "signed").map((item) => item.code),
+      signedOnLabel,
+      imageDataUrl: image,
+    });
+  }
+  return {
+    forms: forms.map((form) => ({ code: form.code, title: form.instance.formDefinition.title })),
+    rows,
+    editable,
+    prompt: { hasPassword: Boolean(user.passwordHash), fresh, email },
+    savedImageDataUrl: saved ? await imageDataUrl(saved.imageKey, images) : null,
+  };
 }
 
 export type IntakePageExtras = {
@@ -125,7 +147,8 @@ export type IntakePageExtras = {
     canUpload: boolean;
   };
   forms: GeneratedFormRow[];
-  signing: SigningForm[];
+  /** Null on versions whose F-27 and F-28 are not printed from the intake. */
+  signing: IntakeSigningView | null;
 };
 
 export async function intakePageExtras(
@@ -142,7 +165,8 @@ export async function intakePageExtras(
     listUploads(user.id, protocolId),
   ]);
   const forms = version ? await generatedFormList(version.id) : [];
-  const signing = header.working ? await signingForms(user, protocolId, header.working.id) : [];
+  const proponent = Boolean(header.mine?.status === "ACTIVE" && header.mine.role === "PROPONENT");
+  const signing = header.working ? await intakeSigning(user, protocolId, header.working.id, proponent) : null;
   const missing = missingOnPage(checklist);
   const leader = Boolean(header.mine?.isLeader && header.mine.role === "PROPONENT" && header.mine.status === "ACTIVE");
   const ready = Boolean(checklist && missing.length === 0 && checklist.accountApproved);

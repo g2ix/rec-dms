@@ -30,13 +30,13 @@ describe("intake rail", () => {
     expect(railSectionOf("intake.references")).toBe("references");
     expect(railSectionOf("forms.F-35")).toBe("references");
     expect(railSectionOf("uploads.MANUSCRIPT")).toBe("documents");
-    expect(railSectionOf("intake.agreements")).toBe("sign");
+    expect(railSectionOf("sign.3f1c")).toBe("sign");
     expect(railSectionOf("forms.F-27")).toBe("sign");
     expect(railSectionOf("intake.actions")).toBe("actions");
   });
 
   it("counts the same items as the submit check, so the rail and the submit bar never disagree", () => {
-    const list = checklist(["details.title", "details.funding", "intake.budget", "intake.scoping", "uploads.MANUSCRIPT", "forms.F-27", "forms.F-28"], ["intake.coi"], false);
+    const list = checklist(["details.title", "details.funding", "intake.budget", "intake.scoping", "uploads.MANUSCRIPT", "sign.a", "sign.b"], ["intake.coi"], false);
     const sections = railSections(list, { revision: false });
     const total = sections.reduce((sum, section) => sum + section.missing.length, 0);
     expect(total).toBe(missingOnPage(list).length);
