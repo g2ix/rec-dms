@@ -21,7 +21,8 @@ const envSchema = z.object({
   GOTENBERG_SECRET: z.string().default(""),
   CLAMAV_URL: z.string().default(""),
   CLAMAV_TOKEN: z.string().default(""),
-  SMTP_URL: z.string().min(1),
+  // Required when MAIL_DRIVER is smtp.
+  SMTP_URL: z.string().default(""),
   EMAIL_FROM: z.string().min(1),
   // smtp uses SMTP_URL (Mailpit or a relay). resend uses RESEND_API_KEY.
   MAIL_DRIVER: z.enum(["smtp", "resend"]).default("smtp"),
@@ -57,6 +58,12 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     throw new Error(`Invalid environment. ${details}`);
   }
   const data = parsed.data;
+  if (data.MAIL_DRIVER === "smtp" && !data.SMTP_URL) {
+    throw new Error("Invalid environment. SMTP_URL is required when MAIL_DRIVER is smtp.");
+  }
+  if (data.MAIL_DRIVER === "resend" && !data.RESEND_API_KEY) {
+    throw new Error("Invalid environment. RESEND_API_KEY is required when MAIL_DRIVER is resend.");
+  }
   const production = source.VERCEL_ENV === "production";
   if (production) {
     const missing: string[] = [];

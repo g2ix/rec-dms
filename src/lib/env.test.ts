@@ -43,4 +43,16 @@ describe("env", () => {
     expect(() => loadEnv(source)).toThrow(/AUTH_SECRET/);
     expect(loadEnv(required).APP_TIMEZONE).toBe("Asia/Manila");
   });
+
+  it("requires the key for the chosen mail driver", async () => {
+    vi.resetModules();
+    for (const [key, value] of Object.entries(required)) {
+      vi.stubEnv(key, value);
+    }
+    const { loadEnv } = await import("@/lib/env");
+
+    expect(() => loadEnv({ ...required, SMTP_URL: "" })).toThrow(/SMTP_URL/);
+    expect(() => loadEnv({ ...required, MAIL_DRIVER: "resend" })).toThrow(/RESEND_API_KEY/);
+    expect(loadEnv({ ...required, SMTP_URL: "", MAIL_DRIVER: "resend", RESEND_API_KEY: "re_test" }).MAIL_DRIVER).toBe("resend");
+  });
 });

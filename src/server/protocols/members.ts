@@ -7,7 +7,7 @@ import { applyVariables, markdownToText } from "@/lib/notifications/render";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { recordNotice } from "@/server/notifications/deliver";
 import type { Mailer } from "@/server/auth/mailer";
-import { smtpMailer } from "@/server/auth/mailer";
+import { defaultMailer } from "@/server/auth/mailer";
 import { env } from "@/lib/env";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
@@ -27,7 +27,7 @@ async function requireLeader(tx: Tx, protocolId: string, userId: string) {
 
 export async function inviteMember(
   input: { protocolId: string; actorUserId: string; email: string; role: ProtocolMemberRole },
-  mailer: Mailer = smtpMailer(),
+  mailer: Mailer = defaultMailer(),
 ) {
   if (!INVITE_ROLES.has(input.role)) {
     throw new AppError("INVALID", "Invite a proponent or an adviser. Reviewers are assigned later.", 400);

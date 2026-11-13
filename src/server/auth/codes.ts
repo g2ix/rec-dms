@@ -5,7 +5,7 @@ import { normalizeEmail } from "@/lib/email";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import type { Mailer } from "@/server/auth/mailer";
-import { smtpMailer } from "@/server/auth/mailer";
+import { defaultMailer } from "@/server/auth/mailer";
 import { CODE_SEND_LIMIT, rateLimiter } from "@/server/auth/rate-limit";
 
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -57,7 +57,7 @@ export async function issueEmailCode(input: {
     },
   });
   const mail = messageFor(input.purpose, code);
-  await (input.mailer ?? smtpMailer()).send({ to: email, ...mail });
+  await (input.mailer ?? defaultMailer()).send({ to: email, ...mail });
 }
 
 export async function verifyEmailCode(input: { email: string; purpose: EmailCodePurpose; code: string }) {
