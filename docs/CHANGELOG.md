@@ -37,7 +37,7 @@ The status comes from the submission checklist that the Overview, the tab pills 
 - Gap messages no longer say "on Details".
 
 **Fixes from the INTAKE-01 check.**
-- **F-36 D stays open on a waiver.** The `no-consent` scoping rule now leaves `["1", "1.NO", "D"]`. D ("Do you have any other concerns?") is the reviewer's own field, and a waiver can raise concerns. The seed updates an `intake.scopingRules` setting that still holds the INTAKE-01 value (`SCOPING_RULES_11_INTAKE01`). A value staff changed is left alone.
+- **F-36 D stays open on a waiver.** The `no-consent` scoping rule now leaves `["1", "1.NO", "D"]`. D ("Do you have any other concerns?") is the reviewer's own field, and a waiver can raise concerns. The seed updates an `intake.scopingRules` setting that still holds the INTAKE-01 value (`SCOPING_RULES_11_INTAKE01`). A value staff changed is left alone. Deploys run migrations, not the seed, so migration `20261113100000_scoping_rules_keep_f36_d` makes the same update on deploy, under the same rule: only a setting that still holds the INTAKE-01 value changes.
 - **Agreements of a submitted version cannot be deleted.** Migration `20261113090000_intake_agreements_delete_frozen` adds DELETE to the `intake_agreements_frozen` trigger. Withdrawing on a working version still deletes. Deleting a whole protocol still works: the cascade removes the intake before its agreements, so the trigger finds no submitted parent.
 
 **Performance.**
@@ -48,6 +48,7 @@ Tests:
 - `src/lib/intake/rail.unit.test.ts`: every checklist item maps to one section, the rail total equals the submit summary, the section order (with Actions taken on a revision), and the bound value → section links.
 - `src/lib/intake/intake.unit.test.ts`: F-36 D is not N/A on a waiver, and the INTAKE-01 rules are brought up to date.
 - `src/server/intake/intake.db.test.ts`:
+  - the scoping-rules migration updates the INTAKE-01 value, does nothing on a second run, and leaves a staff-changed value alone;
   - deleting a submitted version's agreement fails, and deleting the whole protocol works;
   - the page loader's rail equals the checklist;
   - Study and Funding saves lower the counts;

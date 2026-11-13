@@ -202,6 +202,30 @@ describe("intake", () => {
     await expect(updateStudyFields(run.protocolId, run.leader.id, { funding: [{ code: "AGENCY", detail: "" }] })).rejects.toThrow();
   }, 120_000);
 
+  it("the scoping-rules migration updates the INTAKE-01 value on deploy and leaves a staff-changed value alone", async () => {
+    const { SCOPING_RULES_11, SCOPING_RULES_11_INTAKE01 } = await import("../../../prisma/seed/usc-rec/scoping-11");
+    const { readFileSync } = await import("node:fs");
+    const sql = readFileSync("prisma/migrations/20261113100000_scoping_rules_keep_f36_d/migration.sql", "utf8");
+    const key = "intake.scopingRules";
+    const before = await prisma.setting.findUniqueOrThrow({ where: { key } });
+    const run = () => prisma.$executeRawUnsafe(sql);
+    const read = async () => (await prisma.setting.findUniqueOrThrow({ where: { key } })).value;
+    try {
+      await prisma.setting.update({ where: { key }, data: { value: SCOPING_RULES_11_INTAKE01 as never } });
+      expect(await run()).toBe(1);
+      expect(await read()).toEqual(JSON.parse(JSON.stringify(SCOPING_RULES_11)));
+
+      expect(await run()).toBe(0);
+
+      const staff = SCOPING_RULES_11_INTAKE01.filter((rule) => rule.id !== "focus-groups");
+      await prisma.setting.update({ where: { key }, data: { value: staff as never } });
+      expect(await run()).toBe(0);
+      expect(await read()).toEqual(JSON.parse(JSON.stringify(staff)));
+    } finally {
+      await prisma.setting.update({ where: { key }, data: { value: before.value as never } });
+    }
+  }, 120_000);
+
   it("refuses deleting an agreement of a submitted version, and still deletes a whole protocol", async () => {
     const run = await newProtocol("frozen-delete");
     await setAgreement({ protocolId: run.protocolId, userId: run.leader.id, kind: "DECLARATIONS", agreed: true });
