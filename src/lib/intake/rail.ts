@@ -12,7 +12,7 @@ export const RAIL_LABELS: Record<RailKey, string> = {
   study: "Study",
   team: "Team",
   funding: "Funding and budget",
-  participants: "Participants and consent",
+  participants: "Participants & consent",
   coi: "Conflict of interest",
   references: "Where to find it",
   documents: "Documents",
@@ -54,6 +54,31 @@ export function railSections(checklist: SubmissionChecklist | null, options: { r
 /** The checklist's missing items the page can answer, in checklist order: what "N items left" counts. */
 export function missingOnPage(checklist: SubmissionChecklist | null): ChecklistItem[] {
   return (checklist?.groups ?? []).flatMap((group) => group.items).filter((item) => !item.done && railSectionOf(item.key) !== null);
+}
+
+/** Short one-line intros shown above each step. */
+export const STEP_INTROS: Record<RailKey, string> = {
+  actions: "Say what you changed for each point the panel flagged.",
+  study: "These print on every REC form. Answers save as you type.",
+  team: "Everyone on this protocol. Each researcher agrees and signs on their own account.",
+  funding: "Your sources of funds open the columns of the F-30 budget.",
+  participants: "A no marks the points that only apply otherwise as N/A.",
+  coi: "Declare any conflict of interest for F-27.",
+  references: "Where each assessment point is in your proposal and consent form.",
+  documents: "Upload the files this version needs.",
+  sign: "Each researcher agrees, then signs F-27 and F-28.",
+};
+
+/**
+ * The step a link opens. Older links (the checklist, the preview) name a part of a step:
+ * #scoping is in Participants, #budget in Funding, #agreements in Agree and sign.
+ */
+export function stepOfHash(hash: string, steps: readonly RailKey[]): RailKey | "preview" | null {
+  const key = hash.replace(/^#/, "");
+  if (key === "preview") return "preview";
+  const alias: Record<string, RailKey> = { scoping: "participants", budget: "funding", agreements: "sign" };
+  const step = (alias[key] ?? key) as RailKey;
+  return steps.includes(step) ? step : null;
 }
 
 /** The first section with something missing, in rail order, for the submit bar's link. */

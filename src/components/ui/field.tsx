@@ -9,6 +9,7 @@ export function Field({
   help,
   optional = false,
   error,
+  needed = false,
   saveState = "idle",
   conflict,
   locked = false,
@@ -22,6 +23,8 @@ export function Field({
   help?: string;
   optional?: boolean;
   error?: string;
+  /** A required field left empty: "Still needed" in the warning color. The caller decides when to show it. */
+  needed?: boolean;
   saveState?: SaveState;
   conflict?: string;
   locked?: boolean;
@@ -43,7 +46,7 @@ export function Field({
           : null;
 
   return (
-    <div className={cn("rec-field", error && "rec-field--error")}>
+    <div className={cn("rec-field", error && "rec-field--error", !error && needed && "rec-field--needed")}>
       <label className="rec-field__label" htmlFor={htmlFor} id={labelId}>
         {label}
         {optional ? <span className="rec-field__optional"> (optional)</span> : null}
@@ -65,6 +68,8 @@ export function Field({
           <Icon icon={AlertCircle} size={16} />
           <span>{error}</span>
         </p>
+      ) : needed ? (
+        <p className="rec-field__needed">Still needed</p>
       ) : saveText ? (
         <p className={cn("rec-save", saveState === "conflict" && "rec-save--conflict")} data-state={saveState}>
           {saveText}

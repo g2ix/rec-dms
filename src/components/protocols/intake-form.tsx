@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { SignatureFields } from "@/components/forms/signature-field";
-import { Icon } from "@/components/icons";
 import { DocumentsSection } from "@/components/protocols/intake/documents-section";
 import { FormsPreview, type PreviewForm } from "@/components/protocols/intake/forms-preview";
-import { IntakeRail, IntakeSectionHead, goToSection } from "@/components/protocols/intake/rail";
+import { IntakeRail, STEP_EVENT } from "@/components/protocols/intake/rail";
+import { useSubmissionChecklist } from "@/components/protocols/submission-checklist";
 import { FundingSources, StudyFields, useStudySaver } from "@/components/protocols/intake/study-section";
 import { SubmitBar } from "@/components/protocols/intake/submit-bar";
 import { Button } from "@/components/ui/button";
@@ -35,9 +34,9 @@ import {
 } from "@/lib/intake/model";
 import { naLabel } from "@/lib/intake/scoping";
 import { RESEARCH_TYPE_GAP } from "@/lib/intake/gaps";
-import { firstMissingSection, type RailKey, type RailSection } from "@/lib/intake/rail";
+import { STEP_INTROS, firstMissingSection, stepOfHash, type RailKey, type RailSection } from "@/lib/intake/rail";
 import type { FormField } from "@/lib/forms/schema";
-import type { ChecklistItem } from "@/lib/protocols/checklist";
+import { groupLeft, type ChecklistItem, type ChecklistTab, type SubmissionChecklist } from "@/lib/protocols/checklist";
 import type { SignatureSlotView, SigningPrompt } from "@/lib/signatures/view";
 import { saveIntakeAction, setAgreementAction } from "@/server/intake/actions";
 import type { PointGroup } from "@/server/intake/state";
@@ -143,12 +142,6 @@ export function IntakeForm({
   useAutosaveLifecycle(queue, editable);
   const saver = useStudySaver(protocolId, page.canEditStudy);
 
-  // Arriving with #section (from the Overview checklist or a preview link) scrolls there once.
-  useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (hash) goToSection(hash, true);
-  }, []);
-
   function change(section: IntakeSection, next: IntakeValues) {
     setValues(next);
     queue?.schedule(section, SECTION_VALUE[section](next));
@@ -180,36 +173,127 @@ export function IntakeForm({
   const rail = (key: RailKey) => page.rail.find((section) => section.key === key);
   const missingOf = (key: RailKey) => rail(key)?.missing.length ?? 0;
   const missingList = (key: RailKey) => <MissingList items={rail(key)?.missing ?? []} gaps={gaps} />;
-  const open = budgetColumnsFor(fundingCodes);
-  const shown = new Set(page.rail.map((section) => section.key));
+  const steps = useMemo(() => page.rail.map((section) => section.key), [page.rail]);
+  const [current, setCurrent] = useState<RailKey | "preview">(() => firstMissingSection(page.rail) ?? steps[0] ?? "study");
+  // Steps the person has opened and left: going back to one shows its empty required fields.
+  const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
+  const stepRef = useRef<HTMLDivElement>(null);
+  const moved = useRef(false);
+
+  const currentRef = useRef(current);
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
+  const flushStudy = saver.flush;
+
+  const open = useCallback(
+    (next: RailKey | "preview") => {
+      const previous = currentRef.current;
+      if (previous !== next) {
+        setLeft((seen) => (seen.has(previous) ? seen : new Set(seen).add(previous)));
+        moved.current = true;
+      }
+      setCurrent(next);
+      window.history.replaceState(null, "", `#${next}`);
+      // Whatever was typed on the step being left is saved now, not after the debounce.
+      void flushStudy();
+      void queue?.flushAll();
+    },
+    [queue, flushStudy],
+  );
+
+  // Arriving with #step (from the Overview checklist, the header or a preview link) opens that step.
+  useEffect(() => {
+    const fromHash = stepOfHash(window.location.hash, steps);
+    if (fromHash) setCurrent(fromHash);
+    // Only on arrival: later changes come through open().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    function onStep(event: Event) {
+      const next = stepOfHash(String((event as CustomEvent<string>).detail ?? ""), steps);
+      if (next) open(next);
+    }
+    function onHash() {
+      const next = stepOfHash(window.location.hash, steps);
+      if (next) open(next);
+    }
+    window.addEventListener(STEP_EVENT, onStep);
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      window.removeEventListener(STEP_EVENT, onStep);
+      window.removeEventListener("hashchange", onHash);
+    };
+  }, [steps, open]);
+
+  // A new step starts at its heading: scroll back up when the heading is out of view, and move focus to it.
+  useEffect(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    const target = stepRef.current;
+    if (!target) return;
+    const top = target.getBoundingClientRect().top;
+    if (top < 0 || top > window.innerHeight * 0.6) target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    const heading = target.querySelector<HTMLElement>("h2");
+    heading?.focus({ preventScroll: true });
+  }, [current, reduced]);
+
+  // "Saved just now": the latest save from the intake queue or the study fields.
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  const saving = saver.ui.state === "saving" || Object.values(ui).some((entry) => entry?.state === "saving");
+  const anySaved = saver.ui.state === "saved" || Object.values(ui).some((entry) => entry?.state === "saved");
+  useEffect(() => {
+    if (anySaved && !saving) setSavedAt(Date.now());
+  }, [anySaved, saving, saver.ui, ui]);
+  useEffect(() => {
+    if (savedAt == null) return;
+    const timer = setInterval(() => setTick((tick) => tick + 1), 30_000);
+    return () => clearInterval(timer);
+  }, [savedAt]);
+
+  const checklist = useSubmissionChecklist();
+  const alsoNeeded = checklist ? alsoNeededSummary(checklist) : null;
+
+  const index = current === "preview" ? -1 : steps.indexOf(current);
+  const back: RailKey | null = current === "preview" ? (steps[steps.length - 1] ?? null) : index > 0 ? (steps[index - 1] ?? null) : null;
+  const next: RailKey | "preview" | null = current === "preview" ? null : index < steps.length - 1 ? (steps[index + 1] ?? null) : "preview";
+  const missing = current === "preview" ? 0 : missingOf(current);
+  const revisit = left.has(current);
+  const title = current === "preview" ? "Preview forms" : (rail(current)?.label ?? "");
+  const intro = current === "preview" ? "Filled from your answers. Read-only: change a value where you answer it." : STEP_INTROS[current];
 
   return (
     <div className="rec-intake">
-      <div className="rec-intake__head">
-        <div className="rec-stack rec-intake__intro">
-          <h2 className="heading">Prepare this version</h2>
-          <p className="body-sm rec-muted">
-            Everything for this version is on this page. F-26, F-27, F-28, F-30 and your columns of F-35 and F-36 are filled from it; you do not fill those forms one by one. Answers save as you type.
-          </p>
-          {!editable ? <p className="body-sm">This version is submitted, or you are not a proponent on it. The answers are shown read-only.</p> : null}
-        </div>
-        <Button type="button" variant="secondary" onClick={() => goToSection("preview", reduced)}>
-          <Icon icon={Eye} size={16} />
-          Preview forms
-        </Button>
-      </div>
-
+      {!editable ? <p className="rec-alert" role="status">This version is submitted, or you are not a proponent on it. The answers are shown read-only.</p> : null}
       <div className="rec-intake__grid">
-        <IntakeRail sections={page.rail} />
-        <div className="rec-intake__body rec-stack">
-          {shown.has("actions") ? (
-            <section id="actions" className="rec-card rec-stack rec-intake__section" aria-labelledby="actions-heading">
-              <IntakeSectionHead id="actions" title="Actions taken (F-38)" missing={missingOf("actions")} />
-              {actionPoints.length > 0 ? (
+        <IntakeRail sections={page.rail} current={current} onSelect={open} alsoNeeded={alsoNeeded} overviewHref={`/app/protocols/${protocolId}`} />
+
+        <div className="rec-intake__body" ref={stepRef}>
+          <div className="rec-intake-step__head">
+            <div className="rec-intake-step__meta">
+              <p className="code rec-muted">{current === "preview" ? "Generated forms" : `Step ${index + 1} of ${steps.length}`}</p>
+              {missing > 0 ? <p className="label rec-intake-status--missing">{missing} missing</p> : null}
+            </div>
+            <h2 id="step-heading" className="rec-intake-step__title" tabIndex={-1}>
+              {title}
+            </h2>
+            <p className="body-sm rec-muted">{intro}</p>
+            <details className="rec-intake-howto">
+              <summary className="label">How intake works</summary>
+              <p className="body-sm rec-muted">
+                Everything for this version is on this tab. F-26, F-27, F-28, F-30 and your columns of F-35 and F-36 are filled from it; you do not fill those forms one by one. Each step saves as you type, and Preview forms shows how they print.
+              </p>
+            </details>
+          </div>
+
+          <section id={current} className="rec-card rec-intake-card" aria-labelledby="step-heading" data-testid={current === "team" ? "team-section" : undefined}>
+            {current === "actions" ? (
+              actionPoints.length > 0 ? (
                 <>
                   <p className="body-sm rec-muted">For each point the panel flagged, say what you changed and where (page and paragraph number). Every researcher, then the adviser, signs F-38 on the Forms tab.</p>
                   {actionPoints.map((point) => (
-                    <div key={point.code} className="rec-field">
+                    <div key={point.code} className="rec-field rec-field--wide">
                       <label className="rec-field__label" htmlFor={`action-${point.code}`}>
                         <span className="code">{point.code}</span> {point.label}
                       </label>
@@ -226,149 +310,151 @@ export function IntakeForm({
                 </>
               ) : (
                 <p className="body-sm">No points were flagged for action on this version.</p>
-              )}
-              {missingList("actions")}
-            </section>
-          ) : null}
-
-          <section id="study" className="rec-card rec-stack rec-intake__section" aria-labelledby="study-heading">
-            <IntakeSectionHead id="study" title="Study" missing={missingOf("study")} />
-            <p className="body-sm rec-muted">Shown on every form. F-27 prints these as they are here. REC Staff see the same fields on the Details tab.</p>
-            <StudyFields values={page.details} editable={page.canEditStudy} saver={saver} />
-            {missingList("study")}
-          </section>
-
-          <div id="team" className="rec-intake__section" data-testid="team-section">
-            {team}
-            {missingOf("team") > 0 ? <div className="rec-card">{missingList("team")}</div> : null}
-          </div>
-
-          <section id="funding" className="rec-card rec-stack rec-intake__section" aria-labelledby="funding-heading">
-            <IntakeSectionHead id="funding" title="Funding and budget" missing={missingOf("funding")} />
-            <FundingSources initial={page.details.funding} editable={page.canEditStudy} saver={saver} onCodes={setFundingCodes} />
-            <BudgetSection
-              lines={values.budgetLines}
-              open={open}
-              editable={editable}
-              feeEstimate={feeEstimate}
-              onChange={(budgetLines) => change("budget", { ...values, budgetLines })}
-              status={status("budget")}
-            />
-            {missingList("funding")}
-          </section>
-
-          <section id="participants" className="rec-card rec-stack rec-intake__section" aria-labelledby="participants-heading">
-            <IntakeSectionHead id="participants" title="Participants and consent" missing={missingOf("participants")} />
-            <p className="body-sm rec-muted">A no marks the points of F-35 and F-36 that only apply otherwise as N/A, with your answer as the reason. Reviewers still see them.</p>
-            {SCOPING_KEYS.map((key) => (
-              <RadioGroup key={key} label={SCOPING_QUESTIONS[key]}>
-                {(["yes", "no"] as const).map((choice) => (
-                  <Radio
-                    key={choice}
-                    name={`scoping-${key}`}
-                    label={choice === "yes" ? "Yes" : "No"}
-                    checked={values.scoping[key] === (choice === "yes")}
-                    disabled={!editable}
-                    onChange={() => change("scoping", { ...values, scoping: { ...values.scoping, [key]: choice === "yes" } })}
-                  />
-                ))}
-              </RadioGroup>
-            ))}
-            {values.scoping.consentNeeded === false ? (
-              <div className="rec-field">
-                <label className="rec-field__label" htmlFor="waiver-reason">
-                  Why is informed consent not needed?
-                </label>
-                <p className="rec-field__help">Name the exemption you invoke (for example, the NEGRIHP 2022 waiver criteria) and why it applies.</p>
-                <Textarea
-                  id="waiver-reason"
-                  value={values.scoping.waiverReason ?? ""}
-                  disabled={!editable}
-                  onChange={(event) => change("scoping", { ...values, scoping: { ...values.scoping, waiverReason: event.target.value } })}
-                />
-              </div>
+              )
             ) : null}
-            {status("scoping")}
-            {missingList("participants")}
-          </section>
 
-          <section id="coi" className="rec-card rec-stack rec-intake__section" aria-labelledby="coi-heading">
-            <IntakeSectionHead id="coi" title="Conflict of interest" missing={missingOf("coi")} />
-            <RadioGroup label="Please tick the appropriate item">
-              {(["NONE", "SPECIFY"] as const).map((kind) => (
-                <Radio
-                  key={kind}
-                  name="coi-kind"
-                  label={wording.coi[kind]}
-                  checked={values.coi.kind === kind}
-                  disabled={!editable}
-                  onChange={() => change("coi", { ...values, coi: { ...values.coi, kind } })}
-                />
-              ))}
-            </RadioGroup>
-            {values.coi.kind === "SPECIFY" ? (
-              <div className="rec-field">
-                <label className="rec-field__label" htmlFor="coi-text">
-                  Specify the conflict of interest
-                </label>
-                <Textarea id="coi-text" value={values.coi.text ?? ""} disabled={!editable} onChange={(event) => change("coi", { ...values, coi: { ...values.coi, text: event.target.value } })} />
-              </div>
-            ) : null}
-            {status("coi")}
-            {missingList("coi")}
-          </section>
+            {current === "study" ? <StudyFields values={page.details} editable={page.canEditStudy} saver={saver} revisit={revisit} /> : null}
 
-          <section id="references" className="rec-card rec-stack rec-intake__section" aria-labelledby="references-heading">
-            <IntakeSectionHead id="references" title="Where to find it" missing={missingOf("references")} />
-            {groups.length === 0 ? (
-              <p className="body-sm">This version&apos;s forms ask for no page and line references.</p>
-            ) : (
+            {current === "team" ? team : null}
+
+            {current === "funding" ? (
               <>
-                <p className="body-sm rec-muted">
-                  The page and line in your uploaded proposal (F-35) and Informed Consent Form (F-36) where each assessment point can be found. Tick NA when a point does not apply. Points your answers under Participants and consent mark N/A are left out.
-                  {page.referencesOptional ? " On this revision they are optional: update them where your changes moved something." : ""}
-                </p>
-                {groups.map((group) => (
-                  <ReferenceGroup key={group.form} group={group} references={values.references} editable={editable} onChange={(references) => change("references", { ...values, references })} />
-                ))}
-                {status("references")}
+                <FundingSources initial={page.details.funding} editable={page.canEditStudy} saver={saver} onCodes={setFundingCodes} />
+                <BudgetSection
+                  lines={values.budgetLines}
+                  open={budgetColumnsFor(fundingCodes)}
+                  editable={editable}
+                  feeEstimate={feeEstimate}
+                  onChange={(budgetLines) => change("budget", { ...values, budgetLines })}
+                  status={status("budget")}
+                />
               </>
-            )}
-            {missingList("references")}
-          </section>
+            ) : null}
 
-          <section id="documents" className="rec-card rec-stack rec-intake__section" aria-labelledby="documents-heading">
-            <IntakeSectionHead id="documents" title="Documents" missing={missingOf("documents")} />
-            <DocumentsSection protocolId={protocolId} {...page.documents} />
-            {missingList("documents")}
-          </section>
+            {current === "participants" ? (
+              <>
+                {SCOPING_KEYS.map((key) => (
+                  <RadioGroup key={key} label={SCOPING_QUESTIONS[key]}>
+                    {(["yes", "no"] as const).map((choice) => (
+                      <Radio
+                        key={choice}
+                        name={`scoping-${key}`}
+                        label={choice === "yes" ? "Yes" : "No"}
+                        checked={values.scoping[key] === (choice === "yes")}
+                        disabled={!editable}
+                        onChange={() => change("scoping", { ...values, scoping: { ...values.scoping, [key]: choice === "yes" } })}
+                      />
+                    ))}
+                  </RadioGroup>
+                ))}
+                {values.scoping.consentNeeded === false ? (
+                  <div className="rec-field rec-field--wide">
+                    <label className="rec-field__label" htmlFor="waiver-reason">
+                      Why is informed consent not needed?
+                    </label>
+                    <p className="rec-field__help">Name the exemption you invoke (for example, the NEGRIHP 2022 waiver criteria) and why it applies.</p>
+                    <Textarea
+                      id="waiver-reason"
+                      value={values.scoping.waiverReason ?? ""}
+                      disabled={!editable}
+                      onChange={(event) => change("scoping", { ...values, scoping: { ...values.scoping, waiverReason: event.target.value } })}
+                    />
+                  </div>
+                ) : null}
+                <p className="caption rec-muted">Reviewers still see the points a no marks N/A, with your answer as the reason.</p>
+                {status("scoping")}
+              </>
+            ) : null}
 
-          <section id="sign" className="rec-card rec-stack rec-intake__section" aria-labelledby="sign-heading">
-            <IntakeSectionHead id="sign" title="Agree and sign" missing={missingOf("sign")} />
-            <Agreements protocolId={protocolId} editable={editable} mine={mine} researchers={researchers} wording={wording} />
-            {page.signing.length > 0 ? (
-              <div className="rec-stack" data-testid="signing">
-                <h3 className="subheading">Sign F-27 and F-28</h3>
-                <p className="body-sm rec-muted">After you agree above, sign each form below. Every researcher signs on their own account.</p>
-                {page.signing.map((form) => (
-                  <div key={form.instanceId} className="rec-stack rec-intake__sign">
-                    <h4 className="label">
-                      <span className="code">{form.code}</span> {form.title}
-                    </h4>
-                    {form.fields.map((field) => (
-                      <SignatureFields key={field.id} field={field} slots={form.slots[field.id] ?? []} signing={form.signing} />
+            {current === "coi" ? (
+              <>
+                <RadioGroup label="Please tick the appropriate item">
+                  {(["NONE", "SPECIFY"] as const).map((kind) => (
+                    <Radio
+                      key={kind}
+                      name="coi-kind"
+                      label={wording.coi[kind]}
+                      checked={values.coi.kind === kind}
+                      disabled={!editable}
+                      onChange={() => change("coi", { ...values, coi: { ...values.coi, kind } })}
+                    />
+                  ))}
+                </RadioGroup>
+                {values.coi.kind === "SPECIFY" ? (
+                  <div className="rec-field rec-field--wide">
+                    <label className="rec-field__label" htmlFor="coi-text">
+                      Specify the conflict of interest
+                    </label>
+                    <Textarea id="coi-text" value={values.coi.text ?? ""} disabled={!editable} onChange={(event) => change("coi", { ...values, coi: { ...values.coi, text: event.target.value } })} />
+                  </div>
+                ) : null}
+                {status("coi")}
+              </>
+            ) : null}
+
+            {current === "references" ? (
+              groups.length === 0 ? (
+                <p className="body-sm">This version&apos;s forms ask for no page and line references.</p>
+              ) : (
+                <>
+                  <p className="body-sm rec-muted">
+                    Give the page and line in your uploaded proposal (F-35) and Informed Consent Form (F-36). Tick NA when a point does not apply. Points your answers under Participants &amp; consent mark N/A are left out.
+                    {page.referencesOptional ? " On this revision they are optional: update them where your changes moved something." : ""}
+                  </p>
+                  {groups.map((group) => (
+                    <ReferenceGroup key={group.form} group={group} references={values.references} editable={editable} onChange={(references) => change("references", { ...values, references })} />
+                  ))}
+                  {status("references")}
+                </>
+              )
+            ) : null}
+
+            {current === "documents" ? <DocumentsSection protocolId={protocolId} {...page.documents} /> : null}
+
+            {current === "sign" ? (
+              <>
+                <Agreements protocolId={protocolId} editable={editable} mine={mine} researchers={researchers} wording={wording} />
+                {page.signing.length > 0 ? (
+                  <div className="rec-stack" data-testid="signing">
+                    <h3 className="subheading">Sign F-27 and F-28</h3>
+                    <p className="body-sm rec-muted">After you agree above, sign each form below. Every researcher signs on their own account.</p>
+                    {page.signing.map((form) => (
+                      <div key={form.instanceId} className="rec-stack rec-intake__sign">
+                        <h4 className="label">
+                          <span className="code">{form.code}</span> {form.title}
+                        </h4>
+                        {form.fields.map((field) => (
+                          <SignatureFields key={field.id} field={field} slots={form.slots[field.id] ?? []} signing={form.signing} />
+                        ))}
+                      </div>
                     ))}
                   </div>
-                ))}
-              </div>
+                ) : null}
+              </>
             ) : null}
-            {missingList("sign")}
-          </section>
 
-          <section id="preview" className="rec-card rec-stack rec-intake__section" aria-labelledby="preview-heading">
-            <IntakeSectionHead id="preview" title="Preview forms" />
-            <p className="body-sm rec-muted">Filled from this page. Read-only: change a value where you answer it.</p>
-            <FormsPreview protocolId={protocolId} forms={page.forms} />
+            {current === "preview" ? <FormsPreview protocolId={protocolId} forms={page.forms} /> : null}
+
+            {/* Study names its own empty fields; the other steps list what the checklist still needs once the step is reopened. */}
+            {current !== "preview" && current !== "study" && revisit ? missingList(current) : null}
+
+            <div className="rec-intake-card__foot">
+              <p className="caption rec-muted rec-intake-card__saved" role="status" aria-live="polite">
+                {saving ? "Saving…" : savedAt != null ? savedLabel(savedAt) : editable ? "Answers save as you type" : "Read-only"}
+              </p>
+              <div className="rec-actions">
+                {back ? (
+                  <Button type="button" variant="secondary" onClick={() => open(back)}>
+                    Back
+                  </Button>
+                ) : null}
+                {next ? (
+                  <Button type="button" variant="primary" onClick={() => open(next)}>
+                    Next: {next === "preview" ? "Preview forms" : (rail(next)?.label ?? "")}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </section>
         </div>
       </div>
@@ -383,6 +469,35 @@ export function IntakeForm({
       />
     </div>
   );
+}
+
+function savedLabel(at: number): string {
+  const minutes = Math.floor((Date.now() - at) / 60_000);
+  if (minutes < 1) return "Saved just now";
+  return minutes === 1 ? "Saved 1 minute ago" : `Saved ${minutes} minutes ago`;
+}
+
+const GROUP_NOUN: Partial<Record<ChecklistTab, [string, string]>> = {
+  details: ["detail", "details"],
+  forms: ["form", "forms"],
+  uploads: ["upload", "uploads"],
+  members: ["member", "members"],
+};
+
+/** The checklist outside the Intake steps, in one line: "Account approval by REC Staff · 1 detail · 4 forms". */
+function alsoNeededSummary(checklist: SubmissionChecklist): string | null {
+  const parts: string[] = [];
+  for (const group of checklist.groups) {
+    const count = groupLeft(group);
+    if (count === 0 || group.tab === "intake") continue;
+    if (group.tab === "account") {
+      parts.push("Account approval by REC Staff");
+      continue;
+    }
+    const noun = GROUP_NOUN[group.tab];
+    parts.push(noun ? `${count} ${count === 1 ? noun[0] : noun[1]}` : `${count} ${group.label.toLowerCase()}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 /** What the server adds for the single-glance page (src/server/intake/page.ts). */
@@ -463,11 +578,8 @@ function SaveStatus({ ui, onUseTheirs, onKeepMine }: { ui: AutosaveUi | undefine
       </div>
     );
   }
-  return (
-    <p className="rec-save" data-state={ui.state} role="status">
-      {ui.state === "saving" ? "Saving…" : "Saved"}
-    </p>
-  );
+  // Saving and saved are shown once, in the step's footer.
+  return null;
 }
 
 function newId(): string {

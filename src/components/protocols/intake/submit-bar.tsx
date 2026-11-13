@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, CircleAlert } from "lucide-react";
-import { useReducedMotion } from "motion/react";
 import { Icon } from "@/components/icons";
 import { goToSection } from "@/components/protocols/intake/rail";
 import { SubmitStepForm } from "@/components/protocols/submit-step-card";
@@ -28,7 +27,6 @@ export function SubmitBar({
   leader: boolean;
   submit: { taskId: string; to: "ADVISER" | "REC"; ready: boolean } | null;
 }) {
-  const reduced = Boolean(useReducedMotion());
   const label = submit?.to === "ADVISER" ? "Submit to adviser" : "Submit to REC";
   return (
     <div className="rec-submit-bar" role="region" aria-label="Submit" data-testid="submit-bar">
@@ -40,7 +38,7 @@ export function SubmitBar({
             onClick={(event) => {
               if (!firstSection) return;
               event.preventDefault();
-              goToSection(firstSection, reduced);
+              goToSection(firstSection);
             }}
             aria-live="polite"
           >

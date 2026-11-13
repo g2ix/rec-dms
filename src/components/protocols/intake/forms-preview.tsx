@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { Eye, FileText, Printer } from "lucide-react";
-import { useReducedMotion } from "motion/react";
 import { PdfDownload } from "@/components/docs/pdf-download";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import { Icon } from "@/components/icons";
@@ -38,7 +37,6 @@ export function FormsPreview({ protocolId, forms, linkBack = true }: { protocolI
   const opener = useRef<HTMLButtonElement | null>(null);
   // Set when a value link closes the preview: focus then goes to that section, not back to Preview.
   const jumping = useRef<string | null>(null);
-  const reduced = Boolean(useReducedMotion());
   const intakeHref = `/app/protocols/${protocolId}/intake`;
 
   async function show(form: PreviewForm) {
@@ -114,7 +112,7 @@ export function FormsPreview({ protocolId, forms, linkBack = true }: { protocolI
             const target = jumping.current;
             if (!target) return opener.current;
             jumping.current = null;
-            goToSection(target, reduced);
+            goToSection(target);
             return false;
           }}
         >

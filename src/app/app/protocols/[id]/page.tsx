@@ -1,5 +1,6 @@
 import { FeesSection } from "@/components/protocols/fees-section";
 import { RecentActivity, StageTrack, TeamCard, stageOf } from "@/components/protocols/overview-cards";
+import { SubmissionChecklistPanel } from "@/components/protocols/submission-checklist";
 import { SubmitStepForm } from "@/components/protocols/submit-step-card";
 import { WorkflowMigration } from "@/components/workflow/workflow-migration";
 import { ProtocolFlow } from "@/components/workflow/protocol-flow";
@@ -102,7 +103,18 @@ export default async function ProtocolOverviewPage({
     </div>
   );
 
-  return main;
+  if (!proponentView || !checklist) return main;
+  // While the proponents' step is open, the full checklist sits beside the Overview.
+  return (
+    <div className="rec-proto">
+      <div className="rec-overview">
+        <div className="rec-overview__main">{main}</div>
+        <div className="rec-overview__side">
+          <SubmissionChecklistPanel />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function StepCard({

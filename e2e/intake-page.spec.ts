@@ -8,7 +8,7 @@ config({ path: ".env" });
 
 /**
  * INTAKE-02: a proponent prepares a whole version from the Intake tab and submits it without
- * opening another tab. Along the way: the rail's missing counts equal the submit bar's, editing
+ * opening another tab. Along the way: the step list's missing counts equal the submit bar's, editing
  * the title reaches the F-27 preview, a preview value links back to its section, and the page has
  * no sideways scroll at 390px.
  */
@@ -129,6 +129,7 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   left = await expectCountsBelow(page, left);
 
   // Team: the list is here; managing it is the leader's link.
+  await page.getByTestId("rail-team").click();
   await expect(page.getByTestId("team-section").getByRole("link", { name: "Manage members" })).toBeVisible();
 
   // Funding and budget.
@@ -163,7 +164,8 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   await page.getByTestId("upload-COVER_LETTER").setInputFiles({ name: "Cover letter.pdf", mimeType: "application/pdf", buffer: PDF });
   await expect(page.getByTestId("document-COVER_LETTER")).toContainText("Cover letter.pdf", { timeout: 30_000 });
 
-  // The title edit reaches the F-27 preview, and its value links back to Study.
+  // The title edit reaches the F-27 preview (opened from the header), and its value links back to Study.
+  await page.getByRole("link", { name: "Preview forms" }).click();
   await page.getByRole("button", { name: "Preview F-27" }).click();
   const preview = page.getByTestId("form-preview");
   await expect(preview.getByRole("link", { name: `${title} edited` })).toBeVisible({ timeout: 30_000 });
@@ -194,7 +196,7 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   await expect(page.getByTestId("action-result")).toBeVisible({ timeout: 30_000 });
 });
 
-test("the Intake page has no sideways scroll at 390px, and the submit bar does not cover the last section", async ({ page }) => {
+test("the Intake page has no sideways scroll at 390px, and the submit bar does not cover the step", async ({ page }) => {
   await signIn(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/protocols");
@@ -206,6 +208,6 @@ test("the Intake page has no sideways scroll at 390px, and the submit bar does n
   expect(overflow).toBeLessThanOrEqual(0);
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const bar = await page.getByTestId("submit-bar").boundingBox();
-  const last = await page.locator("#preview").boundingBox();
+  const last = await page.locator(".rec-intake-card").boundingBox();
   expect(bar && last && last.y + last.height <= bar.y + 1).toBe(true);
 });

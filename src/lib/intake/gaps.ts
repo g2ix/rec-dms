@@ -62,15 +62,22 @@ export function intakeGaps(input: {
     return !reference || !reference.page.trim() || !reference.line.trim();
   });
   if (missing.length > 0) {
+    // A count, never the list of codes: the Where to find it table shows which rows are empty.
     gaps.push({
       section: "references",
-      message: `Give the page and line, or NA, for ${missing.length === 1 ? "point" : "points"} ${missing.map((point) => `${point.form} ${point.code}`).join(", ")}.`,
+      message: missing.length === 1 ? "1 point still needs a page reference." : `${missing.length} points still need a page reference.`,
     });
   }
 
   const unanswered = input.actionPoints.filter((point) => !intake.actions[point.code]?.trim());
   if (unanswered.length > 0) {
-    gaps.push({ section: "actions", message: `Describe the action taken on ${unanswered.map((point) => point.code).join(", ")}.` });
+    gaps.push({
+      section: "actions",
+      message:
+        unanswered.length <= 3
+          ? `Describe the action taken on ${unanswered.map((point) => point.code).join(", ")}.`
+          : `${unanswered.length} points still need the action taken.`,
+    });
   }
 
   const notDeclared = input.researchers.filter((researcher) => !researcher.declarationsAt).map((researcher) => researcher.name);

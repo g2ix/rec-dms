@@ -60,6 +60,11 @@ export function ChecklistProvider({
   return <ChecklistContext.Provider value={checklist}>{children}</ChecklistContext.Provider>;
 }
 
+/** The shared checklist, or null outside a ChecklistProvider. */
+export function useSubmissionChecklist(): SubmissionChecklist | null {
+  return useContext(ChecklistContext);
+}
+
 /** Missing items per tab from the shared checklist, or null outside a ChecklistProvider. */
 export function useChecklistCounts(): Partial<Record<ChecklistTab, number>> | null {
   const checklist = useContext(ChecklistContext);
@@ -161,6 +166,11 @@ function ChecklistBody({ checklist }: { checklist: SubmissionChecklist }) {
                     <span>
                       <span className="body-sm">{item.label}</span>
                       {item.hint ? <span className="caption rec-muted rec-checklist__hint">{item.hint}</span> : null}
+                      {!item.done && item.key === "intake.references" && item.href ? (
+                        <Link className="caption rec-checklist__hint rec-checklist__item-link" href={item.href}>
+                          Open Where to find it
+                        </Link>
+                      ) : null}
                     </span>
                   </li>
                 ))}

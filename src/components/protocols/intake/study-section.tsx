@@ -111,7 +111,33 @@ function wholeNumber(text: string): number | null | "invalid" {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : "invalid";
 }
 
-export function StudyFields({ values, editable, saver }: { values: StudyValues; editable: boolean; saver: ReturnType<typeof useStudySaver> }) {
+/** A text input with a unit after it ("months", "people"). The unit is read with the field. */
+function AffixInput({ id, suffix, ...props }: React.ComponentProps<typeof Input> & { id: string; suffix: string }) {
+  return (
+    <div className="rec-input-affix">
+      <Input id={id} aria-describedby={`${id}-unit`} {...props} />
+      <span id={`${id}-unit`} className="rec-input-affix__text">
+        {suffix}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The Study step. Required fields left empty say "Still needed", but only once the field has been
+ * visited or the step is opened again (`revisit`), never on the first look.
+ */
+export function StudyFields({
+  values,
+  editable,
+  saver,
+  revisit = false,
+}: {
+  values: StudyValues;
+  editable: boolean;
+  saver: ReturnType<typeof useStudySaver>;
+  revisit?: boolean;
+}) {
   const [title, setTitle] = useState(values.title);
   const [institution, setInstitution] = useState(values.institution);
   const [address, setAddress] = useState(values.institutionAddress);
@@ -120,18 +146,30 @@ export function StudyFields({ values, editable, saver }: { values: StudyValues; 
   const [duration, setDuration] = useState(values.durationMonths == null ? "" : String(values.durationMonths));
   const [participants, setParticipants] = useState(values.expectedParticipants == null ? "" : String(values.expectedParticipants));
   const [site, setSite] = useState(values.studySite);
+  const [visited, setVisited] = useState<ReadonlySet<keyof StudyPatch>>(new Set());
   const errorFor = (field: keyof StudyPatch) => (saver.ui.field === field ? (saver.ui.error ?? undefined) : undefined);
   const stateFor = (field: keyof StudyPatch): SaveState => (saver.ui.field === null || saver.ui.field === field ? saver.ui.state : "idle");
+  const visit = (field: keyof StudyPatch) => () => setVisited((current) => (current.has(field) ? current : new Set(current).add(field)));
+  const needed = (field: keyof StudyPatch, empty: boolean) => editable && empty && (revisit || visited.has(field));
+  const typeNeeded = needed("researchTypeCodes", typeCodes.length === 0) && !errorFor("researchTypeCodes");
 
   return (
-    <div className="rec-form rec-form--inline">
-      <Field label="Title" htmlFor="study-title" help="The REC asks that titles not be written in all capitals." error={errorFor("title")} saveState={stateFor("title")}>
+    <div className="rec-intake-fields">
+      <Field
+        label="Title"
+        htmlFor="study-title"
+        help="The REC asks that titles not be written in all capitals."
+        error={errorFor("title")}
+        needed={needed("title", !title.trim())}
+        saveState={stateFor("title")}
+      >
         <Input
           id="study-title"
           name="title"
           required
           value={title}
           disabled={!editable}
+          onBlur={visit("title")}
           onChange={(event) => {
             setTitle(event.target.value);
             if (event.target.value.trim()) saver.schedule({ title: event.target.value });
@@ -144,85 +182,103 @@ export function StudyFields({ values, editable, saver }: { values: StudyValues; 
           This title is in all capitals. The REC asks for sentence case.
         </p>
       ) : null}
-      <Field label="Institution" htmlFor="study-institution" help="The proponents' institution for this application." error={errorFor("institution")}>
-        <Input
-          id="study-institution"
-          value={institution}
+      <div className="rec-intake-row">
+        <Field
+          label="Institution"
+          htmlFor="study-institution"
+          error={errorFor("institution")}
+          needed={needed("institution", !institution.trim())}
+        >
+          <Input
+            id="study-institution"
+            value={institution}
+            disabled={!editable}
+            onBlur={visit("institution")}
+            onChange={(event) => {
+              setInstitution(event.target.value);
+              if (event.target.value.trim()) saver.schedule({ institution: event.target.value });
+              else saver.reject("institution", "Enter the institution.");
+            }}
+          />
+        </Field>
+        <Field label="Institution address" htmlFor="study-address" optional error={errorFor("institutionAddress")}>
+          <Input
+            id="study-address"
+            value={address}
+            disabled={!editable}
+            onChange={(event) => {
+              setAddress(event.target.value);
+              saver.schedule({ institutionAddress: event.target.value });
+            }}
+          />
+        </Field>
+      </div>
+      <div onBlur={visit("researchTypeCodes")} className={typeNeeded ? "rec-intake-type rec-field--needed" : "rec-intake-type"}>
+        <ResearchTypeChoices
+          id="study-type"
+          selected={typeCodes}
+          other={typeOther}
           disabled={!editable}
-          onChange={(event) => {
-            setInstitution(event.target.value);
-            if (event.target.value.trim()) saver.schedule({ institution: event.target.value });
-            else saver.reject("institution", "Enter the institution.");
+          error={errorFor("researchTypeCodes")}
+          onToggle={(code, checked) => {
+            const next = checked ? [...typeCodes, code] : typeCodes.filter((item) => item !== code);
+            setTypeCodes(next);
+            if (next.length === 0) saver.reject("researchTypeCodes", "Choose at least one research type.");
+            else saver.schedule({ researchTypeCodes: next, researchTypeOther: typeOther });
+          }}
+          onOther={(value) => {
+            setTypeOther(value);
+            if (typeCodes.length > 0) saver.schedule({ researchTypeCodes: typeCodes, researchTypeOther: value });
           }}
         />
-      </Field>
-      <Field label="Institution address" htmlFor="study-address" optional error={errorFor("institutionAddress")}>
-        <Input
-          id="study-address"
-          value={address}
-          disabled={!editable}
-          onChange={(event) => {
-            setAddress(event.target.value);
-            saver.schedule({ institutionAddress: event.target.value });
-          }}
-        />
-      </Field>
-      <ResearchTypeChoices
-        id="study-type"
-        selected={typeCodes}
-        other={typeOther}
-        disabled={!editable}
-        error={errorFor("researchTypeCodes")}
-        onToggle={(code, checked) => {
-          const next = checked ? [...typeCodes, code] : typeCodes.filter((item) => item !== code);
-          setTypeCodes(next);
-          if (next.length === 0) saver.reject("researchTypeCodes", "Choose at least one research type.");
-          else saver.schedule({ researchTypeCodes: next, researchTypeOther: typeOther });
-        }}
-        onOther={(value) => {
-          setTypeOther(value);
-          if (typeCodes.length > 0) saver.schedule({ researchTypeCodes: typeCodes, researchTypeOther: value });
-        }}
-      />
-      <Field label="Duration in months" htmlFor="study-duration" error={errorFor("durationMonths")}>
-        <Input
-          id="study-duration"
-          inputMode="numeric"
-          value={duration}
-          disabled={!editable}
-          onChange={(event) => {
-            setDuration(event.target.value);
-            const parsed = wholeNumber(event.target.value);
-            if (parsed === "invalid") saver.reject("durationMonths", "Enter a whole number of months.");
-            else saver.schedule({ durationMonths: parsed });
-          }}
-        />
-      </Field>
-      <Field label="Expected participants" htmlFor="study-participants" error={errorFor("expectedParticipants")}>
-        <Input
-          id="study-participants"
-          inputMode="numeric"
-          value={participants}
-          disabled={!editable}
-          onChange={(event) => {
-            setParticipants(event.target.value);
-            const parsed = wholeNumber(event.target.value);
-            if (parsed === "invalid") saver.reject("expectedParticipants", "Enter a whole number of participants.");
-            else saver.schedule({ expectedParticipants: parsed });
-          }}
-        />
-      </Field>
-      <Field label="Study site" htmlFor="study-site" error={errorFor("studySite")}>
-        <Input
-          id="study-site"
-          value={site}
-          disabled={!editable}
-          onChange={(event) => {
-            setSite(event.target.value);
-            saver.schedule({ studySite: event.target.value });
-          }}
-        />
-      </Field>
+        {typeNeeded ? <p className="rec-field__needed">Still needed</p> : null}
+      </div>
+      <div className="rec-intake-row rec-intake-row--site">
+        <Field label="Study site" htmlFor="study-site" error={errorFor("studySite")} needed={needed("studySite", !site.trim())}>
+          <Input
+            id="study-site"
+            value={site}
+            disabled={!editable}
+            onBlur={visit("studySite")}
+            onChange={(event) => {
+              setSite(event.target.value);
+              saver.schedule({ studySite: event.target.value });
+            }}
+          />
+        </Field>
+        <Field label="Duration" htmlFor="study-duration" error={errorFor("durationMonths")} needed={needed("durationMonths", !duration.trim())}>
+          <AffixInput
+            id="study-duration"
+            suffix="months"
+            inputMode="numeric"
+            value={duration}
+            disabled={!editable}
+            onBlur={visit("durationMonths")}
+            onChange={(event) => {
+              setDuration(event.target.value);
+              const parsed = wholeNumber(event.target.value);
+              if (parsed === "invalid") saver.reject("durationMonths", "Enter a whole number of months.");
+              else saver.schedule({ durationMonths: parsed });
+            }}
+          />
+        </Field>
+        <Field label="Participants" htmlFor="study-participants" error={errorFor("expectedParticipants")} needed={needed("expectedParticipants", !participants.trim())}>
+          <AffixInput
+            id="study-participants"
+            suffix="people"
+            inputMode="numeric"
+            value={participants}
+            disabled={!editable}
+            onBlur={visit("expectedParticipants")}
+            onChange={(event) => {
+              setParticipants(event.target.value);
+              const parsed = wholeNumber(event.target.value);
+              if (parsed === "invalid") saver.reject("expectedParticipants", "Enter a whole number of participants.");
+              else saver.schedule({ expectedParticipants: parsed });
+            }}
+          />
+        </Field>
+      </div>
       {saver.ui.error && saver.ui.field === null ? (
         <p className="rec-field__error" role="alert">
           {saver.ui.error}
