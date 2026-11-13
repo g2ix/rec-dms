@@ -105,6 +105,15 @@ test("opens over a blurred, inert shell and loads no data behind it", async ({ p
   expect(notifications).toEqual([]);
 });
 
+test("route handlers refuse real data while the check is pending", async ({ page }) => {
+  await signIn(page);
+  const pending = await page.request.get("/api/notifications");
+  expect(pending.status()).toBe(403);
+  expect(await pending.json()).toMatchObject({ code: "TOTP_REQUIRED" });
+  const session = await page.request.get("/api/auth/session");
+  expect(session.status()).toBe(200);
+});
+
 test("moves between boxes and clears a wrong code", async ({ page }) => {
   await signIn(page);
   await page.keyboard.type("12");
