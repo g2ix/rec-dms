@@ -254,6 +254,12 @@ export function IntakeForm({
   const next: RailKey | "preview" | null = current === "preview" ? null : index < steps.length - 1 ? (steps[index + 1] ?? null) : "preview";
   const missing = current === "preview" ? 0 : missingOf(current);
   const revisit = left.has(current);
+  // The rows the server still counts as missing, highlighted once the table has been started or the step is reopened
+  // (never on the first look at an empty table, as the Study fields).
+  const neededReferences = useMemo<ReadonlySet<string>>(() => {
+    if (!revisit && Object.keys(values.references).length === 0) return new Set();
+    return new Set(gaps.find((gap) => gap.section === "references")?.detail?.codes ?? []);
+  }, [gaps, revisit, values.references]);
   const title = current === "preview" ? "Preview forms" : (rail(current)?.label ?? "");
   const intro = current === "preview" ? "Filled from your answers. Read-only: change a value where you answer it." : STEP_INTROS[current];
 
@@ -396,7 +402,14 @@ export function IntakeForm({
                     {page.referencesOptional ? " On this revision they are optional: update them where your changes moved something." : ""}
                   </p>
                   {groups.map((group) => (
-                    <ReferenceGroup key={group.form} group={group} references={values.references} editable={editable} onChange={(references) => change("references", { ...values, references })} />
+                    <ReferenceGroup
+                      key={group.form}
+                      group={group}
+                      references={values.references}
+                      needed={neededReferences}
+                      editable={editable}
+                      onChange={(references) => change("references", { ...values, references })}
+                    />
                   ))}
                   {status("references")}
                 </>
@@ -710,11 +723,14 @@ function MoneyInput({ label, value, disabled, onChange }: { label: string; value
 function ReferenceGroup({
   group,
   references,
+  needed,
   editable,
   onChange,
 }: {
   group: PointGroup;
   references: IntakeValues["references"];
+  /** Codes the server's references gap lists; a row filled since then is no longer highlighted. */
+  needed: ReadonlySet<string>;
   editable: boolean;
   onChange: (references: IntakeValues["references"]) => void;
 }) {
@@ -747,17 +763,41 @@ function ReferenceGroup({
                 else copy[point.code] = next;
                 onChange(copy);
               };
+              const rowNeeded = needed.has(point.code) && !na && (!page.trim() || !line.trim());
+              const neededId = `reference-needed-${group.form}-${point.code}`;
               return (
-                <tr key={point.code}>
+                <tr key={point.code} className={rowNeeded ? "rec-row--needed" : undefined} data-needed={rowNeeded ? "true" : undefined}>
                   <th scope="row">
                     {point.heading ? <span className="caption rec-muted">{point.heading}</span> : null}
                     <span className="code">{point.code}</span> {point.label}
+                    {rowNeeded ? (
+                      <p id={neededId} className="rec-field__needed">
+                        Still needed
+                      </p>
+                    ) : null}
                   </th>
                   <td>
-                    <input className="rec-input" aria-label={`${point.code} page`} inputMode="numeric" value={page} disabled={!editable || na} onChange={(event) => set({ page: event.target.value, line })} />
+                    <input
+                      className="rec-input"
+                      aria-label={`${point.code} page`}
+                      aria-invalid={rowNeeded && !page.trim() ? true : undefined}
+                      aria-describedby={rowNeeded ? neededId : undefined}
+                      inputMode="numeric"
+                      value={page}
+                      disabled={!editable || na}
+                      onChange={(event) => set({ page: event.target.value, line })}
+                    />
                   </td>
                   <td>
-                    <input className="rec-input" aria-label={`${point.code} line`} value={line} disabled={!editable || na} onChange={(event) => set({ page, line: event.target.value })} />
+                    <input
+                      className="rec-input"
+                      aria-label={`${point.code} line`}
+                      aria-invalid={rowNeeded && !line.trim() ? true : undefined}
+                      aria-describedby={rowNeeded ? neededId : undefined}
+                      value={line}
+                      disabled={!editable || na}
+                      onChange={(event) => set({ page, line: event.target.value })}
+                    />
                   </td>
                   <td>
                     <Checkbox label={<span className="sr-only">{point.code} not applicable</span>} checked={na} disabled={!editable} onChange={(event) => set(event.target.checked ? "NA" : undefined)} />
@@ -791,12 +831,27 @@ function Agreements({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The box follows the click at once; the server's answer (after the refresh) replaces it, and a refusal puts it back.
+  const [shown, setShown] = useState<Partial<Record<"DECLARATIONS" | "F28_CONSENT", boolean>>>({});
+  useEffect(() => {
+    setShown({});
+  }, [mine.declarationsAt, mine.consentsAt]);
+  const declared = shown.DECLARATIONS ?? Boolean(mine.declarationsAt);
+  const consented = shown.F28_CONSENT ?? Boolean(mine.consentsAt);
   async function agree(kind: "DECLARATIONS" | "F28_CONSENT", agreed: boolean) {
     setBusy(true);
     setError(null);
+    setShown((current) => ({ ...current, [kind]: agreed }));
     const result = await setAgreementAction({ protocolId, kind, agreed });
     setBusy(false);
-    if (!result.ok) setError(result.message);
+    if (!result.ok) {
+      setError(result.message);
+      setShown((current) => {
+        const next = { ...current };
+        delete next[kind];
+        return next;
+      });
+    }
     router.refresh();
   }
   return (
@@ -809,7 +864,7 @@ function Agreements({
         ))}
       </ul>
       {mine.memberId ? (
-        <Checkbox label="I agree to these declarations." checked={Boolean(mine.declarationsAt)} disabled={!editable || busy} onChange={(event) => void agree("DECLARATIONS", event.target.checked)} />
+        <Checkbox label="I agree to these declarations." checked={declared} disabled={!editable || busy} onChange={(event) => void agree("DECLARATIONS", event.target.checked)} />
       ) : null}
       <h3 className="label">F-28 Consent</h3>
       <p className="body-sm">The General Privacy Statement is printed in full on F-28; preview it under Preview forms.</p>
@@ -819,7 +874,7 @@ function Agreements({
         ))}
       </ul>
       {mine.memberId ? (
-        <Checkbox label="I give these consents." checked={Boolean(mine.consentsAt)} disabled={!editable || busy} onChange={(event) => void agree("F28_CONSENT", event.target.checked)} />
+        <Checkbox label="I give these consents." checked={consented} disabled={!editable || busy} onChange={(event) => void agree("F28_CONSENT", event.target.checked)} />
       ) : null}
       {error ? (
         <p className="rec-alert" role="alert">

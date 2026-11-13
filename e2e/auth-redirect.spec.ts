@@ -1,10 +1,10 @@
 import { hash } from "@node-rs/argon2";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
-import { config } from "dotenv";
+import { E2E_ORIGIN, loadTestEnv } from "./test-env";
 
-config({ path: ".env.local" });
-config({ path: ".env" });
+// The test database only (.env.test); refuses anything else.
+loadTestEnv();
 
 const email = "e2e.redirect@usc.edu.ph";
 const password = "Usc-ethics-review-2026-protocol";
@@ -94,7 +94,7 @@ test("an absolute callbackUrl is ignored", async ({ page }) => {
 test("sign-in opens the identity default view ahead of the last used view", async ({ page }) => {
   await setDefaultView("staff");
   await page.context().addCookies([
-    { name: "activeView", value: "proponent", url: "http://localhost:3000" },
+    { name: "activeView", value: "proponent", url: E2E_ORIGIN },
   ]);
   await page.goto("/sign-in");
   await signIn(page);
@@ -106,7 +106,7 @@ test("sign-in opens the identity default view ahead of the last used view", asyn
 test("sign-in keeps the last used view when the identity has none", async ({ page }) => {
   await setDefaultView(null);
   await page.context().addCookies([
-    { name: "activeView", value: "reviewer", url: "http://localhost:3000" },
+    { name: "activeView", value: "reviewer", url: E2E_ORIGIN },
   ]);
   await page.goto("/sign-in");
   await signIn(page);
@@ -118,7 +118,7 @@ test("sign-in keeps the last used view when the identity has none", async ({ pag
 test("sign-in opens a path stored as the identity default view", async ({ page }) => {
   await setDefaultView("/app/tasks");
   await page.context().addCookies([
-    { name: "activeView", value: "proponent", url: "http://localhost:3000" },
+    { name: "activeView", value: "proponent", url: E2E_ORIGIN },
   ]);
   await page.goto("/sign-in");
   await signIn(page);

@@ -95,7 +95,8 @@ export async function signIntakeFormsAction(
         title: signed.length === 2 ? "F-27 and F-28 signed." : `${signed[0]?.code ?? "The form"} signed again.`,
         protocolId: parsed.protocolId,
         viewerId: user.id,
-        target: "form",
+        // Signed on the Intake tab: OK stays there, on the signed row (not the Forms tab).
+        target: "intake",
       }),
     };
   } catch (error) {

@@ -63,10 +63,11 @@ export function intakeGaps(input: {
     return !reference || !reference.page.trim() || !reference.line.trim();
   });
   if (missing.length > 0) {
-    // A count, never the list of codes: the Where to find it table shows which rows are empty.
+    // The message is a count (the rail and checklist); the codes go in the detail, for the Where to find it table to highlight.
     gaps.push({
       section: "references",
       message: missing.length === 1 ? "1 point still needs a page reference." : `${missing.length} points still need a page reference.`,
+      detail: { codes: missing.map((point) => point.code) },
     });
   }
 

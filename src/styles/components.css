@@ -407,6 +407,9 @@ html.theme-fade * {
 }
 .rec-table td { padding: var(--space-3); border-bottom: 1px solid var(--border); vertical-align: top; }
 .rec-table tr:last-child td { border-bottom: 0; }
+/* A row the proponent still has to fill (Where to find it): the warning edge, as on a "Still needed" field. */
+.rec-table tr.rec-row--needed > th { box-shadow: inset 3px 0 0 var(--warning); }
+.rec-table tr.rec-row--needed .rec-input:not(:disabled) { border-color: var(--warning); }
 
 /* ---------- card ---------- */
 .rec-card {

@@ -2,11 +2,11 @@ import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
-import { config } from "dotenv";
+import { loadTestEnv } from "./test-env";
 import { authenticator } from "otplib";
 
-config({ path: ".env.local" });
-config({ path: ".env" });
+// The test database only (.env.test); refuses anything else.
+loadTestEnv();
 
 const password = "Usc-ethics-review-2026-protocol";
 const email = "e2e.totp.modal@usc.edu.ph";

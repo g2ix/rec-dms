@@ -118,6 +118,8 @@ export type ListedForm = {
   code: string;
   title: string;
   progress: FormProgress;
+  /** Printed from the intake (F-27, F-28, F-30, F-35, F-36, F-38 on 11-01): its proponent answers are on the Intake tab. */
+  intakeSourced: boolean;
 };
 
 export async function listWorkingForms(userId: string, protocolId: string): Promise<ListedForm[]> {
@@ -151,6 +153,7 @@ export async function listWorkingForms(userId: string, protocolId: string): Prom
         progress: formProgress(parsed.schema, instance.data, instance.revision, {
           needsSignatures: formNeedsSignatures(parsed.schema, roster, marks.get(instance.id) ?? []),
         }),
+        intakeSourced: parsed.schema.source === "intake",
       },
     ];
   });

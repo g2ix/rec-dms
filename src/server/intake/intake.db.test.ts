@@ -105,10 +105,14 @@ describe("intake", () => {
     const f36 = state!.groups.find((group) => group.form === "F-36")!;
     expect(f36.points.find((point) => point.code === "A.07")!.na).toEqual(["no minors among the participants"]);
     expect(f36.points.some((point) => point.code === "1")).toBe(false);
-    const references = state!.gaps.find((gap) => gap.section === "references")!.message;
-    expect(references).not.toContain("A.07");
-    expect(references).not.toContain("3.02");
-    expect(references).toContain("2.10");
+    // The rail and checklist get a count; the Where to find it table highlights the codes in the detail.
+    const references = state!.gaps.find((gap) => gap.section === "references")!;
+    const codes = references.detail!.codes;
+    expect(references.message).toBe(`${codes.length} points still need a page reference.`);
+    expect(references.message).not.toMatch(/\d+\.\d+/);
+    expect(codes).not.toContain("A.07");
+    expect(codes).not.toContain("3.02");
+    expect(codes).toContain("2.10");
   }, 120_000);
 
   it("follows a Details change on F-27: new revision, voided signature", async () => {
@@ -192,6 +196,19 @@ describe("intake", () => {
     const preview = await generatedFormPreview(run.leader.id, run.protocolId, f27.instanceId);
     expect(JSON.stringify(preview.data)).toContain("Study habits of Grade 10 learners, edited");
     expect(preview.roles).toContain("PROPONENT");
+  }, 120_000);
+
+  it("Intake page: NA on every reference leaves nothing missing under Where to find it (the F-35 and F-36 rows are the intake's)", async () => {
+    const run = await newProtocol("references");
+    const state = await intakeState(prisma, run.versionId);
+    const references = Object.fromEntries(state!.groups.flatMap((group) => group.points.filter((point) => point.na.length === 0).map((point) => [point.code, "NA" as const])));
+    expect(Object.keys(references).length).toBeGreaterThan(0);
+    await saveIntakeSection({ protocolId: run.protocolId, userId: run.leader.id, section: "references", value: references, expectedRevision: 0 });
+    const checklist = await getSubmissionChecklist(run.leader.id, run.protocolId);
+    // The forms printed from the intake are not listed again under Forms: their progress would count the reviewers' columns.
+    const keys = checklist!.groups.flatMap((group) => group.items.map((item) => item.key));
+    for (const code of ["F-27", "F-28", "F-30", "F-35", "F-36"]) expect(keys).not.toContain(`forms.${code}`);
+    expect(railSections(checklist, { revision: false }).find((section) => section.key === "references")!.missing).toEqual([]);
   }, 120_000);
 
   describe("one signing act for F-27 and F-28", () => {

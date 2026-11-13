@@ -172,5 +172,14 @@ export function budgetColumnsFor(fundingCodes: readonly string[]): BudgetColumn[
   return BUDGET_COLUMNS.filter((column) => open.has(column));
 }
 
-/** An "agreements" gap is one researcher's: their agreements and their F-27 and F-28 signatures. */
-export type IntakeGap = { section: IntakeSection | "study" | "funding" | "agreements"; message: string; memberId?: string };
+/**
+ * An "agreements" gap is one researcher's: their agreements and their F-27 and F-28 signatures.
+ * A "references" gap's message gives a count (the rail and checklist show it); its detail lists the
+ * point codes, which the Where to find it table highlights.
+ */
+export type IntakeGap = {
+  section: IntakeSection | "study" | "funding" | "agreements";
+  message: string;
+  memberId?: string;
+  detail?: { codes: string[] };
+};

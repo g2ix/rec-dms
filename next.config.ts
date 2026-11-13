@@ -15,6 +15,8 @@ const extraOrigins = (process.env.APP_BASE_URL ?? "")
   .filter(Boolean);
 
 const nextConfig: NextConfig = {
+  // The Playwright server builds into its own folder, so it can run beside `pnpm dev`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Playwright and local checks use 127.0.0.1 while Next serves localhost.
   allowedDevOrigins: ["127.0.0.1"],
   devIndicators: false,

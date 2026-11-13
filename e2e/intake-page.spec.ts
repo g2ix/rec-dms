@@ -1,10 +1,10 @@
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
-import { config } from "dotenv";
+import { loadTestEnv } from "./test-env";
 
-config({ path: ".env.local" });
-config({ path: ".env" });
+// The test database only (.env.test); refuses anything else.
+loadTestEnv();
 
 /**
  * INTAKE-02: a proponent prepares a whole version from the Intake tab and submits it without
@@ -51,8 +51,8 @@ async function ensureUser(): Promise<void> {
     // A saved affiliation fills the new-protocol wizard, as for a returning proponent.
     await prisma.personProfile.upsert({
       where: { userId },
-      update: {},
-      create: { userId, kind: "INDUSTRY_PARTNER", institutionText: "E2E Research Partners" },
+      update: { position: "Research associate" },
+      create: { userId, kind: "INDUSTRY_PARTNER", institutionText: "E2E Research Partners", position: "Research associate" },
     });
     // A saved signature, as the signature page leaves it.
     if (!(await prisma.signature.findFirst({ where: { userId, active: true } }))) {
@@ -95,6 +95,9 @@ async function expectCountsBelow(page: Page, before: number): Promise<number> {
     .toBeLessThan(before);
   return now;
 }
+
+// The 390px check opens the protocol the first test creates, so the two run in order.
+test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
   await ensureUser();
@@ -145,18 +148,27 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   // Participants and consent: every answer no, with the waiver reason.
   await page.getByTestId("rail-participants").click();
   const participants = page.locator("#participants");
-  for (const group of await participants.getByRole("radiogroup").all()) await group.getByLabel("No").check();
+  // Each question is a fieldset (role group) with a Yes and a No radio.
+  for (const no of await participants.getByRole("radio", { name: "No", exact: true }).all()) await no.check();
   await page.locator("#waiver-reason").fill("Secondary analysis of anonymized records");
   left = await expectCountsBelow(page, left);
 
   // Conflict of interest.
   await page.getByTestId("rail-coi").click();
   await page.locator("#coi").getByRole("radio").first().check();
-  await expectCountsBelow(page, left);
+  left = await expectCountsBelow(page, left);
 
-  // Where to find it: NA on every point left.
+  // Where to find it: NA on every point left. Wait for the step to render before listing its boxes.
   await page.getByTestId("rail-references").click();
-  for (const box of await page.locator("#references").getByRole("checkbox", { name: /not applicable/ }).all()) await box.check();
+  const references = page.locator("#references");
+  const naBoxes = references.getByRole("checkbox", { name: /not applicable/ });
+  await expect(naBoxes.first()).toBeVisible({ timeout: 30_000 });
+  // Once the table is started, the rows still missing a reference are highlighted; NA clears them.
+  await naBoxes.first().check();
+  await expect(references.locator("tr[data-needed=true]").first()).toBeVisible();
+  for (const box of await naBoxes.all()) await box.check();
+  await expect(references.locator("tr[data-needed=true]")).toHaveCount(0);
+  await expectCountsBelow(page, left);
 
   // Documents.
   await page.getByTestId("rail-documents").click();
@@ -189,8 +201,11 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   const passwordField = dialog.locator('input[type="password"]');
   if (await passwordField.isVisible()) await passwordField.fill(password);
   await dialog.getByRole("button", { name: "Sign F-27 and F-28" }).click();
-  await expect(dialog).toHaveCount(0, { timeout: 30_000 });
-  await page.getByTestId("action-result").getByRole("button").first().click();
+  // The signing dialog gives way to the result notice (also a dialog); OK closes it.
+  const result = page.getByTestId("action-result");
+  await expect(result).toContainText("F-27 and F-28 signed.", { timeout: 30_000 });
+  await result.getByRole("button", { name: "OK" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   // One act signed both: the row shows the date and Withdraw, and no other Sign button is left.
   await expect(mine).toContainText("Signed on", { timeout: 30_000 });
   await expect(mine.getByRole("button", { name: "Withdraw" })).toBeVisible();

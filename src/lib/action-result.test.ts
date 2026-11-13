@@ -8,6 +8,10 @@ describe("resultHref", () => {
     expect(resultHref("form", id)).toBe(`/app/protocols/${id}/forms`);
   });
 
+  it("keeps an Intake tab action (the one signature for F-27 and F-28) on the Intake tab", () => {
+    expect(resultHref("intake", id)).toBe(`/app/protocols/${id}/intake`);
+  });
+
   it("sends a whole-protocol action to the protocol page", () => {
     expect(resultHref("protocol", id)).toBe(`/app/protocols/${id}`);
   });

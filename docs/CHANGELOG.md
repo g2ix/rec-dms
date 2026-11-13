@@ -1,5 +1,56 @@
 # Changelog
 
+## INTAKE-03b — Every test green, end-to-end tests on the test database only (2026-11-13)
+
+**Where to find it names the missing rows.** The references gap keeps its count in the message ("12 points still need a page reference."), which the rail and the checklist show. The point codes now go in the gap's `detail.codes`. The table highlights those rows (a warning edge, "Still needed", and `aria-invalid` on the empty page or line box) once the table has been started or the step is opened again, never on the first look at an empty table. A row filled or ticked NA loses the highlight at once. The `intake.db.test.ts` "marks N/A from the scoping answers…" test now checks the count in the message and the codes in the detail.
+
+**The submit bar no longer stays at "2 items left" after everything is done.** On an intake version the checklist listed F-30, F-35 and F-36 again under Forms. Their progress checked the stored data with every column required, the reviewers' assessment columns included, so F-35 and F-36 never read Complete for the proponents: the rail (under Where to find it), the Forms tab pill and the submit bar kept counting them, while the submit check (bound values, the proponents' step) would have passed. The checklist now leaves out every form printed from the intake, as it already did F-27 and F-28. The intake items count them: the budget, the references, the actions and each researcher's agreements and signature.
+
+**Agree and sign.**
+- The two agreement boxes tick as soon as they are clicked. Before, the box waited for the save and the page refresh, so it seemed not to take the click. A refused save puts the box back and shows the message.
+- OK on "F-27 and F-28 signed." keeps the proponent on the Intake tab, on the signed row (new result target `intake`). Before, it went to the Forms tab.
+
+**End-to-end tests run only on the test database.**
+- Playwright reads `.env.test` only, never `.env.local`, and refuses to load unless `DATABASE_URL` names a database ending in `_test` or the schema `recdms_test` (`src/server/test/test-database.ts`). The check runs when the config loads, before any server starts. So with `.env.test` pointing at the Supabase database, `pnpm test:e2e` stops with "Refusing to run end-to-end tests…".
+- Playwright starts its own `next dev` on port 3100, building into `.next-e2e` (`NEXT_DIST_DIR`), with the `.env.test` values and `AUTH_URL` on that port. It never reuses a running server (`reuseExistingServer: false`). Keys that only `.env.local` has are set empty, so Next.js cannot pick them up. `tsconfig.json` lists `.next-e2e/types`, so Next.js does not rewrite it on each run.
+- `e2e/global-setup.ts` migrates, empties and seeds the test database. The reset is the vitest one (`resetTestDatabase`, `src/server/test/reset-core.ts`), which checks again on the database Postgres reports.
+- The reset guard no longer accepts the `recdms` schema, which is the Supabase app schema. Only `*_test` databases and `recdms_test` pass, for vitest too.
+- Every spec loads the test environment (`loadTestEnv`) in place of `.env.local`.
+- One worker: one `next dev` compiles each route on first use, and parallel sign-ins timed out while it did.
+
+**The intake e2e.** Each step was traced on a fresh test database:
+- The Study autosave count check passes. The Study and Funding saves already refresh the rail, the db test of the rail counts already covers the server side, and the stop could not be reproduced. The INTAKE-03 run used a dev server already running on `.env.local`, whose data and build this run no longer depends on.
+- The test's own errors: the user fixture had no position, which an industry partner needs to create a protocol; the Participants questions are fieldsets (`group`), not `radiogroup`; the NA boxes were listed before the step rendered; and after signing it waited for the signing dialog to close while the result notice (also a dialog) was open.
+- `intake-page.spec.ts` runs serially, because the 390px check opens the protocol the first test creates. It now also checks the row highlight under Where to find it.
+
+Tests:
+- `src/lib/intake/intake.unit.test.ts`: the references gap counts in its message and lists the codes in its detail.
+- `src/server/intake/intake.db.test.ts`: NA on every reference leaves nothing missing under Where to find it, and no intake-printed form is listed under Forms. This test fails without the checklist change.
+- `src/server/test/test-database.unit.test.ts`: the test database rule, and the refusal never prints the password.
+- `src/lib/action-result.test.ts`: the `intake` target stays on the Intake tab.
+- `pnpm test:e2e`: `intake-page.spec.ts` (through Agree and sign and Submit) and `totp-modal.spec.ts` pass on `recdms_test`.
+
+Known: six other end-to-end tests fail on the clean test database: `action-result` (submit confirmation), `auth-redirect` (identity default view), the two `autosave-flush` tests, and the two `dev-ui` tests (mobile drawer, visual baseline). They were not part of this change.
+
+## Sign-in code check as a modal over the app (2026-11-13)
+
+After signing in, an account with an authenticator app is asked for its code in a dialog over the page it was opening. Before, it was sent to a separate page first.
+
+**The modal** (`src/components/auth/totp-gate.tsx`).
+- While the check is pending, the signed-in layout draws the target page's shell behind a non-dismissable dialog, "Confirm it is you". The shell is blurred, inert and hidden from screen readers, and it is a skeleton only: no counts, no search, no live notification bell, no data.
+- Six boxes for the code. Typing moves to the next box, Backspace and the arrow keys move back, and pasting a whole code into any box fills them all. The code submits itself once complete. A wrong code clears the boxes and says so.
+- After five wrong tries in 60 seconds, the check locks and the modal counts down to the end of the window (`TOTP_CHALLENGE_LIMIT`). The server enforces the same limit.
+- At 390px the boxes get smaller and the dialog still fits.
+- There are no recovery codes and no "trust this browser" option: the backend has neither.
+
+**The guard.**
+- `challengeTotpAction` (`src/server/auth/totp-actions.ts`) returns a result (ok, mismatch, locked) instead of redirecting. On success, the modal opens the page it was covering.
+- The middleware still sends signed-in pages to `/app/account/security` until the check passes, now with `?next=<target>`. The modal restores its own URL, so server actions are not blocked by the guard after a client-side redirect.
+- `/app/account/security` lost its own code form. While the check is pending, the page renders nothing under the modal. Once it has passed, the page only sets up the authenticator or says it is on ("Your authenticator is on. You enter a code from it each time you sign in.").
+- Route handlers are guarded too. The matcher now includes `/api/:path*`, and a session that owes the check (no valid `recdms_totp` cookie) gets 403 JSON, `TOTP_REQUIRED`, from every route handler under `/api`. Exempt: auth, session end, cron, internal, webhooks and health (`src/lib/api-totp.ts`). Before, `/api/notifications` and the other handlers returned real data while the check was pending.
+
+Tests: `src/middleware.test.ts` and `src/lib/api-totp.test.ts` (the `/api` guard and its exemptions). `e2e/totp-modal.spec.ts` covers the blurred inert shell with no data behind it, route handlers refused while pending, keyboard moves and a wrong code, paste, the lockout after five tries, and 390px. It passes on the test database.
+
 ## INTAKE-03 — One signature for F-27 and F-28 (2026-11-13)
 
 Each researcher now agrees, then signs once. That one act fills their slot on both F-27 and F-28. The legal record stays per form: each form gets its own `signature_events` row, hashed over that form's own printed content, verifiable on its own reference. Protocols on the 2025 forms (09-01 / 10-01) are unchanged: each form is still signed on its own, on the Forms tab.

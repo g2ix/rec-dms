@@ -302,6 +302,14 @@ describe("intake completeness", () => {
     expect(new Set(gaps.map((gap) => gap.section))).toEqual(new Set(["scoping", "coi", "budget", "references", "agreements"]));
   });
 
+  it("counts the missing references in the message and lists their codes in the detail", () => {
+    const intake = { ...emptyIntake(), references: { "1.01": { page: "3", line: "12" }, "1.03": "NA" as const, "1.04": { page: "4", line: "" } } };
+    const referencePoints = ["1.01", "1.02", "1.03", "1.04"].map((code) => ({ form: "F-35", code, label: code }));
+    const gap = intakeGaps({ intake, study, researchers: [], referencePoints, actionPoints: [] }).find((entry) => entry.section === "references")!;
+    expect(gap.message).toBe("2 points still need a page reference.");
+    expect(gap.detail).toEqual({ codes: ["1.02", "1.04"] });
+  });
+
   it("gives one agree-and-sign gap per researcher, naming only what is left for them", () => {
     const at = "2026-11-13T00:00:00.000Z";
     const gaps = intakeGaps({

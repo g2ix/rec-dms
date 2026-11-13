@@ -182,9 +182,12 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
   const formItems: ChecklistItem[] = [];
   for (const form of step.forms ?? []) {
     if (!form.required || form.mode === "VIEW" || form.slot) continue;
-    // On an intake version F-27 and F-28 are printed from the intake and signed together: the researcher items above count them.
-    if (intake?.usesIntake && (form.code === "F-27" || form.code === "F-28")) continue;
     const listed = forms.find((item) => item.code === form.code);
+    // On an intake version the forms printed from the intake are counted by the intake items above: F-27 and F-28 by the
+    // researcher items, F-30 by the budget, F-35 and F-36 by the references, F-38 by the actions. Their own progress
+    // checks the stored data for every role (the reviewers' columns too), so it never reads Complete for the proponents;
+    // the submit check reads the bound values for the proponents' step, which the intake gaps already are.
+    if (intake?.usesIntake && (form.code === "F-27" || form.code === "F-28" || listed?.intakeSourced)) continue;
     const progress = listed?.progress ?? "Not started";
     formItems.push({
       key: `forms.${form.code}`,
