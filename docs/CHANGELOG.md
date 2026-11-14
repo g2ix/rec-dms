@@ -1,5 +1,24 @@
 # Changelog
 
+## INTAKE-03c — The six end-to-end tests left failing on a clean test database (2026-11-14)
+
+The six tests listed under INTAKE-03b "Known" each failed on a fresh `recdms_test`. None was a bug in the app. No assertion was removed and no test is skipped.
+
+| Test | Cause | Fix |
+|---|---|---|
+| `action-result`: a proponent submits and sees the confirmation | **Stale test.** Since the submission checklist (`3adb99f`), Submit only opens the checklist while items are left. A protocol created after the November process started (12 Nov 2026) is on the intake forms (INTAKE-01), so the fixture had 7 items left and no dialog opened. | The fixture protocol is created on 1 Nov 2026, so it is on the 2025 forms and has nothing left to fill. Submitting a November protocol is covered by `intake-page.spec.ts`. |
+| `auth-redirect`: the identity default view comes before the last used view | **Stale test.** Since `fd861b3`, the shell shows only views the account holds, and the fixture user held none, so it opened as Proponent. "Keeps the last used view" had the same problem, but it did not run because the file runs serially. Since `c96749e`, the account button also shows the view name, so "REC Staff" matched twice. | The staff test grants REC Staff and an authenticator and passes "Confirm it is you" (2FA modal). The reviewer test grants REC Member. Both are revoked after each test. The view is read from the role switcher. |
+| `autosave-flush`: leaving right after typing still saves | **Environment (fixture).** The fixture form had `validation: { maxLength: 200 }`, a key the strict schema has never had, so the form page threw "This form schema cannot be shown". Then "Forms" matched three links (breadcrumb, Protocol tab, "Preview forms" from INTAKE-02), and the wait for the Forms list also matched the form page being left. | Use `max: 200` (the same 200-character limit). Click the Protocol tab's Forms link and wait for the Forms list URL. |
+| `autosave-flush`: a comment typed before Return is stored | **Stale test.** REC Staff must use an authenticator (2FA modal), so the staff fixture, which had none, landed on "Set up authenticator". The comment also appears twice now: in the "Returned" notice (`2f2cc05`) and under Comments. | The staff fixture gets an authenticator and passes "Confirm it is you". The test checks the comment in the Return entry under Comments. |
+| `dev-ui`: the mobile drawer traps focus | **Stale test.** It was written for M00b, before sign-in (M01, `72bfbc6`). `/app` now redirects signed-out visitors to sign-in, which has no "Open menu". | It signs in an approved proponent first. |
+| `dev-ui`: gallery visual baseline | **Stale baseline, from intended design changes**: faint italic placeholders (`ba18e74`), the sidebar after Account moved to the top bar (`cbf42ec`), and the shared AuthFrame on the sign-in sample (`836994a`, 83px taller). | Light and dark baselines updated after review. |
+
+**Sign-in rate limit in a full run (environment).** With these tests passing, a full run signs in more than 10 times a minute from 127.0.0.1, so it hit `SIGN_IN_LIMIT`. A limited sign-in reads "That email and password don't match", and `totp-modal` failed on it (the audit log recorded `rate_limited`). An automatic fixture (`e2e/fixtures.ts`) clears the `signin:` count before each test. Every spec that signs in imports `test` and `expect` from it. The limit itself is still covered by `rate-limit.test.ts`.
+
+**Shared authenticator helper.** `e2e/totp.ts` gives a fixture user an authenticator (`enrollAuthenticator`) and passes the "Confirm it is you" dialog (`confirmItIsYou`). `totp-modal.spec.ts` now uses its sealing in place of its own copy.
+
+Tests: `pnpm lint`, `pnpm typecheck` and `pnpm test` (336) pass. `pnpm test:e2e` passed 27 of 27 twice in a row, each run on a freshly reset and seeded `recdms_test`.
+
 ## INTAKE-03b — Every test green, end-to-end tests on the test database only (2026-11-13)
 
 **Where to find it names the missing rows.** The references gap keeps its count in the message ("12 points still need a page reference."), which the rail and the checklist show. The point codes now go in the gap's `detail.codes`. The table highlights those rows (a warning edge, "Still needed", and `aria-invalid` on the empty page or line box) once the table has been started or the step is opened again, never on the first look at an empty table. A row filled or ticked NA loses the highlight at once. The `intake.db.test.ts` "marks N/A from the scoping answers…" test now checks the count in the message and the codes in the detail.

@@ -1,6 +1,7 @@
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { loadTestEnv } from "./test-env";
 
 // The test database only (.env.test); refuses anything else.
@@ -97,6 +98,9 @@ async function protocolAtStep(input: { stepKey: "submit" | "assess"; assigneeId:
     const protocol = await prisma.protocol.create({
       data: {
         title: `E2E action result ${crypto.randomUUID().slice(0, 8)}`,
+        // Created before the November process (PROCESS_START, 12 Nov 2026), so it is on the 2025 forms: no intake to
+        // complete before Submit. A protocol created today needs the whole intake (covered by intake-page.spec.ts).
+        createdAt: new Date("2026-11-01T00:00:00+08:00"),
         leaderUserId: leaderId,
         createdById: leaderId,
         institution: "University of San Carlos",

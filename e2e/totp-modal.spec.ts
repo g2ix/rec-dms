@@ -1,25 +1,16 @@
-import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { loadTestEnv } from "./test-env";
 import { authenticator } from "otplib";
+import { TOTP_SECRET as secret, sealTotpSecret as seal } from "./totp";
 
 // The test database only (.env.test); refuses anything else.
 loadTestEnv();
 
 const password = "Usc-ethics-review-2026-protocol";
 const email = "e2e.totp.modal@usc.edu.ph";
-const secret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
-
-/** Same sealing as src/server/auth/totp.ts, which is server-only. */
-function seal(plain: string): string {
-  const key = scryptSync(process.env.AUTH_SECRET ?? "", "recdms-totp-v1", 32);
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString("base64url")).join(".");
-}
 
 function wrongCode(): string {
   const right = authenticator.generate(secret);

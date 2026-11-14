@@ -1,7 +1,9 @@
 import { hash } from "@node-rs/argon2";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { E2E_ORIGIN, loadTestEnv } from "./test-env";
+import { confirmItIsYou, enrollAuthenticator } from "./totp";
 
 // The test database only (.env.test); refuses anything else.
 loadTestEnv();
@@ -13,6 +15,34 @@ async function setDefaultView(defaultView: string | null) {
   const prisma = new PrismaClient();
   try {
     await prisma.userEmail.update({ where: { email }, data: { defaultView } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * The shell shows only views the account holds, so a test of a role view grants that role first.
+ * REC Staff also owe the authenticator check. `revokeRoles` puts the account back to a plain proponent.
+ */
+async function grantRole(key: "REC_STAFF" | "REC_MEMBER") {
+  const prisma = new PrismaClient();
+  try {
+    const row = await prisma.userEmail.findUniqueOrThrow({ where: { email } });
+    const role = await prisma.role.findUniqueOrThrow({ where: { key } });
+    await prisma.userRole.create({ data: { userId: row.userId, roleId: role.id } });
+    if (key === "REC_STAFF") await enrollAuthenticator(prisma, row.userId);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function revokeRoles() {
+  const prisma = new PrismaClient();
+  try {
+    const row = await prisma.userEmail.findUnique({ where: { email } });
+    if (!row) return;
+    await prisma.userRole.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await prisma.user.update({ where: { id: row.userId }, data: { totpSecret: null, totpEnabledAt: null } });
   } finally {
     await prisma.$disconnect();
   }
@@ -60,7 +90,11 @@ async function signIn(page: Page) {
 }
 
 test.describe.configure({ mode: "serial" });
-test.beforeAll(ensureUser);
+test.beforeAll(async () => {
+  await ensureUser();
+  await revokeRoles();
+});
+test.afterEach(revokeRoles);
 test.afterAll(() => setDefaultView(null));
 test.setTimeout(30_000);
 
@@ -93,25 +127,29 @@ test("an absolute callbackUrl is ignored", async ({ page }) => {
 
 test("sign-in opens the identity default view ahead of the last used view", async ({ page }) => {
   await setDefaultView("staff");
+  await grantRole("REC_STAFF");
   await page.context().addCookies([
     { name: "activeView", value: "proponent", url: E2E_ORIGIN },
   ]);
   await page.goto("/sign-in");
   await signIn(page);
+  await confirmItIsYou(page);
   await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
-  await expect(page.getByText("REC Staff", { exact: true })).toBeVisible();
+  // The role switcher names the open view (the account button in the top bar names it too).
+  await expect(page.getByRole("button", { name: "Switch role" })).toHaveText("REC Staff");
   await expect(page.getByRole("link", { name: "Screening queue" })).toBeVisible();
 });
 
 test("sign-in keeps the last used view when the identity has none", async ({ page }) => {
   await setDefaultView(null);
+  await grantRole("REC_MEMBER");
   await page.context().addCookies([
     { name: "activeView", value: "reviewer", url: E2E_ORIGIN },
   ]);
   await page.goto("/sign-in");
   await signIn(page);
   await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
-  await expect(page.getByText("Reviewer", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Switch role" })).toHaveText("Reviewer");
   await expect(page.getByRole("link", { name: "My reviews" })).toBeVisible();
 });
 

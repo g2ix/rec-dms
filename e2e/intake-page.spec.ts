@@ -1,6 +1,7 @@
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { loadTestEnv } from "./test-env";
 
 // The test database only (.env.test); refuses anything else.

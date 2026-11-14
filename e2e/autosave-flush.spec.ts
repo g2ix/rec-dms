@@ -1,7 +1,9 @@
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { loadTestEnv } from "./test-env";
+import { confirmItIsYou, enrollAuthenticator } from "./totp";
 
 // The test database only (.env.test); refuses anything else.
 loadTestEnv();
@@ -35,11 +37,13 @@ const graph = {
   ],
 };
 
-async function signIn(page: Page, email: string) {
+/** `staff`: REC Staff owe the authenticator check after signing in (see e2e/totp.ts). */
+async function signIn(page: Page, email: string, options: { staff?: boolean } = {}) {
   await page.goto("/sign-in");
   await page.locator("#sign-in-email").fill(email);
   await page.locator("#sign-in-password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  if (options.staff) await confirmItIsYou(page);
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 20_000 });
 }
 
@@ -102,7 +106,7 @@ test("typing a field and leaving immediately still saves the value", async ({ pa
                   type: "text",
                   label: "Short title",
                   fillers: ["PROPONENT"],
-                  validation: { maxLength: 200 },
+                  validation: { max: 200 },
                 },
               ],
             },
@@ -155,10 +159,10 @@ test("typing a field and leaving immediately still saves the value", async ({ pa
   await expect(field).toBeVisible({ timeout: 20_000 });
   await field.fill(marker);
   // Leave before the 800 ms debounce would fire.
-  await page.getByRole("link", { name: "Forms" }).click();
-  await expect(page.getByRole("heading", { name: /Forms/i }).or(page.getByText("E2E-FLUSH"))).toBeVisible({
-    timeout: 20_000,
-  });
+  // The protocol's Forms tab (the breadcrumb and "Preview forms" are links named Forms too).
+  await page.getByRole("navigation", { name: "Protocol" }).getByRole("link", { name: "Forms", exact: true }).click();
+  // Left for the Forms list. (Text on the form page, such as its breadcrumb, would match before the move.)
+  await expect(page).toHaveURL(new RegExp(`${formPath.slice(0, formPath.lastIndexOf("/"))}$`), { timeout: 20_000 });
   await page.goto(formPath);
   await expect(page.locator("#short_title")).toHaveValue(marker, { timeout: 20_000 });
 });
@@ -171,6 +175,7 @@ test("typing a comment and clicking Return stores the comment", async ({ page })
   try {
     const staffId = await ensureUser(prisma, staffEmail, "Autosave", "Staff");
     await ensureStaffRole(prisma, staffId);
+    await enrollAuthenticator(prisma, staffId);
     const leaderId = await ensureUser(prisma, formEmail, "Autosave", "Proponent");
     const definition = await prisma.workflowDefinition.upsert({
       where: { key: WORKFLOW_KEY },
@@ -229,7 +234,7 @@ test("typing a comment and clicking Return stores the comment", async ({ page })
     await prisma.$disconnect();
   }
 
-  await signIn(page, staffEmail);
+  await signIn(page, staffEmail, { staff: true });
   await page.goto(`/app/protocols/${protocolId}`);
   await expect(page.getByText("Screen the test submission").first()).toBeVisible({ timeout: 20_000 });
   await page.getByLabel("Return").check();
@@ -238,5 +243,8 @@ test("typing a comment and clicking Return stores the comment", async ({ page })
   await page.getByRole("button", { name: /Complete Screen the test submission/i }).click();
   await expect(page.getByTestId("action-result")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "OK" }).click();
-  await expect(page.getByText(comment)).toBeVisible({ timeout: 20_000 });
+  // The stored comment, under Comments. The "Returned" notice above the review repeats it.
+  await expect(page.getByRole("listitem").filter({ hasText: "Screen the test submission · Return" })).toContainText(comment, {
+    timeout: 20_000,
+  });
 });
