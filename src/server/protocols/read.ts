@@ -12,6 +12,10 @@ import { ensureWorkingForms, sharedSnapshot } from "@/server/protocols/versions"
 import { maxUploadBytes } from "@/server/protocols/settings";
 import { suggestedManuscriptName } from "@/lib/protocols/format";
 import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
+import { formAccess, requireFormAccess } from "@/server/revision/visibility";
+import { dataForRoles } from "@/lib/forms/role-view";
+
+const PROPONENT_SIDE = ["PROPONENT", "PROJECT_LEADER", "ADVISER"];
 
 const memberInclude = {
   user: true,
@@ -142,7 +146,12 @@ export async function listWorkingForms(userId: string, protocolId: string): Prom
   ]);
   const marks = await signatureMarks(prisma, instances.map((instance) => instance.id));
   const roster = toRoster(memberRows);
+  const denied = new Set<string>();
+  for (const instance of instances) {
+    if ((await formAccess(prisma, userId, instance.id)).kind === "denied") denied.add(instance.id);
+  }
   return instances.flatMap((instance) => {
+    if (denied.has(instance.id)) return [];
     const parsed = validateSchema(instance.formDefinition.schema);
     if (!parsed.ok) return [];
     return [
@@ -172,6 +181,8 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
     where: { id: instance.ownerId, protocolId },
   });
   if (!version) throw new AppError("NOT_FOUND", "That form was not found.", 404);
+  // Proponents and advisers open review forms only once released, and only as the release copy.
+  const access = await requireFormAccess(prisma, userId, instanceId);
   const parsed = validateSchema(instance.formDefinition.schema);
   if (!parsed.ok) throw new AppError("INVALID", "This form schema cannot be shown.", 400);
   const member = await prisma.protocolMember.findFirst({
@@ -214,6 +225,7 @@ export async function formForEdit(userId: string, protocolId: string, instanceId
     schema: parsed.schema,
     roles,
     stepKey,
+    access,
   };
 }
 
@@ -278,12 +290,26 @@ export async function diffVersions(userId: string, protocolId: string, leftId: s
     where: { ownerType: "PROTOCOL_VERSION", ownerId: { in: [leftId, rightId] } },
     include: { formDefinition: true, revisions: { orderBy: { revision: "desc" }, take: 1 } },
   });
-  const codes = new Set(instances.map((instance) => instance.formDefinition.code));
+  // Proponents and advisers compare only the copies they may open, without the columns hidden from them.
+  const shown = new Map<string, "full" | "own" | "hidden">();
+  for (const instance of instances) {
+    const access = await formAccess(prisma, userId, instance.id);
+    shown.set(instance.id, access.kind === "full" || access.kind === "legacy" ? "full" : access.kind === "own" ? "own" : "hidden");
+  }
+  const dataOf = (instance: (typeof instances)[number] | undefined) => {
+    if (!instance) return {};
+    if (shown.get(instance.id) !== "own") return instance.data ?? {};
+    const parsed = validateSchema(instance.formDefinition.schema);
+    const data = (instance.data ?? {}) as Record<string, unknown>;
+    return parsed.ok ? dataForRoles(parsed.schema, data, PROPONENT_SIDE) : {};
+  };
+  const visible = instances.filter((instance) => shown.get(instance.id) !== "hidden");
+  const codes = new Set(visible.map((instance) => instance.formDefinition.code));
   const rows: VersionDiff[] = [];
   for (const code of [...codes].sort()) {
-    const left = instances.find((instance) => instance.ownerId === leftId && instance.formDefinition.code === code);
-    const right = instances.find((instance) => instance.ownerId === rightId && instance.formDefinition.code === code);
-    const changes = diffFieldValues(left?.data ?? {}, right?.data ?? {});
+    const left = visible.find((instance) => instance.ownerId === leftId && instance.formDefinition.code === code);
+    const right = visible.find((instance) => instance.ownerId === rightId && instance.formDefinition.code === code);
+    const changes = diffFieldValues(dataOf(left), dataOf(right));
     rows.push({
       code,
       title: (right ?? left)?.formDefinition.title ?? code,

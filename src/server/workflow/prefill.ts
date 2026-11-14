@@ -219,6 +219,13 @@ async function prepareActionSummary(tx: Tx, params: Record<string, unknown>, ctx
       changed = true;
       continue;
     }
+    // A later round (the table came from the last F-38) with nothing still open keeps nothing:
+    // F-37 is read only on the first resubmission, when F-38 has no rows yet (INTAKE-04).
+    if (Object.keys(table).length > 0) {
+      data[field] = {};
+      changed = true;
+      continue;
+    }
     const source = await sharedInstance(tx, ctx.protocolVersionId, fallbackForm);
     if (!source) continue;
     const sourceTable = record(record(source.data)[field]);
@@ -340,7 +347,7 @@ async function sharedInstance(tx: Tx, protocolVersionId: string, code: string) {
 }
 
 /** Overriding columns on a table field, read from the form definition (column.overrides). */
-async function overridesOf(tx: Tx, formDefinitionId: string, fieldId: string): Promise<Record<string, string>> {
+export async function overridesOf(tx: Tx, formDefinitionId: string, fieldId: string): Promise<Record<string, string>> {
   const definition = await tx.formDefinition.findUnique({ where: { id: formDefinitionId }, select: { schema: true } });
   const sections = (definition?.schema as { sections?: { fields?: { id?: string; columns?: { id?: string; overrides?: string }[] }[] }[] } | null)?.sections ?? [];
   const out: Record<string, string> = {};

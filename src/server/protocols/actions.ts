@@ -165,7 +165,7 @@ export async function startRevisionAction(formData: FormData): Promise<void> {
   const id = protocolId(formData);
   await authorize(user, "protocol.members", { type: "protocol", id });
   await startRevision(id, user.id);
-  revalidatePath(`/app/protocols/${id}`);
+  revalidatePath(`/app/protocols/${id}`, "layout");
 }
 
 export async function prepareUploadAction(input: unknown): Promise<

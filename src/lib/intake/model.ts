@@ -178,7 +178,8 @@ export function budgetColumnsFor(fundingCodes: readonly string[]): BudgetColumn[
  * point codes, which the Where to find it table highlights.
  */
 export type IntakeGap = {
-  section: IntakeSection | "study" | "funding" | "agreements";
+  /** returnNotes: a comment from the adviser or REC Staff not yet ticked Done (INTAKE-04). */
+  section: IntakeSection | "study" | "funding" | "agreements" | "returnNotes";
   message: string;
   memberId?: string;
   detail?: { codes: string[] };

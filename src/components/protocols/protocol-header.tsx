@@ -9,6 +9,8 @@ const STATUS: Record<string, { tone: StatusTone; label: string }> = {
   "Under Screening": { tone: "info", label: "Under screening" },
   "Under Review": { tone: "info", label: "Under review" },
   "Returned (incomplete)": { tone: "warning", label: "Returned (incomplete)" },
+  Returned: { tone: "warning", label: "Returned" },
+  "With Adviser": { tone: "info", label: "With adviser" },
   "Awaiting Revision": { tone: "warning", label: "Awaiting revision" },
   Resubmitted: { tone: "info", label: "Resubmitted" },
   "Decision Released": { tone: "info", label: "Decision released" },

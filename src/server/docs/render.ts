@@ -8,6 +8,7 @@ import { fillDocx } from "@/lib/docs/fill-docx";
 import { defaultFileNameSetting, officialFormFileName, type FileNameSetting } from "@/lib/docs/names";
 import { placeholderMapSchema, type PlaceholderMap } from "@/lib/docs/tags";
 import { buildRenderModel, type RenderOptions, type SignatureRender } from "@/lib/docs/view";
+import { dataForRoles, hiddenForRoles, signatureHidden } from "@/lib/forms/role-view";
 import { PREVIEW_BOUND_VALUES } from "@/lib/forms/bindings";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
 import { env } from "@/lib/env";
@@ -158,7 +159,12 @@ async function storeGenerated(input: {
   return file.id;
 }
 
-export async function cachedGeneratedPdf(instanceId: string): Promise<boolean> {
+/** The variant of a proponent-side download (see `renderFormDocument` `view`). */
+export const PROPONENT_VIEW_VARIANT = "proponent-view";
+/** The roles a proponent-side download is rendered for. */
+export const PROPONENT_SIDE_ROLES = ["PROPONENT", "PROJECT_LEADER", "ADVISER"] as const;
+
+export async function cachedGeneratedPdf(instanceId: string, variant: string | null = null): Promise<boolean> {
   const instance = await prisma.formInstance.findUnique({
     where: { id: instanceId },
     select: { id: true, status: true, revision: true },
@@ -167,7 +173,7 @@ export async function cachedGeneratedPdf(instanceId: string): Promise<boolean> {
   const cached = await prisma.storedFile.findFirst({
     where: {
       formInstanceId: instance.id,
-      variant: null,
+      variant,
       ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind: "GENERATED_PDF" }),
     },
     select: { id: true },
@@ -186,7 +192,14 @@ export async function renderFormDocument(input: {
   audience?: string | null;
   /** Extra bound values, such as the signer of the step that released the document. */
   extraBound?: Record<string, unknown>;
+  /**
+   * "proponent": the copy a proponent or adviser may download. Fields and columns hidden from their
+   * roles (reviewer columns, names, recommended action) are left out, as on the page. Kept apart
+   * from the plain render as its own variant.
+   */
+  view?: "proponent";
 }): Promise<RenderedDocument> {
+  const variant = input.view === "proponent" ? PROPONENT_VIEW_VARIANT : input.variant ?? null;
   const instance = await prisma.formInstance.findUnique({
     where: { id: input.instanceId },
     include: { formDefinition: true },
@@ -196,7 +209,7 @@ export async function renderFormDocument(input: {
   const cached = await prisma.storedFile.findFirst({
     where: {
       formInstanceId: instance.id,
-      variant: input.variant ?? null,
+      variant,
       ...generatedFileWhere({ status: instance.status, revision: instance.revision, kind }),
     },
     orderBy: { createdAt: "asc" },
@@ -219,8 +232,10 @@ export async function renderFormDocument(input: {
   const map = await loadMap(instance.formDefinition.code, instance.formDefinition.placeholderMap);
   const bound = { ...(await boundValuesFor(protocol?.versionId ?? null)), ...(input.extraBound ?? {}) };
   // An intake-sourced form prints the intake and the Details page in its proponent fields.
-  const data = await effectiveFormData(prisma, instance, bound);
-  const signatures = await signatureRenders(instance.id);
+  const effective = await effectiveFormData(prisma, instance, bound);
+  const hidden = input.view === "proponent" && schema ? hiddenForRoles(schema, PROPONENT_SIDE_ROLES) : null;
+  const data = hidden && schema ? dataForRoles(schema, effective, PROPONENT_SIDE_ROLES) : effective;
+  const signatures = (await signatureRenders(instance.id)).filter((item) => !hidden || !signatureHidden(item.fieldPath, hidden));
   const model = buildRenderModel({
     map,
     data,
@@ -244,7 +259,7 @@ export async function renderFormDocument(input: {
     mime,
     bytes,
     userId: input.userId,
-    variant: input.variant ?? null,
+    variant,
     audience: input.audience ?? null,
   });
   return { fileId, bytes, fileName, mime, protocolId: protocol?.protocolId ?? null };

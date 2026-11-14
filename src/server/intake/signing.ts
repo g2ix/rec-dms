@@ -3,6 +3,7 @@ import type { FormInstance, Prisma } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import { isRoleKey } from "@/lib/forms/roles";
 import { validateSchema, type FormSchema } from "@/lib/forms/schema";
+import { parseGraph } from "@/lib/workflow/graph";
 import { canSignSlot, signatureSlots, slotByPath, type RosterMember } from "@/lib/signatures/target";
 import { audit, diffOf } from "@/server/audit";
 import { prisma, useAppSchema } from "@/server/db";
@@ -15,8 +16,12 @@ type Tx = Prisma.TransactionClient;
 type Db = Tx | typeof prisma;
 type Meta = Prisma.InputJsonObject;
 
-/** The two forms a researcher signs with one act on an intake version, in print order. */
-export const INTAKE_SIGNED_FORMS = ["F-27", "F-28"] as const;
+/**
+ * The forms a researcher signs with one act on an intake version, in print order: F-27 and F-28 on
+ * the first submission, F-38 on a revision (INTAKE-04). Only the forms the open proponent step
+ * requires are signed.
+ */
+export const INTAKE_SIGNED_FORMS = ["F-27", "F-28", "F-38"] as const;
 export type IntakeSignedForm = (typeof INTAKE_SIGNED_FORMS)[number];
 
 export type ResearcherFormStatus = "signed" | "void" | "unsigned";
@@ -43,6 +48,43 @@ export async function intakeSigningForms(db: Db, versionId: string): Promise<Int
     return [{ code: instance.formDefinition.code as IntakeSignedForm, instance, schema: check.schema }];
   });
   return forms.sort((a, b) => INTAKE_SIGNED_FORMS.indexOf(a.code) - INTAKE_SIGNED_FORMS.indexOf(b.code));
+}
+
+/**
+ * The forms the leader's open step on this version requires to be filled or signed: what the
+ * engine checks before that step completes. Empty when no proponent step is open.
+ */
+export async function formsRequiredInOpenStep(db: Db, versionId: string): Promise<Set<string>> {
+  const instance = await db.workflowInstance.findFirst({
+    where: { protocolVersionId: versionId, status: "RUNNING" },
+    orderBy: { startedAt: "desc" },
+    include: { version: true, tasks: { where: { status: { in: ["OPEN", "CLAIMED"] }, kind: "MAIN" } } },
+  });
+  const graph = instance ? parseGraph(instance.version.graph) : null;
+  if (!instance || !graph?.ok) return new Set();
+  const codes = new Set<string>();
+  for (const task of instance.tasks) {
+    const step = graph.graph.steps.find((item) => item.key === task.stepKey);
+    if (step?.assignee?.kind !== "PROTOCOL_LEADER") continue;
+    for (const form of step.forms ?? []) if (form.required && form.mode !== "VIEW" && !form.slot) codes.add(form.code);
+  }
+  return codes;
+}
+
+/**
+ * The forms one signing act covers on this version: those the open proponent step requires, or
+ * F-27 and F-28 when no step says (a draft before the workflow starts). Empty on a version whose
+ * forms are signed one by one.
+ */
+export async function formsToSignNow(db: Db, versionId: string): Promise<IntakeSigningForm[]> {
+  const listed = await intakeSigningForms(db, versionId);
+  const required = await formsRequiredInOpenStep(db, versionId);
+  const asked = INTAKE_SIGNED_FORMS.filter((code) => required.has(code));
+  const wanted = listed.filter((form) => required.has(form.code));
+  // Every form the step asks to sign must be printed from the intake; otherwise each is signed on its own.
+  if (asked.length > 0) return wanted.length === asked.length ? wanted : [];
+  const first = listed.filter((form) => form.code === "F-27" || form.code === "F-28");
+  return first.length === 2 ? first : [];
 }
 
 /** A researcher's own slot on a form, found by account rather than by roster position. */
@@ -106,15 +148,16 @@ export async function signIntakeForms(input: { protocolId: string; userId: strin
     await useAppSchema(tx);
     const member = await proponentOn(tx, input.protocolId, input.userId);
     const version = await workingVersion(tx, input.protocolId);
-    const listed = await intakeSigningForms(tx, version.id);
-    if (listed.length !== INTAKE_SIGNED_FORMS.length) {
-      throw new AppError("INVALID", "On this version F-27 and F-28 are signed one by one, on the Forms tab.", 400);
+    const listed = await formsToSignNow(tx, version.id);
+    if (listed.length === 0) {
+      throw new AppError("INVALID", "On this version the forms are signed one by one, on the Forms tab.", 400);
     }
+    const codes = new Set(listed.map((form) => form.code));
     // Lock both copies, in a fixed order, then read them again: a change made meanwhile is seen.
     for (const id of listed.map((form) => form.instance.id).sort()) {
       await tx.$queryRaw`SELECT id FROM form_instances WHERE id = ${id} FOR UPDATE`;
     }
-    const forms = await intakeSigningForms(tx, version.id);
+    const forms = (await intakeSigningForms(tx, version.id)).filter((form) => codes.has(form.code));
     if (forms.some((form) => form.instance.status !== "DRAFT")) {
       throw new AppError("LOCKED", "This version is submitted and cannot be signed.", 409);
     }
@@ -133,7 +176,7 @@ export async function signIntakeForms(input: { protocolId: string; userId: strin
     const grants = await tx.userRole.findMany({ where: { userId: input.userId, revokedAt: null }, select: { role: { select: { key: true } } } });
     const roles = [...actorRoles(member), ...grants.map((grant) => grant.role.key).filter(isRoleKey)];
 
-    const created: { code: IntakeSignedForm; id: string; verifyRef: string }[] = [];
+    const created: { code: IntakeSignedForm; id: string; verifyRef: string; again: boolean }[] = [];
     for (const form of forms) {
       const slot = researcherSlot(form.schema, roster, input.userId);
       if (!slot) throw new AppError("INVALID", `You have no signature row on ${form.code}.`, 400);
@@ -143,6 +186,7 @@ export async function signIntakeForms(input: { protocolId: string; userId: strin
       }
       const live = await tx.signatureEvent.findFirst({ where: { formInstanceId: form.instance.id, fieldPath: slot.fieldPath, voidedAt: null } });
       if (live) continue;
+      const again = Boolean(await tx.signatureEvent.findFirst({ where: { formInstanceId: form.instance.id, fieldPath: slot.fieldPath, userId: input.userId, voidedAt: { not: null } } }));
       const kind = target.field.signer?.agreement;
       const event = await createSignatureEvent(tx, {
         instance: form.instance,
@@ -156,9 +200,9 @@ export async function signIntakeForms(input: { protocolId: string; userId: strin
         meta: input.meta,
         now,
       });
-      created.push({ code: form.code, id: event.id, verifyRef: event.verifyRef });
+      created.push({ code: form.code, id: event.id, verifyRef: event.verifyRef, again });
     }
-    if (created.length === 0) throw new AppError("ALREADY_SIGNED", "You have already signed F-27 and F-28.", 409);
+    if (created.length === 0) throw new AppError("ALREADY_SIGNED", `You have already signed ${[...codes].join(" and ")}.`, 409);
 
     await audit.record(tx, {
       actorUserId: input.userId,

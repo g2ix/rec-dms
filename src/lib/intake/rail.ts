@@ -31,7 +31,7 @@ export function railSectionOf(itemKey: string): RailKey | null {
   if (itemKey === "intake.scoping") return "participants";
   if (itemKey === "intake.coi") return "coi";
   if (itemKey === "intake.references" || itemKey === "forms.F-35" || itemKey === "forms.F-36") return "references";
-  if (itemKey === "intake.actions" || itemKey === "forms.F-38") return "actions";
+  if (itemKey === "intake.actions" || itemKey === "forms.F-38" || itemKey.startsWith("revision.")) return "actions";
   if (itemKey.startsWith("uploads.")) return "documents";
   // The agreements, the F-27 and F-28 signatures, and any other required form the proponents complete.
   return "sign";
@@ -66,7 +66,7 @@ export const STEP_INTROS: Record<RailKey, string> = {
   coi: "Declare any conflict of interest for F-27.",
   references: "Where each assessment point is in your proposal and consent form.",
   documents: "Upload the files this version needs.",
-  sign: "Each researcher agrees, then signs F-27 and F-28.",
+  sign: "Each researcher agrees, then signs once (F-27 and F-28, or F-38 on a revision).",
 };
 
 /**

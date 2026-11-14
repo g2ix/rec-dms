@@ -146,7 +146,7 @@ async function runExternal(kind: string, payload: unknown): Promise<boolean> {
     const instanceId = stringOf(record.instanceId);
     const userId = stringOf(record.userId);
     if (!instanceId || !userId) return true;
-    await renderFormDocument({ instanceId, format: "pdf", userId });
+    await renderFormDocument({ instanceId, format: "pdf", userId, ...(record.view === "proponent" ? { view: "proponent" as const } : {}) });
     return true;
   }
   const fileId = stringOf(record.fileId);

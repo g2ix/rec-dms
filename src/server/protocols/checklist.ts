@@ -135,7 +135,7 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
       const gap = intake.gaps.find((entry) => entry.section === "agreements" && entry.memberId === researcher.memberId);
       return {
         key: `sign.${researcher.memberId}`,
-        label: `${researcher.name}: agreed and signed F-27 and F-28`,
+        label: `${researcher.name}: agreed and signed ${(intake.signingCodes.length > 0 ? intake.signingCodes : ["F-27", "F-28"]).join(" and ")}`,
         done: !gap,
         hint: gap?.message ?? null,
         href: `${base}/intake#agreements`,
@@ -151,6 +151,10 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
           return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };
         }),
         ...researcherItems,
+        // INTAKE-04: each return comment the proponents have not ticked Done yet.
+        ...intake.gaps
+          .filter((gap) => gap.section === "returnNotes")
+          .map((gap) => ({ key: `revision.note.${gap.detail?.codes[0] ?? ""}`, label: gap.message.replace(/\.$/, ""), done: false, hint: gap.message, href: `${base}/intake#actions` })),
       ],
     });
     // The research type has its own item above, so it is not counted twice.

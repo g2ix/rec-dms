@@ -27,7 +27,9 @@ export function IntakeSigningSection({ protocolId, signing }: { protocolId: stri
   return (
     <div className="rec-stack" data-testid="signing">
       <h3 className="subheading">Sign {andList(codes)}</h3>
-      <p className="body-sm rec-muted">One signature covers both forms. Every researcher signs on their own account.</p>
+      <p className="body-sm rec-muted">
+        {codes.length > 1 ? "One signature covers both forms." : `Your signature goes on ${codes[0] ?? "the form"}.`} Every researcher signs on their own account.
+      </p>
       <div className="rec-table-wrap">
         <table className="rec-table">
           <thead>

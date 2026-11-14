@@ -1,13 +1,15 @@
 import "server-only";
-import { logicIsTrue } from "@/lib/forms/logic";
 import { isRoleKey, ROLE_KEY_LABEL } from "@/lib/forms/roles";
 import { isProponentSideRole, isReviewerAuthor, onProponentSide as isOnProponentSide, REVIEWER_LABEL, seesReviewerNames } from "@/lib/workflow/blinding";
-import { parseGraph, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
+import { parseGraph, type AssigneeRule, type WorkflowGraph } from "@/lib/workflow/graph";
+import { isReleaseStep as isRelease, returnsToProponent, reviewStepKeys } from "@/lib/workflow/review-stage";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { readTransaction, useAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { canViewProtocol } from "@/server/protocols/read";
 import { readRule } from "@/server/workflow/who";
+
+export { returnsToProponent };
 
 export type TaskComment = {
   id: string;
@@ -31,33 +33,6 @@ type Member = { role: string; isLeader: boolean };
 
 const RETURNED = /^returned/i;
 
-export function returnsToProponent(graph: WorkflowGraph, stepKey: string, outcome: string | null): boolean {
-  if (!outcome) return false;
-  return graph.transitions.some((transition) => {
-    if (transition.from !== stepKey || transition.when == null || !logicIsTrue(transition.when, { outcome })) return false;
-    const label = transition.statusLabel ?? graph.steps.find((step) => step.key === transition.to)?.statusLabel;
-    return RETURNED.test(label ?? "");
-  });
-}
-
-/** Steps from the version freeze onward. A graph with no freeze is treated as review from the start. */
-function reviewStepKeys(graph: WorkflowGraph): Set<string> {
-  const queue = graph.steps.filter((step) => step.actions?.some((action) => action.kind === "SNAPSHOT_VERSION")).map((step) => step.key);
-  if (queue.length === 0) return new Set(graph.steps.map((step) => step.key));
-  const seen = new Set(queue);
-  for (const key of queue) {
-    for (const transition of graph.transitions) {
-      if (transition.from !== key || seen.has(transition.to)) continue;
-      seen.add(transition.to);
-      queue.push(transition.to);
-    }
-  }
-  return seen;
-}
-
-function isRelease(step: Step | undefined): boolean {
-  return Boolean(step?.actions?.some((action) => action.kind === "GENERATE_DOCUMENTS"));
-}
 
 function roleLabel(key: string): string {
   return isRoleKey(key) ? ROLE_KEY_LABEL[key] : key;

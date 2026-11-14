@@ -26,14 +26,18 @@ export async function enqueueFileScan(fileId: string, at = new Date()): Promise<
   });
 }
 
-export async function enqueuePdfConversion(instanceId: string, userId: string): Promise<void> {
+export async function enqueuePdfConversion(instanceId: string, userId: string, view?: "proponent"): Promise<void> {
   const open = await prisma.job.findFirst({
-    where: { kind: "CONVERT_PDF", doneAt: null, payload: { path: ["instanceId"], equals: instanceId } },
+    where: {
+      kind: "CONVERT_PDF",
+      doneAt: null,
+      AND: [{ payload: { path: ["instanceId"], equals: instanceId } }, ...(view ? [{ payload: { path: ["view"], equals: view } }] : [])],
+    },
     select: { id: true },
   });
   if (open) return;
   await prisma.job.create({
-    data: { kind: "CONVERT_PDF", payload: { instanceId, userId }, runAt: new Date() },
+    data: { kind: "CONVERT_PDF", payload: { instanceId, userId, ...(view ? { view } : {}) }, runAt: new Date() },
   });
 }
 

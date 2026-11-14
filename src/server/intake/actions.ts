@@ -16,6 +16,8 @@ import { protocolResult } from "@/server/workflow/result";
 import { studyPatchSchema, updateStudyFields } from "@/server/protocols/details";
 import { generatedFormPreview, type GeneratedForm } from "@/server/intake/page";
 import { requireUser } from "@/server/session";
+import { prisma } from "@/server/db";
+import { assertProponentsHold } from "@/server/revision/hold";
 
 const saveSchema = z.object({
   protocolId: z.string().uuid(),
@@ -86,13 +88,14 @@ export async function signIntakeFormsAction(
     if (!user.passwordHash ? parsed.code : parsed.password) {
       await confirmSigningStepUp({ userId: user.id, password: parsed.password, code: parsed.code });
     }
-    const meta = await auditRequestMeta({ forms: ["F-27", "F-28"] });
+    const meta = await auditRequestMeta({});
     const { signed } = await signIntakeForms({ protocolId: parsed.protocolId, userId: user.id, meta });
+    const codes = signed.map((item) => item.code).join(" and ");
     revalidatePath(`/app/protocols/${parsed.protocolId}`, "layout");
     return {
       ok: true,
       result: await protocolResult({
-        title: signed.length === 2 ? "F-27 and F-28 signed." : `${signed[0]?.code ?? "The form"} signed again.`,
+        title: signed.every((item) => item.again) ? `${codes || "The form"} signed again.` : `${codes} signed.`,
         protocolId: parsed.protocolId,
         viewerId: user.id,
         // Signed on the Intake tab: OK stays there, on the signed row (not the Forms tab).
@@ -135,6 +138,8 @@ export async function saveStudyAction(input: unknown): Promise<StudySaveResult> 
     const user = await requireUser();
     const parsed = studySchema.parse(input);
     await authorize(user, "protocol.edit", { type: "protocol", id: parsed.protocolId });
+    // The Study section is part of the version the proponents submit: closed once submitted.
+    await assertProponentsHold(prisma, parsed.protocolId);
     await updateStudyFields(parsed.protocolId, user.id, parsed.patch);
     return { ok: true };
   } catch (error) {

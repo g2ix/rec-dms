@@ -12,8 +12,9 @@ import { manilaDayEnd } from "@/lib/time";
 import { addDuration, manilaDay } from "@/lib/workflow/calendar";
 import { logicIsTrue } from "@/lib/forms/logic";
 import { renderProtocolCode, sequenceFromCode, hasSequenceToken } from "@/lib/protocols/code";
-import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
+import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type Step, type WorkflowGraph, type Transition } from "@/lib/workflow/graph";
 import { pickTransition, stepIsComplete, type LogicData } from "@/lib/workflow/transitions";
+import { settleRevisionNotes } from "@/server/revision/notes";
 import { audit } from "@/server/audit";
 import { prisma, useAppSchema as pinAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
@@ -380,7 +381,9 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
     }
   }
 
-  if (userId) await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId, readSlotAssignments(instance.assignments));
+  if (userId && !chosen?.skipsRequirements) await assertStepReady(tx, instance.protocolVersionId, protocol.id, step, userId, readSlotAssignments(instance.assignments));
+  // INTAKE-04: comments pinned to sections go out with a return, and are dropped otherwise.
+  if (userId) await settleRevisionNotes(tx, { graph, stepKey: step.key, outcome, taskId: task.id, versionId: instance.protocolVersionId, userId });
   // Submitting (completing the start step) fills in the client type the rules suggest, unless REC Staff chose one.
   if (step.key === graph.startStep) await applySuggestedClientType(tx, protocol.id, meta);
   const completedAt = new Date();
@@ -432,7 +435,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
   const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId);
   const next = pickTransition(graph, step.key, logic);
   if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
-  await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
+  await queueTransitionNotice(tx, next, protocol.id, protocol.leaderUserId, userId);
   const fresh = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
   await enterStep(tx, fresh, graph, next.to, userId, meta, outcome, [], next.statusLabel);
   const after = await tx.workflowInstance.findUniqueOrThrow({ where: { id: instance.id } });
@@ -773,7 +776,7 @@ async function enterStep(
     const logic = await logicData(tx, instance.protocolVersionId, protocol, step.key, outcome, instance.parentInstanceId);
     const next = pickTransition(graph, step.key, logic);
     if (!next) throw new AppError("NO_TRANSITION", `“${step.name}” has no matching transition.`, 409);
-    await queueTransitionNotice(tx, next.notify, protocol.id, protocol.leaderUserId);
+    await queueTransitionNotice(tx, next, protocol.id, protocol.leaderUserId, null);
     await enterStep(tx, instance, graph, next.to, actorUserId, meta, outcome, [...trail, step.key]);
     return;
   }
@@ -1317,12 +1320,29 @@ async function saveCaptures(tx: Tx, instanceId: string, step: Step, input: Compl
   await tx.workflowInstance.update({ where: { id: instanceId }, data: { captures: toJson(all) } });
 }
 
-async function queueTransitionNotice(tx: Tx, templateKey: string | undefined, protocolId: string, leaderUserId: string) {
+async function queueTransitionNotice(
+  tx: Tx,
+  transition: Pick<Transition, "notify" | "notifyProponentSide" | "notifyLink">,
+  protocolId: string,
+  leaderUserId: string,
+  actorUserId: string | null,
+) {
+  const templateKey = transition.notify;
   if (!templateKey) return;
+  let userIds = [leaderUserId];
+  if (transition.notifyProponentSide) {
+    const members = await tx.protocolMember.findMany({
+      where: { protocolId, status: "ACTIVE", role: { in: ["PROPONENT", "ADVISER"] }, userId: { not: null } },
+      select: { userId: true },
+    });
+    userIds = [...new Set(members.map((member) => member.userId).filter((id): id is string => Boolean(id) && id !== actorUserId))];
+    if (userIds.length === 0) return;
+  }
+  const link = transition.notifyLink ? `/app/protocols/${protocolId}/${transition.notifyLink}` : undefined;
   await tx.job.create({
     data: {
       kind: "NOTIFY",
-      payload: toJson({ templateKey, userIds: [leaderUserId], protocolId }),
+      payload: toJson({ templateKey, userIds, protocolId, ...(link ? { link } : {}) }),
       runAt: new Date(),
     },
   });

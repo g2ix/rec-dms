@@ -5,6 +5,7 @@ import { AppError } from "@/server/errors";
 import { canViewProtocol } from "@/server/protocols/read";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { stepFacts } from "@/server/reports/steps";
+import { fileAccessAllowed } from "@/server/revision/visibility";
 
 const LOG_ACTIONS = [
   "workflow.instance_started",
@@ -65,6 +66,7 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
           mime: true,
           createdAt: true,
           audience: true,
+          variant: true,
           formInstanceId: true,
           uploadedBy: { select: { id: true, displayName: true } },
         },
@@ -74,6 +76,12 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
         select: { userId: true },
       }),
     ]);
+    // Proponents and advisers of a November protocol see a generated file only when its form is theirs to open.
+    const allowed = new Map<string, boolean>();
+    for (const file of files) {
+      if (staff || !file.formInstanceId) continue;
+      allowed.set(file.id, await fileAccessAllowed(tx, userId, file));
+    }
     const reviewers = new Set(members.map((member) => member.userId).filter((id): id is string => Boolean(id)));
     const release = new Set(facts.releaseKeys);
     const actorName = (userIdOf: string | null | undefined, name: string | null | undefined) => {
@@ -99,7 +107,7 @@ export async function protocolLogbook(userId: string, protocolId: string): Promi
         summary: `${notice.title || notice.type}${notice.emailStatus === "SENT" ? " · emailed" : ""}`,
         actor: actorName(notice.userId, notice.user.displayName),
       })),
-      ...visibleFiles(files, staff).map((file) => ({
+      ...visibleFiles(files, staff).filter((file) => allowed.get(file.id) !== false).map((file) => ({
         id: file.id,
         at: file.createdAt,
         kind: "Document" as const,

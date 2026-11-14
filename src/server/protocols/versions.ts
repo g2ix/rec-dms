@@ -12,6 +12,7 @@ import { formDefinitionForVersion, settingValue, workflowVersionFor } from "@/se
 import { freezeWorkingVersion, sharedSnapshot } from "@/server/protocols/snapshot";
 import { completeLeaderSubmissionTx, completeOpenWaitTx, maybeStartInitial, maybeStartResubmissionTx } from "@/server/workflow/engine";
 import { requiredFormCodes, requiredUploadKinds } from "@/server/protocols/settings";
+import { carryIntakeTx, carryUploads } from "@/server/revision/carry";
 import { formNeedsSignatures, signatureMarks, toRoster } from "@/server/signatures/sign";
 
 export { sharedSnapshot };
@@ -165,6 +166,7 @@ export async function submitVersion(protocolId: string, userId: string) {
 export async function startRevision(protocolId: string, userId: string) {
   const meta = await auditRequestMeta({});
   let startInitial: string | null = null;
+  let carry: { fromVersionId: string; toVersionId: string } | null = null;
   const version = await prisma.$transaction(async (tx) => {
     const member = await tx.protocolMember.findFirst({ where: { protocolId, userId, status: "ACTIVE" } });
     if (!member?.isLeader || member.role !== "PROPONENT") {
@@ -208,6 +210,8 @@ export async function startRevision(protocolId: string, userId: string) {
       });
     }
     await ensureWorkingForms(tx, created.id);
+    // INTAKE-04: the new version starts from the last one's intake and uploads; the old one stays as it was.
+    if (await carryIntakeTx(tx, previous.id, created.id)) carry = { fromVersionId: previous.id, toVersionId: created.id };
     await completeOpenWaitTx(tx, protocolId, userId, "RESUBMITTED", meta);
     const resubmission = await maybeStartResubmissionTx(tx, protocolId, created.id, userId, meta);
     if (!resubmission) await tx.protocol.update({ where: { id: protocolId }, data: { status: "DRAFT" } });
@@ -224,5 +228,7 @@ export async function startRevision(protocolId: string, userId: string) {
     return created;
   }, { timeout: 20_000, maxWait: 10_000 });
   if (startInitial) await maybeStartInitial(protocolId, startInitial, userId);
+  const carried = carry as { fromVersionId: string; toVersionId: string } | null;
+  if (carried) await carryUploads({ protocolId, ...carried, userId, meta });
   return version;
 }

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { AppError } from "@/server/errors";
 import { PdfDownload } from "@/components/docs/pdf-download";
 import { ManuscriptOpenButton, ManuscriptPane } from "@/components/docs/manuscript-pane";
 import { ProtocolForm } from "@/components/protocols/protocol-form";
@@ -19,7 +21,48 @@ export default async function ProtocolFormPage({
 }) {
   const { id, instanceId } = await params;
   const user = await requireUser();
-  const [form, manuscript] = await Promise.all([formForEdit(user.id, id, instanceId), manuscriptForForm(user.id, id, instanceId)]);
+  let loaded: Awaited<ReturnType<typeof formForEdit>>;
+  try {
+    loaded = await formForEdit(user.id, id, instanceId);
+  } catch (error) {
+    // INTAKE-04: a review form the proponents may not open (yet) is refused, with a reason, not a crash.
+    if (error instanceof AppError && error.code === "FORBIDDEN") {
+      return (
+        <section className="rec-card rec-stack" role="alert">
+          <h2 className="heading">Not available</h2>
+          <p className="body">{error.message} The REC releases the review result to you when the decision is out.</p>
+          <p className="body-sm">
+            <Link href={`/app/protocols/${id}/intake`}>Back to the Intake tab</Link>
+          </p>
+        </section>
+      );
+    }
+    if (error instanceof AppError && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+  const form = loaded;
+  const manuscript = await manuscriptForForm(user.id, id, instanceId);
+  // A released review form opens as the copy the REC sent, never as the committee's working copy.
+  if (form.access.kind === "released") {
+    return (
+      <div className="rec-stack">
+        <CrumbLeaf label={form.instance.formDefinition.code} />
+        <p className="body-sm">
+          <span className="code">{form.instance.formDefinition.code}</span>
+          {" · "}
+          {form.instance.formDefinition.title}
+        </p>
+        <p className="body-sm rec-muted">The copy the REC released to you.</p>
+        <div className="rec-actions">
+          <PdfDownload href={`/api/forms/${form.instance.id}/document?format=pdf&disposition=inline`} label="Preview" inline protocolCode={null} />
+          <a className="rec-btn rec-btn--secondary" href={`/api/forms/${form.instance.id}/document?format=docx`}>
+            <span>DOCX</span>
+          </a>
+          <PdfDownload href={`/api/forms/${form.instance.id}/document?format=pdf`} label="PDF" />
+        </div>
+      </div>
+    );
+  }
   // Bound values of this copy's own version: frozen once submitted, live while working.
   const bound = await versionBoundValues(prisma, form.version.id);
   const roles = form.roles.filter(isRoleKey) as RoleKey[];

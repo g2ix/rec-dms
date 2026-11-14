@@ -6,11 +6,10 @@ import { validateSchema, type FormSchema } from "@/lib/forms/schema";
 import { intakeGaps, type ReferencePoint, type ResearcherSignatures } from "@/lib/intake/gaps";
 import { readIntake, type IntakeGap, type IntakeValues } from "@/lib/intake/model";
 import { notApplicablePoints } from "@/lib/intake/scoping";
-import { parseGraph } from "@/lib/workflow/graph";
 import { prisma } from "@/server/db";
 import { formDefinitionForVersion } from "@/server/effective";
 import { scopingRules } from "@/server/intake/bound";
-import { INTAKE_SIGNED_FORMS, intakeSigningForms, researcherSigning } from "@/server/intake/signing";
+import { formsRequiredInOpenStep, formsToSignNow, INTAKE_SIGNED_FORMS, intakeSigningForms, researcherSigning } from "@/server/intake/signing";
 import { toRoster } from "@/server/signatures/sign";
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -33,6 +32,8 @@ export type IntakeState = {
   referencesRequired: boolean;
   /** The active researchers in roster order, with their agreements and F-27 / F-28 signatures. */
   researchers: IntakeResearcher[];
+  /** The forms each researcher signs with one act on this version (F-27 and F-28, or F-38 on a revision). */
+  signingCodes: string[];
   gaps: IntakeGap[];
 };
 
@@ -175,28 +176,36 @@ export async function intakeState(db: Db, versionId: string): Promise<IntakeStat
         actionPoints,
       })
     : [];
-  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, referencesRequired: referencePoints.length > 0, researchers, gaps };
+  const signingCodes = uses ? (await formsToSignNow(db, versionId)).map((form) => form.code as string) : [];
+  // INTAKE-04: each comment of the latest return on this version must be ticked Done before resubmitting.
+  if (uses && version.state === "WORKING") gaps.push(...(await openReturnNotes(db, versionId)));
+  return { usesIntake: uses, versionId, versionNumber: version.number, values, groups, actionPoints, fundingCodes, referencesRequired: referencePoints.length > 0, researchers, signingCodes, gaps };
 }
 
-/**
- * The forms the leader's open step on this version requires to be filled or signed: what the
- * engine checks before that step completes. Empty when no proponent step is open.
- */
-async function formsRequiredInOpenStep(db: Db, versionId: string): Promise<Set<string>> {
-  const instance = await db.workflowInstance.findFirst({
-    where: { protocolVersionId: versionId, status: "RUNNING" },
-    orderBy: { startedAt: "desc" },
-    include: { version: true, tasks: { where: { status: { in: ["OPEN", "CLAIMED"] }, kind: "MAIN" } } },
-  });
-  const graph = instance ? parseGraph(instance.version.graph) : null;
-  if (!instance || !graph?.ok) return new Set();
-  const codes = new Set<string>();
-  for (const task of instance.tasks) {
-    const step = graph.graph.steps.find((item) => item.key === task.stepKey);
-    if (step?.assignee?.kind !== "PROTOCOL_LEADER") continue;
-    for (const form of step.forms ?? []) if (form.required && form.mode !== "VIEW" && !form.slot) codes.add(form.code);
-  }
-  return codes;
+const NOTE_ROLE: Record<string, string> = { ADVISER: "Adviser", REC_STAFF: "REC Staff", PANEL: "Panel" };
+const NOTE_PLACE: Record<string, string> = {
+  general: "the protocol",
+  study: "Study",
+  team: "Team",
+  funding: "Funding and budget",
+  participants: "Participants & consent",
+  coi: "Conflict of interest",
+  references: "Where to find it",
+  documents: "Documents",
+  "upload:MANUSCRIPT": "the manuscript",
+  "upload:COVER_LETTER": "the cover letter",
+  "upload:SUPPORTING": "a supporting file",
+};
+
+async function openReturnNotes(db: Db, versionId: string): Promise<IntakeGap[]> {
+  const latest = await db.revisionNote.findFirst({ where: { protocolVersionId: versionId, taskId: { not: null } }, orderBy: { sentAt: "desc" }, select: { taskId: true } });
+  if (!latest?.taskId) return [];
+  const open = await db.revisionNote.findMany({ where: { protocolVersionId: versionId, taskId: latest.taskId, doneAt: null }, orderBy: { createdAt: "asc" } });
+  return open.map((note) => ({
+    section: "returnNotes" as const,
+    message: `Tick Done on the ${NOTE_ROLE[note.authorRole] ?? "REC"} comment about ${NOTE_PLACE[note.anchor] ?? note.anchor}.`,
+    detail: { codes: [note.id] },
+  }));
 }
 
 /** intakeState of one version, once per request: the page, the checklist and the layout share it. */

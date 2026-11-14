@@ -23,8 +23,11 @@ export function IntakeRail({
   onSelect,
   alsoNeeded,
   overviewHref,
+  flags = {},
 }: {
   sections: RailSection[];
+  /** INTAKE-04: sections a returner commented on, with who ("Adviser", "REC Staff"). Shown as a red "!". */
+  flags?: Partial<Record<RailKey, string[]>>;
   current: string;
   onSelect: (key: RailKey) => void;
   /** "Account approval by REC Staff · 1 detail · 4 forms": the checklist outside these steps. Null hides the box. */
@@ -65,6 +68,11 @@ export function IntakeRail({
                   {left === 0 ? <Icon icon={Check} size={14} /> : index + 1}
                 </span>
                 <span className="rec-intake-rail__label">{section.label}</span>
+                {flags[section.key]?.length ? (
+                  <span className="rec-flag" title={`Comment from the ${flags[section.key]!.join(" and ")}`} aria-label={`Comment from the ${flags[section.key]!.join(" and ")}`} data-testid={`rail-flag-${section.key}`}>
+                    !
+                  </span>
+                ) : null}
                 <RailStatus missing={left} />
               </a>
             </li>

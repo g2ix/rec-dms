@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { AppError } from "@/server/errors";
+import { assertProponentsHold } from "@/server/revision/hold";
 
 type Tx = Prisma.TransactionClient;
 
@@ -16,5 +17,7 @@ export async function proponentOn(tx: Tx, protocolId: string, userId: string) {
 export async function workingVersion(tx: Tx, protocolId: string) {
   const version = await tx.protocolVersion.findFirst({ where: { protocolId, state: "WORKING" } });
   if (!version) throw new AppError("LOCKED", "This version is submitted and cannot be edited.", 409);
+  // INTAKE-04: submitted to the adviser or REC, the version is not the proponents' to change.
+  await assertProponentsHold(tx, protocolId);
   return version;
 }

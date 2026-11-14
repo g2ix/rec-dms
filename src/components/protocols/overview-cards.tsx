@@ -12,6 +12,8 @@ const STAGE_OF: Record<string, Stage> = {
   DRAFT: "Prepare",
   Draft: "Prepare",
   "Returned (incomplete)": "Prepare",
+  Returned: "Prepare",
+  "With Adviser": "Prepare",
   SUBMITTED: "Screening",
   Submitted: "Screening",
   "Under Screening": "Screening",

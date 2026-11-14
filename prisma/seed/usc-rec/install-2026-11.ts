@@ -74,6 +74,8 @@ async function immediateSettings(prisma: PrismaClient): Promise<void> {
     { key: "meetings.schedule", value: { default: { weekday: 5, week: 2, cutoffDays: 14 } } },
     // INTAKE-01: scoping answers that mark F-35 and F-36 points N/A. Read only by 11-01 forms.
     { key: "intake.scopingRules", value: SCOPING_RULES_11, replaces: [SCOPING_RULES_11_INTAKE01] },
+    // INTAKE-04: the review forms proponents and advisers may open once released, as the release copy only.
+    { key: "revision.releasedForms", value: ["F-37", "F-38", "F-39", "F-40", "F-42"] },
   ];
   for (const row of rows) {
     const existing = await prisma.setting.findUnique({ where: { key: row.key } });

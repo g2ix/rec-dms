@@ -272,7 +272,7 @@ describe("USC REC seed, November 2026 process", () => {
       expect(run.error).toBeNull();
       return run.stops.map((stop) => stop.stepKey);
     };
-    const screened: [string, string][] = [["staff_screening", "ACCEPT"]];
+    const screened: [string, string][] = [["adviser_check", "FORWARD"], ["staff_screening", "ACCEPT"]];
     const approved: [string, string][] = [["staff_release", "RELEASE"]];
     expect(walk(initialSubmission2026, [...screened, ["determine_review", "EXEMPT"], ["exempt_payment", "VERIFIED"]]).at(-1)).toBe("end_exempted");
     const corrected = walk(initialSubmission2026, [...screened, ["determine_review", "EXEMPT_RECOMMENDATIONS"], ["exemption_recheck", "QUALIFIED"], ["exempt_payment", "VERIFIED"]]);
@@ -290,9 +290,15 @@ describe("USC REC seed, November 2026 process", () => {
     const minor = walk(resubmission2026, [["staff_screening", "ACCEPT"], ["chair_decide", "APPROVED"], ...approved], { parentDecision: "MINOR", round: 2, hasAdviser: false });
     expect(minor).not.toContain("meeting_outcome");
     expect(minor.at(-1)).toBe("end_approved");
-    const major = walk(resubmission2026, [["staff_screening", "ACCEPT"], ["chair_decide", "MINOR"], ["meeting_outcome", "MAJOR"], ...approved, ["await_revision", "RESUBMITTED"]], { parentDecision: "MAJOR", round: 3 });
+    const major = walk(resubmission2026, [["adviser_review", "FORWARD"], ["staff_screening", "ACCEPT"], ["chair_decide", "MINOR"], ["meeting_outcome", "MAJOR"], ...approved, ["await_revision", "RESUBMITTED"]], { parentDecision: "MAJOR", round: 3 });
     expect(major).toEqual(expect.arrayContaining(["adviser_review", "bill_round", "meeting_outcome"]));
     expect(major.at(-1)).toBe("end_resubmitted");
+    // INTAKE-04: the adviser checks first when there is one, and can return to the proponents.
+    const returned = walk(initialSubmission2026, [["adviser_check", "RETURN"]]);
+    expect(returned.slice(0, 3)).toEqual(["proponent_submit", "adviser_check", "proponent_submit"]);
+    expect(walk(initialSubmission2026, [["staff_screening", "ACCEPT"]], { hasAdviser: false })).not.toContain("adviser_check");
+    const revisionReturned = walk(resubmission2026, [["adviser_review", "RETURN"]], { parentDecision: "MINOR", round: 2 });
+    expect(revisionReturned.slice(0, 3)).toEqual(["proponent_revise", "adviser_review", "proponent_revise"]);
   });
 
   it("publishes the 2026 versions beside the 2025 ones, so a protocol started earlier keeps its versions", async () => {

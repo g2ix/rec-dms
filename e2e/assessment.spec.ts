@@ -150,6 +150,8 @@ test("F-37 shows only the points flagged as needing action", async ({ page }) =>
   const protocol = await prisma.protocol.create({
     data: {
       title: `E2E summary ${crypto.randomUUID().slice(0, 8)}`,
+      // On the 2025 process: a November protocol refuses an unreleased F-37 to its proponents (INTAKE-04).
+      createdAt: new Date("2026-11-01T00:00:00+08:00"),
       leaderUserId: userId,
       createdById: userId,
       institution: "University of San Carlos",

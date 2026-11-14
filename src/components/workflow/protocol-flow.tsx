@@ -2,6 +2,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ActionForm } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { TaskCommentList } from "@/components/workflow/task-comments";
+import { ReturnNotes } from "@/components/workflow/return-notes";
+import { returnNotesPanel } from "@/server/revision/notes";
 import { dueState } from "@/lib/workflow/due";
 import { formatManila } from "@/lib/time";
 import { isCommitteeStaff } from "@/server/authz/staff";
@@ -74,6 +76,7 @@ export async function ProtocolFlow({
       {flow.mine.map((task) =>
         task.step && task.step.type !== "WAIT_PROPONENT" ? (
           <div key={task.id} className="rec-stack">
+            {task.assigneeUserId != null && !task.side && !task.redesignate ? <ReturnNotesFor protocolId={protocolId} userId={userId} taskId={task.id} /> : null}
             <TaskForm protocolId={protocolId} task={task} unclaimed={task.assigneeUserId == null} />
             {task.canDeclareConflict && task.assigneeUserId ? <ConflictForm protocolId={protocolId} taskId={task.id} /> : null}
           </div>
@@ -87,6 +90,13 @@ export async function ProtocolFlow({
       <TaskCommentList comments={comments} level="h3" />
     </section>
   );
+}
+
+/** INTAKE-04: the returner pins comments to sections before choosing a return outcome. */
+async function ReturnNotesFor({ protocolId, userId, taskId }: { protocolId: string; userId: string; taskId: string }) {
+  const panel = await returnNotesPanel(userId, protocolId);
+  if (!panel || panel.taskId !== taskId) return null;
+  return <ReturnNotes protocolId={protocolId} anchors={panel.anchors} drafts={panel.drafts} />;
 }
 
 function roleOf(value: unknown): string | null {

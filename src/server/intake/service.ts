@@ -1,4 +1,5 @@
 import "server-only";
+import { proponentsHoldVersion } from "@/server/revision/hold";
 import { Prisma, type IntakeAgreementKind } from "@prisma/client";
 import { AuditAction } from "@/lib/audit-log";
 import type { SaveConflict } from "@/lib/forms/conflict";
@@ -336,7 +337,8 @@ export async function readIntakeView(protocolId: string, userId: string): Promis
     protocolId,
     versionId: version?.id ?? null,
     versionNumber: version?.number ?? null,
-    editable: Boolean(version && version.state === "WORKING" && member?.role === "PROPONENT"),
+    // INTAKE-04: once submitted to the adviser or REC, the version is read-only until it is returned.
+    editable: Boolean(version && version.state === "WORKING" && member?.role === "PROPONENT" && (await proponentsHoldVersion(prisma, protocolId))),
     revision: version?.intake?.revision ?? 0,
     values: readIntake(version?.intake ?? null),
     mine: {

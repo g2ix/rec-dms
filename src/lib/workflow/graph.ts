@@ -102,6 +102,8 @@ const outcomeSchema = z.object({
   label: z.string().min(1),
   /** The comment box is required when this outcome is chosen, for example a reason to decline. */
   requiresComment: z.boolean().optional(),
+  /** The step's forms, signatures and uploads are not required for this outcome, for example a return to the proponents. */
+  skipsRequirements: z.boolean().optional(),
 });
 
 const reviewerSlotSchema = z.object({
@@ -266,6 +268,10 @@ export const transitionSchema = z.object({
   statusLabel: z.string().min(1).optional(),
   /** Template sent to the project leader when this transition is taken, such as a return. */
   notify: z.string().min(1).optional(),
+  /** Send `notify` to every proponent and the adviser on the protocol (not the person acting), not only the leader. */
+  notifyProponentSide: z.boolean().optional(),
+  /** Where the notice links, under the protocol, such as "intake#returned". Defaults to the protocol page. */
+  notifyLink: z.string().min(1).optional(),
 });
 
 export type Transition = z.infer<typeof transitionSchema>;

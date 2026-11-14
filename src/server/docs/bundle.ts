@@ -1,4 +1,5 @@
 import "server-only";
+import { formAccess, releasedFile } from "@/server/revision/visibility";
 import { AuditAction } from "@/lib/audit-log";
 import { applyFileNamePattern, defaultFileNameSetting, officialFormFileName, PACKAGE_PARTS, type FileNameSetting } from "@/lib/docs/names";
 import { copyName, mergePdfs, notePdf, zipFiles } from "@/lib/docs/package";
@@ -69,11 +70,20 @@ export async function buildProtocolPackage(input: {
       for (let index = 0; index < matches.length; index += 1) {
         const match = matches[index];
         if (!match) continue;
-        const rendered = await renderFormDocument({
-          instanceId: match.id,
-          format: "pdf",
-          userId: input.userId,
-        });
+        // Proponents and advisers get only what they may open: their own copy without the
+        // reviewer columns, or the release copy. A form they may not open is left out.
+        const access = await formAccess(prisma, input.userId, match.id);
+        if (access.kind === "denied") continue;
+        const releasedCopy = access.kind === "released" ? releasedFile(access, "pdf") : null;
+        if (access.kind === "released" && !releasedCopy) continue;
+        const rendered = releasedCopy
+          ? { bytes: Buffer.from((await getObjectBytes(releasedCopy.storageKey)).body) }
+          : await renderFormDocument({
+              instanceId: match.id,
+              format: "pdf",
+              userId: input.userId,
+              ...(access.kind === "own" ? { view: "proponent" as const } : {}),
+            });
         const name = copyName(
           officialFormFileName(setting, part.code, "pdf"),
           index,

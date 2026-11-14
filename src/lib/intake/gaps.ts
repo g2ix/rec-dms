@@ -91,7 +91,7 @@ export function intakeGaps(input: {
   return gaps;
 }
 
-export type ResearcherSignatures = Partial<Record<"F-27" | "F-28", "signed" | "void" | "unsigned">>;
+export type ResearcherSignatures = Partial<Record<"F-27" | "F-28" | "F-38", "signed" | "void" | "unsigned">>;
 
 /** "Ana Cruz still needs to agree to the F-27 declarations, then sign F-27 and F-28." Null when done. */
 export function researcherGap(researcher: { name: string; declarationsAt: string | null; consentsAt: string | null; signatures?: ResearcherSignatures }): string | null {

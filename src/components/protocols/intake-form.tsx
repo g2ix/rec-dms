@@ -10,6 +10,7 @@ import { IntakeRail, STEP_EVENT } from "@/components/protocols/intake/rail";
 import { useSubmissionChecklist } from "@/components/protocols/submission-checklist";
 import { FundingSources, StudyFields, useStudySaver } from "@/components/protocols/intake/study-section";
 import { SubmitBar } from "@/components/protocols/intake/submit-bar";
+import { ReturnedView, type ReturnedData, type ReturnedNote } from "@/components/protocols/intake/returned-view";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Radio, RadioGroup } from "@/components/ui/radio";
@@ -114,9 +115,16 @@ export function IntakeForm({
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
   }, []);
 
-  const queue = useMemo<AutosaveQueue | null>(() => {
-    if (!editable) return null;
-    return createAutosaveQueue({
+  // Created in an effect, not a memo: the cleanup disposes the queue it made, so a remount (React's
+  // development double mount, or a re-render after hydration) starts a live queue instead of
+  // keeping a disposed one that drops every save.
+  const [queue, setQueue] = useState<AutosaveQueue | null>(null);
+  useEffect(() => {
+    if (!editable) {
+      setQueue(null);
+      return;
+    }
+    const created = createAutosaveQueue({
       getRevision: () => revision.current,
       save: async ({ path, value, expectedRevision }) => saveIntakeAction({ protocolId, section: path, value, expectedRevision }),
       keepaliveSave: ({ fields, expectedRevision }) => postKeepalive(`/api/protocols/${protocolId}/intake`, keepaliveSavePayload({ fields, expectedRevision })),
@@ -131,8 +139,9 @@ export function IntakeForm({
         onSignaturesVoided: () => router.refresh(),
       },
     });
+    setQueue(created);
+    return () => created.dispose();
   }, [editable, protocolId, router, refreshSoon]);
-  useEffect(() => () => queue?.dispose(), [queue]);
   useAutosaveLifecycle(queue, editable);
   const saver = useStudySaver(protocolId, page.canEditStudy);
 
@@ -168,7 +177,22 @@ export function IntakeForm({
   const missingOf = (key: RailKey) => rail(key)?.missing.length ?? 0;
   const missingList = (key: RailKey) => <MissingList items={rail(key)?.missing ?? []} gaps={gaps} />;
   const steps = useMemo(() => page.rail.map((section) => section.key), [page.rail]);
-  const [current, setCurrent] = useState<RailKey | "preview">(() => firstMissingSection(page.rail) ?? steps[0] ?? "study");
+  const [current, setCurrent] = useState<RailKey | "preview">(() => (page.returned ? "actions" : firstMissingSection(page.rail) ?? steps[0] ?? "study"));
+  // Return comments by the section they are about: a red "!" on the rail and the comment at the top of the step.
+  const notesBySection = useMemo(() => {
+    const out: Partial<Record<RailKey, ReturnedNote[]>> = {};
+    for (const note of page.returned?.notes ?? []) {
+      if (!note.section) continue;
+      const key = note.section as RailKey;
+      (out[key] ??= []).push(note);
+    }
+    return out;
+  }, [page.returned]);
+  const flags = useMemo(() => {
+    const out: Partial<Record<RailKey, string[]>> = {};
+    for (const [key, notes] of Object.entries(notesBySection)) out[key as RailKey] = [...new Set((notes ?? []).filter((note) => !note.done).map((note) => note.roleLabel))];
+    return out;
+  }, [notesBySection]);
   // Steps the person has opened and left: going back to one shows its empty required fields.
   const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const stepRef = useRef<HTMLDivElement>(null);
@@ -261,13 +285,18 @@ export function IntakeForm({
     return new Set(gaps.find((gap) => gap.section === "references")?.detail?.codes ?? []);
   }, [gaps, revisit, values.references]);
   const title = current === "preview" ? "Preview forms" : (rail(current)?.label ?? "");
-  const intro = current === "preview" ? "Filled from your answers. Read-only: change a value where you answer it." : STEP_INTROS[current];
+  const intro =
+    current === "preview"
+      ? "Filled from your answers. Read-only: change a value where you answer it."
+      : current === "actions" && page.returned
+        ? "What happened, what to fix, and where your resubmission goes next."
+        : STEP_INTROS[current];
 
   return (
     <div className="rec-intake">
       {!editable ? <p className="rec-alert" role="status">This version is submitted, or you are not a proponent on it. The answers are shown read-only.</p> : null}
       <div className="rec-intake__grid">
-        <IntakeRail sections={page.rail} current={current} onSelect={open} alsoNeeded={alsoNeeded} overviewHref={`/app/protocols/${protocolId}`} />
+        <IntakeRail sections={page.rail} current={current} onSelect={open} alsoNeeded={alsoNeeded} overviewHref={`/app/protocols/${protocolId}`} flags={flags} />
 
         <div className="rec-intake__body" ref={stepRef}>
           <div className="rec-intake-step__head">
@@ -288,10 +317,36 @@ export function IntakeForm({
           </div>
 
           <section id={current} className="rec-card rec-intake-card" aria-labelledby="step-heading" data-testid={current === "team" ? "team-section" : undefined}>
-            {current === "actions" ? (
+            {current !== "preview" && current !== "actions" && notesBySection[current]?.length ? (
+              <ul className="rec-fix-rows rec-fix-rows--inline" aria-label="Comments on this section">
+                {notesBySection[current]!.map((note) => (
+                  <li key={note.id} className="rec-fix-row" data-testid="section-note" data-done={note.done || undefined}>
+                    <p className="label">
+                      <span className="rec-flag" aria-hidden="true">
+                        !
+                      </span>{" "}
+                      {note.roleLabel}
+                      {note.done ? " · Done" : ""}
+                    </p>
+                    <p className="body-sm rec-pre-wrap">{note.body}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {current === "actions" && page.returned ? (
+              <ReturnedView
+                protocolId={protocolId}
+                data={page.returned}
+                actions={values.actions}
+                onAction={editable ? (code, value) => change("actions", { ...values, actions: { ...values.actions, [code]: value } }) : null}
+                status={status("actions")}
+                maxBytes={page.documents.maxBytes}
+              />
+            ) : current === "actions" ? (
               actionPoints.length > 0 ? (
                 <>
-                  <p className="body-sm rec-muted">For each point the panel flagged, say what you changed and where (page and paragraph number). Every researcher, then the adviser, signs F-38 on the Forms tab.</p>
+                  <p className="body-sm rec-muted">For each point the panel flagged, say what you changed and where (page and paragraph number). Every researcher signs F-38 under Agree and sign; then the adviser signs it.</p>
                   {actionPoints.map((point) => (
                     <div key={point.code} className="rec-field rec-field--wide">
                       <label className="rec-field__label" htmlFor={`action-${point.code}`}>
@@ -519,6 +574,8 @@ export type IntakePageProps = {
     canUpload: boolean;
   };
   forms: PreviewForm[];
+  /** INTAKE-04: set on a returned protocol. The "actions" step becomes "Returned for revision". */
+  returned?: ReturnedData | null;
   signing: IntakeSigningView | null;
 };
 

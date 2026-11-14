@@ -204,6 +204,21 @@ function generate(signerFrom: string[]) {
 
 const releaseOutcome = [{ key: "RELEASE", label: "Release to the researcher" }];
 
+/**
+ * INTAKE-04: the adviser checks the protocol before REC sees it. "Return" sends it back to the
+ * proponents on the same version, with comments on the sections; nothing needs signing to return.
+ * "Forward" sends it to REC Staff.
+ */
+const adviserOutcomes = [
+  { key: "FORWARD", label: "No changes needed: forward to REC" },
+  { key: "RETURN", label: "Return to the proponents for changes", skipsRequirements: true },
+];
+/** Every return tells the proponents and the adviser, and links to the Returned for revision page. */
+const returnedNotice = { notify: "protocol.returned_for_revision", notifyProponentSide: true, notifyLink: "intake" };
+const adviserNotice = { onAssigned: "revision.ready_for_adviser" };
+const hasAdviser = { "==": [{ var: "protocol.hasAdviser" }, true] };
+const noAdviser = { "==": [{ var: "protocol.hasAdviser" }, false] };
+
 /** Reviewer names and signatures are left out of the F-38 copy the researcher receives. */
 const F38_REDACTED = {
   item: "F-38",
@@ -321,6 +336,15 @@ const initialGraph: WorkflowGraph = {
         { kind: "MANUSCRIPT", required: true },
         { kind: "COVER_LETTER", required: true },
       ],
+    },
+    {
+      key: "adviser_check",
+      name: "Adviser checks the protocol",
+      type: "TASK",
+      assignee: adviser,
+      statusLabel: "With Adviser",
+      outcomes: adviserOutcomes,
+      notify: adviserNotice,
     },
     {
       key: "staff_screening",
@@ -543,16 +567,19 @@ const initialGraph: WorkflowGraph = {
     ...closingSteps,
   ],
   transitions: [
-    { from: "proponent_submit", to: "staff_screening" },
+    { from: "proponent_submit", to: "adviser_check", when: hasAdviser, label: "To the adviser" },
+    { from: "proponent_submit", to: "staff_screening", when: noAdviser, label: "To REC" },
+    { from: "adviser_check", to: "staff_screening", when: eq("FORWARD"), label: "Forward" },
+    { from: "adviser_check", to: "proponent_submit", when: eq("RETURN"), label: "Return", statusLabel: "Returned", ...returnedNotice },
     { from: "staff_screening", to: "assign_code", when: eq("ACCEPT"), label: "Accept" },
-    { from: "staff_screening", to: "proponent_submit", when: eq("RETURN_INCOMPLETE"), label: "Return", statusLabel: "Returned" },
+    { from: "staff_screening", to: "proponent_submit", when: eq("RETURN_INCOMPLETE"), label: "Return", statusLabel: "Returned", ...returnedNotice },
     { from: "assign_code", to: "determine_review" },
     { from: "determine_review", to: "bill_exempt", when: eq("EXEMPT"), label: "Exempt" },
-    { from: "determine_review", to: "exempt_revise", when: eq("EXEMPT_RECOMMENDATIONS"), label: "Exempt with recommendations" },
+    { from: "determine_review", to: "exempt_revise", when: eq("EXEMPT_RECOMMENDATIONS"), label: "Exempt with recommendations", ...returnedNotice },
     { from: "determine_review", to: "bill_review", when: outcomeIn(["EXPEDITED", "FULL"]), label: "Expedited or full" },
     { from: "exempt_revise", to: "exemption_recheck" },
     { from: "exemption_recheck", to: "bill_exempt", when: eq("QUALIFIED"), label: "Qualified" },
-    { from: "exemption_recheck", to: "exempt_revise", when: eq("RECOMMENDATIONS"), label: "More recommendations" },
+    { from: "exemption_recheck", to: "exempt_revise", when: eq("RECOMMENDATIONS"), label: "More recommendations", ...returnedNotice },
     { from: "exemption_recheck", to: "determine_review", when: eq("NOT_QUALIFIED"), label: "Not qualified" },
     { from: "bill_exempt", to: "exempt_payment" },
     { from: "exempt_payment", to: "exempt_sign" },
@@ -573,7 +600,7 @@ const initialGraph: WorkflowGraph = {
     { from: "staff_prepare_certificate", to: "chair_sign_certificate" },
     { from: "chair_sign_certificate", to: "staff_release" },
     { from: "staff_release", to: "proponent_conform", when: initialFinal("APPROVED"), label: "Approved" },
-    { from: "staff_release", to: "await_revision", when: initialFinalIn(["MINOR", "MAJOR"]), label: "Modifications" },
+    { from: "staff_release", to: "await_revision", when: initialFinalIn(["MINOR", "MAJOR"]), label: "Modifications", ...returnedNotice },
     { from: "staff_release", to: "end_disapproved", when: initialFinal("DISAPPROVED"), label: "Disapproved" },
     ...closingTransitions,
   ],
@@ -612,6 +639,8 @@ const resubmissionGraph: WorkflowGraph = {
       assignee: adviser,
       statusLabel: "Resubmitted",
       forms: [sign("F-38")],
+      outcomes: adviserOutcomes,
+      notify: adviserNotice,
     },
     {
       key: "staff_screening",
@@ -702,11 +731,12 @@ const resubmissionGraph: WorkflowGraph = {
     ...closingSteps.map((step) => (step.key === "await_revision" ? { ...step, name: "Await another revision" } : step)),
   ],
   transitions: [
-    { from: "proponent_revise", to: "adviser_review", when: { "==": [{ var: "protocol.hasAdviser" }, true] } },
-    { from: "proponent_revise", to: "staff_screening", when: { "==": [{ var: "protocol.hasAdviser" }, false] } },
-    { from: "adviser_review", to: "staff_screening" },
+    { from: "proponent_revise", to: "adviser_review", when: hasAdviser },
+    { from: "proponent_revise", to: "staff_screening", when: noAdviser },
+    { from: "adviser_review", to: "staff_screening", when: eq("FORWARD"), label: "Forward" },
+    { from: "adviser_review", to: "proponent_revise", when: eq("RETURN"), label: "Return", statusLabel: "Returned", ...returnedNotice },
     { from: "staff_screening", to: "freeze_version", when: eq("ACCEPT") },
-    { from: "staff_screening", to: "proponent_revise", when: eq("RETURN_INCOMPLETE"), statusLabel: "Returned" },
+    { from: "staff_screening", to: "proponent_revise", when: eq("RETURN_INCOMPLETE"), statusLabel: "Returned", ...returnedNotice },
     { from: "freeze_version", to: "bill_round" },
     { from: "bill_round", to: "reviewer_assess" },
     { from: "reviewer_assess", to: "chair_decide" },
@@ -718,7 +748,7 @@ const resubmissionGraph: WorkflowGraph = {
     { from: "staff_prepare_certificate", to: "chair_sign_certificate" },
     { from: "chair_sign_certificate", to: "staff_release" },
     { from: "staff_release", to: "proponent_conform", when: resubmissionFinal("APPROVED"), label: "Approved" },
-    { from: "staff_release", to: "await_revision", when: resubmissionFinalIn(["MINOR", "MAJOR"]), label: "Modifications" },
+    { from: "staff_release", to: "await_revision", when: resubmissionFinalIn(["MINOR", "MAJOR"]), label: "Modifications", ...returnedNotice },
     { from: "staff_release", to: "end_disapproved", when: resubmissionFinal("DISAPPROVED"), label: "Disapproved" },
     ...closingTransitions,
   ],

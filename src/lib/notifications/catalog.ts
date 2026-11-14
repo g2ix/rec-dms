@@ -82,6 +82,22 @@ export const TEMPLATES: NoticeTemplate[] = [
     variables: ["recipientName", "protocolCode", "protocolTitle", "link"],
   },
   {
+    key: "protocol.returned_for_revision",
+    subject: "Your protocol was returned for revision",
+    bodyMarkdown: "{{protocolCode}} — {{protocolTitle}} was returned for revision. See what to fix, then sign and resubmit.\n\n[Open the revision page]({{link}})",
+    channels: ["IN_APP", "EMAIL"],
+    description: "Sent to the proponents and the adviser when the adviser or REC Staff returns a protocol, or when REC Staff release a decision that needs revision.",
+    variables: ["recipientName", "protocolCode", "protocolTitle", "link"],
+  },
+  {
+    key: "revision.ready_for_adviser",
+    subject: "Resubmission ready for your check",
+    bodyMarkdown: "The proponents of {{protocolCode}} — {{protocolTitle}} submitted their changes. Check them, then forward to REC or return them.\n\n[Open the task]({{link}})",
+    channels: ["IN_APP", "EMAIL"],
+    description: "Sent to the adviser when the proponents submit and the next step is the adviser's check.",
+    variables: ["recipientName", "protocolCode", "protocolTitle", "link"],
+  },
+  {
     key: "protocol.decision_released",
     subject: "Decision released: {{protocolTitle}}",
     bodyMarkdown: "The decision on {{protocolCode}} — {{protocolTitle}} has been released.\n\n{{decision}}\n\n[Open the protocol]({{link}})",

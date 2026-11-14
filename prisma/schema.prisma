@@ -484,11 +484,39 @@ model ProtocolVersion {
   signatureEvents   SignatureEvent[]
   workflowInstances WorkflowInstance[]
   intake            ProtocolIntake?
+  revisionNotes     RevisionNote[]
 
   @@unique([protocolId, number])
   @@index([protocolId, state])
   @@index([submittedAt])
   @@map("protocol_versions")
+}
+
+/// INTAKE-04: a comment the adviser, REC Staff or the Panel Chair pins to one intake section or
+/// upload when returning a protocol. A draft (taskId null) is the author's own until the return
+/// goes out; the proponents then tick it Done and may reply. Reviewer comments never come here.
+model RevisionNote {
+  id                String    @id @default(uuid())
+  protocolVersionId String    @map("protocol_version_id")
+  authorId          String    @map("author_id")
+  /// ADVISER, REC_STAFF or PANEL (shown to the proponents as "Adviser", "REC Staff" or "Panel").
+  authorRole        String    @map("author_role")
+  /// An Intake rail section ("study", "coi", …), "upload:<FILE KIND>", or "general".
+  anchor            String
+  body              String
+  /// The return task it went out with. Null while it is a draft.
+  taskId            String?   @map("task_id")
+  sentAt            DateTime? @map("sent_at")
+  doneAt            DateTime? @map("done_at")
+  doneById          String?   @map("done_by_id")
+  reply             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  protocolVersion ProtocolVersion @relation(fields: [protocolVersionId], references: [id], onDelete: Cascade)
+
+  @@index([protocolVersionId, taskId])
+  @@map("revision_notes")
 }
 
 /// Object-storage pointer. Named StoredFile so it does not clash with the DOM File type.
@@ -569,6 +597,8 @@ model StoredFile {
   audience       String?
   /// A render variant of the same revision, such as a redacted release copy.
   variant        String?
+  /// INTAKE-04: the file of the previous version this upload was carried over from (a copy of its bytes).
+  carriedFromId  String? @map("carried_from_id")
 
   protocolVersion ProtocolVersion? @relation(fields: [protocolVersionId], references: [id])
   formInstance    FormInstance?    @relation(fields: [formInstanceId], references: [id], onDelete: SetNull)

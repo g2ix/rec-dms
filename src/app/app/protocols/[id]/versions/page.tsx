@@ -1,4 +1,7 @@
+import { PdfDownload } from "@/components/docs/pdf-download";
+import { formatManila } from "@/lib/time";
 import { diffVersions, listVersions } from "@/server/protocols/read";
+import { versionHistory } from "@/server/revision/history";
 import { requireUser } from "@/server/session";
 
 export default async function ProtocolVersionsPage({
@@ -15,8 +18,56 @@ export default async function ProtocolVersionsPage({
   const left = query.left && versions.some((version) => version.id === query.left) ? query.left : versions[0]?.id;
   const right = query.right && versions.some((version) => version.id === query.right) ? query.right : versions[versions.length - 1]?.id;
   const changes = left && right && left !== right ? await diffVersions(user.id, id, left, right) : [];
+  const history = await versionHistory(user.id, id);
   return (
     <div className="rec-stack">
+      <section className="rec-stack" aria-labelledby="history-heading">
+        <h2 id="history-heading" className="heading">
+          Versions
+        </h2>
+        <ol className="rec-version-list" data-testid="version-history">
+          {history.map((version) => (
+            <li key={version.id} className="rec-card rec-stack" data-testid={`version-${version.number}`}>
+              <h3 className="subheading">
+                Version {version.number} <span className="code rec-muted">{version.label}</span>
+                {version.state === "WORKING" ? <span className="caption rec-muted"> · being prepared</span> : null}
+              </h3>
+              <ul className="rec-fix-rows">
+                {version.events.map((event, index) => (
+                  <li key={index} className="body-sm">
+                    {formatManila(event.at, "d MMM yyyy")} · {event.label} · <span className="rec-muted">{event.by}</span>
+                  </li>
+                ))}
+              </ul>
+              {version.forms.length > 0 ? (
+                <ul className="rec-preview-rows" aria-label={`Forms of version ${version.number}`}>
+                  {version.forms.map((form) => (
+                    <li key={form.instanceId} className="rec-preview-row">
+                      <div className="rec-preview-row__name">
+                        <span className="code">{form.code}</span>
+                        <span className="body-sm">
+                          {form.title}
+                          {form.released ? " · as released" : ""}
+                        </span>
+                      </div>
+                      <div className="rec-preview-row__actions">
+                        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${form.instanceId}/document?format=pdf&disposition=inline`} target="_blank" rel="noopener">
+                          <span>Print</span>
+                        </a>
+                        <a className="rec-btn rec-btn--secondary" href={`/api/forms/${form.instanceId}/document?format=docx`}>
+                          <span>DOCX</span>
+                        </a>
+                        <PdfDownload href={`/api/forms/${form.instanceId}/document?format=pdf`} label="PDF" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </section>
+      <h2 className="heading">Compare versions</h2>
       <form className="rec-form" method="get">
         <label className="label" htmlFor="left">
           From version

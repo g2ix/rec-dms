@@ -1,5 +1,78 @@
 # Changelog
 
+## INTAKE-04 — The "Returned for revision" page (2026-11-14)
+
+When a protocol on the November forms comes back, the proponents open one page that says what happened, what to fix and where the resubmission goes. They answer only the flagged items, then sign and resubmit. F-38 is printed from it. Protocols on the 2025 forms (09-01 / 10-01) keep their return flow; none of the rules below apply to them.
+
+**Who sees what, and when (enforced on the server).** One rule, `formAccess` (`src/server/revision/visibility.ts`), decides what a proponent or adviser may open. The form page, the document route (`/api/forms/[id]/document`), the preview action, file downloads by id, the logbook, the protocol package, the Forms list, the Versions compare and the history all go through it. A refused form is 403 ("This form is not available to you.").
+- The version being prepared (a first draft, or one returned to them): their own copies, printed and previewed without the columns hidden from their roles. Before, a proponent's DOCX or PDF of F-35 or F-36 was the full render, reviewer columns and names included. It is now its own variant (`proponent-view`).
+- Review forms (any form on a review-stage step that is not the proponents' or the adviser's, read from the workflow: F-31, F-35, F-36, F-37, F-38's remarks, F-39…) and every reviewer's own copy are refused. This holds from submission through review and the chair's endorsement, until REC Staff release the decision. While the review runs the proponents see the status only; review comments were already held back until release.
+- Once released, a form listed in the new setting `revision.releasedForms` opens, as its release copy only. The default is `["F-37", "F-38", "F-39", "F-40", "F-42"]`. F-35 and F-36 stay refused.
+- F-27, F-28, F-30 and F-26 of a submitted version stay readable.
+
+**The page.** On a returned protocol the Intake rail's first item reads "Returned for revision" (the "Actions taken" step of INTAKE-02). It has:
+1. a banner: "Returned for revision · version N", returned by the Adviser, REC Staff or the Panel (never a person), the date, the due date when the workflow sets one (the 30 working days of `await_revision`), and "When you resubmit, it goes to your adviser / goes to REC". The last is read from the workflow's next step (`proponentSubmitTarget`), or from the resubmission graph before version N exists;
+2. released documents (F-37 and F-39, or F-38 and F-39 on later rounds), with Preview, Print, DOCX and PDF;
+3. what to fix, one row per item:
+   - after a panel return: the point in one line, the panel's comments and recommendations (with the chair's wording where it overrides), and the Actions taken box (page and paragraph) bound to `intake.actions`. On version 3 and later only the rows still marked "Still needs action" show, with the panel's remarks and the earlier action read-only above the box;
+   - after an adviser or staff return: each comment, its role, a link to its section or file, a Done tick and an optional reply, plus the general comment typed with the return. A red "!" marks each commented section on the rail and at the top of that step;
+   - an exemption with recommendations shows as a Panel return with the chair's comment as one row;
+4. the revised manuscript (required on a panel return, suggested name `Manuscript_2-01Jan2027.pdf`);
+5. the other files, "Carried over from version 1" or "Replaced in version 2".
+
+Before the leader clicks "Start version N" in the banner, the page shows the banner, the released forms and the rows read-only, and nothing else.
+
+**Carry-over.** Starting version N copies the last version's intake (scoping, COI, budget, references; actions start empty) and copies its cover letter and supporting files as new objects (`files.carried_from_id`). The manuscript is uploaded again. A new cover letter replaces the carried copy only. The old version, its intake and its files are not touched (they are frozen).
+
+**Sign and resubmit.** One signing act now covers the forms the open proponent step asks for: F-27 and F-28 on the first submission, F-38 on a revision. Researchers sign F-38 on the Intake tab, then the adviser on their task. The submit bar counts the open rows (actions and unticked comments), the manuscript and each researcher's signature. The server's submit check counts the same gaps.
+
+**Adviser check (new flow).** With an adviser on the protocol, the November initial workflow goes proponents → adviser → REC Staff. The resubmission workflow already sent it to the adviser. On either step the adviser chooses "No changes needed: forward to REC" or "Return to the proponents for changes". A return keeps the same version, needs no signature (outcome `skipsRequirements`), and carries the comments. Without an adviser it goes straight to REC, as before. These are new published versions of both November workflows. Protocols already running keep the version they started on.
+
+**Comments on sections.** The adviser, REC Staff or the chair add comments for the proponents on their open step ("Comments for the proponents", above the outcome). Each one is pinned to an Intake section, the manuscript, the cover letter, a supporting file, or "General". They stay drafts, seen only by their author. A return outcome sends them; any other outcome discards them (`revision_notes`). Ticks and replies are visible to the next screener.
+
+**Not editable once submitted.** After the leader submits to the adviser or REC, the version stays WORKING until screening freezes it. Proponents could still change it in that window; now the intake, the Study fields and uploads refuse ("This version was submitted. It can change again only if it is returned to you."), and the page is read-only.
+
+**History.** The Versions tab now lists each version: Submitted, Forwarded by the adviser, Returned by the Adviser / REC Staff / Panel, Decision released, with dates, and the read-only forms the viewer may open (Print, DOCX, PDF). Proponents and advisers see roles; committee members see names. The field compare below it uses the same rule.
+
+**Notifications.**
+- `protocol.returned_for_revision` ("Your protocol was returned for revision") goes to every proponent and the adviser, except the person returning it. It is sent on an adviser or staff return, on an exemption with recommendations, and when REC Staff release a decision that needs revision. It links to the Intake tab. Transitions can now name `notifyProponentSide` and `notifyLink`.
+- `revision.ready_for_adviser` ("Resubmission ready for your check") goes to the adviser when their check opens.
+
+**Fixed.** On version 3 and later, F-38 prefill (`prepareActionSummary`) filled a table with no rows still open from F-37 again, so round-1 points came back. It now reads F-37 only on the first resubmission.
+- **Intake autosave after a fresh mount.** The Intake page made its autosave queue in a memo and disposed it in an effect cleanup. When the page mounted again (React's development double mount, or a re-render after a hydration mismatch), the queue stayed disposed and dropped every save without an error. This was found when the Intake form first mounted right after "Start version 2". The queue is now created in the effect, and that effect's cleanup disposes it.
+- A review form opened by URL before release shows "Not available" with a link back to the Intake tab, not the application error page.
+
+Migration: `20261114090000_revision_notes`. Tests:
+- `src/server/revision/revision.db.test.ts`:
+  - under review, F-35, F-36, F-37, a reviewer's own copy and a generated F-35 file by id are 403 for the leader, with no review comment shown;
+  - after the chair's endorsement they are still 403; after release F-37 opens and F-35 and F-36 stay 403; taking F-37 off `revision.releasedForms` refuses it;
+  - 3 flagged points give 3 rows, and the F-38 print carries the 3 actions typed;
+  - version 1's intake and files are unchanged after version 2 is edited and submitted;
+  - version 3 shows only the 1 row still open, with the earlier action;
+  - the history shows F-37 but not F-31, F-35 or F-36, and no reviewer name;
+  - adviser-first: the adviser is told, the proponents cannot edit while the adviser has it, the adviser returns with two pinned comments (Conflict of interest, the manuscript), resubmitting is blocked until both are ticked Done, then the adviser forwards. A staff return shows the staff comment, and a draft not sent with a return is dropped. The banner says "goes to your adviser" here and "goes to REC" without an adviser.
+- `src/server/workflow/usc-rec.seed.test.ts`: the adviser check, forward and return in both November graphs.
+- `e2e/revision.spec.ts`, with the fixture `e2e/scripts/panel-return.ts`:
+  - panel return, then Intake opens on "Returned for revision" with F-37 and 2 rows, and no reviewer name;
+  - F-35 is 403 by URL and F-37 is 200;
+  - the proponent starts version 2, fills both actions, uploads the manuscript, signs F-38 and submits to the adviser;
+  - the adviser is notified and finds the check.
+- `e2e/assessment.spec.ts`: its sample protocol is dated 1 Nov 2026 (2025 process). It shows F-37 to a proponent before release, which a November protocol now refuses.
+
+`pnpm lint`, `pnpm typecheck` and `pnpm test` (338) pass. `pnpm test:e2e` passed 28 of 28 on a freshly reset and seeded `recdms_test`.
+
+### Deviation from the request
+
+- **Release, not endorsement, opens the forms** (your answer 1). The chair endorses F-37 together with signing F-39 (`chair_sign_decision`). Proponents see F-37 only when REC Staff release the decision, which is also where the fee check is.
+- **`revision.releasedForms` default.** It is `["F-37", "F-38", "F-39", "F-40", "F-42"]`, not `["F-37", "F-39"]`:
+  - F-38 is the review result of rounds 2 and later (the workflow PDF), sent without reviewer names (answer 2);
+  - F-40 and F-42 are the certificates. Without them, an approved or exempted protocol could not open its certificate.
+- **Their own F-35 and F-36** (answer 5). Proponents preview and print them while preparing a version, first or returned. Once a version is submitted and frozen, they are refused like every review form.
+- **Adviser and staff returns keep the version number** (answer 4). They show "Returned for revision · version 1", have no F-38 and require no manuscript. Only a released decision opens a new version.
+- **Unticked comments block resubmission.** Each comment is an open item in the rail, the submit bar and the server check until it is ticked Done.
+- **The manuscript does not carry over.** A panel return requires the revised one, and a staff or adviser return keeps the same version and its files.
+- **"Who acted" in the history** is a role for proponents and advisers, and a name for committee members.
+
 ## INTAKE-03c — The six end-to-end tests left failing on a clean test database (2026-11-14)
 
 The six tests listed under INTAKE-03b "Known" each failed on a fresh `recdms_test`. None was a bug in the app. No assertion was removed and no test is skipped.

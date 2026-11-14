@@ -10,10 +10,11 @@ import { AppError } from "@/server/errors";
 import { effectiveFormData, versionBoundValues } from "@/server/intake/bound";
 import { getSubmissionChecklist, proponentSubmitTarget } from "@/server/protocols/checklist";
 import { formForEdit, listUploads, protocolHeader, roster } from "@/server/protocols/read";
-import { intakeRoster, intakeSigningForms, researcherSigning } from "@/server/intake/signing";
+import { formsToSignNow, intakeRoster, researcherSigning } from "@/server/intake/signing";
 import { intakeStateOf } from "@/server/intake/state";
 import { imageDataUrl } from "@/server/signatures/views";
 import { contactEmail, signingStepUpFresh } from "@/server/stepup";
+import { proponentsHoldVersion } from "@/server/revision/hold";
 
 /** The forms the intake generates. Proponents preview and print them; they never edit them. */
 export const GENERATED_FORMS = ["F-26", "F-27", "F-28", "F-30", "F-35", "F-36"] as const;
@@ -73,7 +74,7 @@ async function intakeSigning(
   versionId: string,
   editable: boolean,
 ): Promise<IntakeSigningView | null> {
-  const forms = await intakeSigningForms(prisma, versionId);
+  const forms = await formsToSignNow(prisma, versionId);
   if (forms.length === 0) return null;
   const [state, roster, fresh, email, saved] = await Promise.all([
     intakeStateOf(versionId),
@@ -155,6 +156,8 @@ export async function intakePageExtras(
   user: { id: string; passwordHash: string | null },
   protocolId: string,
   versionNumber: number,
+  /** INTAKE-04: the protocol was returned, so the rail opens on "Returned for revision". */
+  returned = false,
 ): Promise<IntakePageExtras> {
   const header = await protocolHeader(user.id, protocolId);
   const version = header.working ?? header.shown;
@@ -166,14 +169,17 @@ export async function intakePageExtras(
   ]);
   const forms = version ? await generatedFormList(version.id) : [];
   const proponent = Boolean(header.mine?.status === "ACTIVE" && header.mine.role === "PROPONENT");
-  const signing = header.working ? await intakeSigning(user, protocolId, header.working.id, proponent) : null;
+  const holds = await proponentsHoldVersion(prisma, protocolId);
+  const signing = header.working ? await intakeSigning(user, protocolId, header.working.id, proponent && holds) : null;
   const missing = missingOnPage(checklist);
   const leader = Boolean(header.mine?.isLeader && header.mine.role === "PROPONENT" && header.mine.status === "ACTIVE");
   const ready = Boolean(checklist && missing.length === 0 && checklist.accountApproved);
   const uploadGroup = checklist?.groups.find((group) => group.tab === "uploads");
   const stored = Array.isArray(header.protocol.fundingSources) ? header.protocol.fundingSources : [];
   return {
-    rail: railSections(checklist, { revision: versionNumber > 1 }),
+    rail: railSections(checklist, { revision: versionNumber > 1 || returned }).map((section) =>
+      section.key === "actions" && returned ? { ...section, label: "Returned for revision" } : section,
+    ),
     missing,
     accountApproved: checklist?.accountApproved ?? true,
     submit:
@@ -201,12 +207,12 @@ export async function intakePageExtras(
         return [{ code: item.code, detail: "detail" in item && typeof item.detail === "string" ? item.detail : "" }];
       }),
     },
-    canEditStudy: Boolean(header.working && header.mine?.status === "ACTIVE" && (header.mine.role === "PROPONENT" || header.mine.role === "ADVISER")),
+    canEditStudy: Boolean(holds && header.working && header.mine?.status === "ACTIVE" && (header.mine.role === "PROPONENT" || header.mine.role === "ADVISER")),
     documents: {
       required: (uploadGroup?.items ?? []).map((item) => ({ kind: item.key.replace(/^uploads\./, ""), label: item.label })),
       files: uploads.files.map((file) => ({ id: file.id, kind: file.kind, originalName: file.originalName, scanStatus: file.scanStatus, size: file.size })),
       maxBytes: uploads.maxBytes,
-      canUpload: Boolean(header.working && header.mine?.status === "ACTIVE" && header.mine.role === "PROPONENT"),
+      canUpload: Boolean(header.working && header.mine?.status === "ACTIVE" && header.mine.role === "PROPONENT" && (await proponentsHoldVersion(prisma, protocolId))),
     },
     forms,
     signing,

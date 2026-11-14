@@ -1,4 +1,7 @@
 import "server-only";
+import { fileAccessAllowed, NOT_RELEASED_MESSAGE } from "@/server/revision/visibility";
+import { proponentsHoldVersion, SUBMITTED_MESSAGE } from "@/server/revision/hold";
+import { usesIntake } from "@/server/intake/state";
 import { markProofUploaded } from "@/server/fees/bills";
 import { createHash } from "node:crypto";
 import type { FileKind } from "@prisma/client";
@@ -39,6 +42,10 @@ async function billVersion(protocolId: string, billId: string) {
 async function workingVersion(protocolId: string) {
   const version = await prisma.protocolVersion.findFirst({ where: { protocolId, state: "WORKING" } });
   if (!version) throw new AppError("LOCKED", "This version is submitted. Start a revision before uploading.", 409);
+  // On the November forms, a version submitted to the adviser or REC takes no new files until it is returned.
+  if ((await usesIntake(prisma, version.id)) && !(await proponentsHoldVersion(prisma, protocolId))) {
+    throw new AppError("LOCKED", SUBMITTED_MESSAGE, 409);
+  }
   return version;
 }
 
@@ -118,7 +125,17 @@ export async function confirmUpload(input: { intentId: string; userId: string })
   }
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const meta = await auditRequestMeta({ kind: intent.kind, originalName: intent.originalName, sha256 });
-  return prisma.$transaction(async (tx) => {
+  const replacedKeys: string[] = [];
+  const confirmed = await prisma.$transaction(async (tx) => {
+    // INTAKE-04: a new cover letter (or other single file) replaces the copy carried over from the
+    // last version. Only the copy goes; the last version keeps its own file.
+    if (!intent.billId && intent.kind !== "SUPPORTING") {
+      const carried = await tx.storedFile.findMany({ where: { protocolVersionId: version.id, kind: intent.kind, carriedFromId: { not: null } } });
+      for (const old of carried) {
+        await tx.storedFile.delete({ where: { id: old.id } });
+        replacedKeys.push(old.storageKey);
+      }
+    }
     const file = await tx.storedFile.create({
       data: {
         protocolVersionId: version.id,
@@ -162,6 +179,8 @@ export async function confirmUpload(input: { intentId: string; userId: string })
     });
     return file;
   });
+  for (const key of replacedKeys) await deleteObject(key).catch(() => undefined);
+  return confirmed;
 }
 
 async function sniffedMime(bytes: Uint8Array): Promise<string | null> {
@@ -184,6 +203,8 @@ export async function downloadFile(input: { fileId: string; userId: string }) {
   }
   const staff = await isCommitteeStaff(input.userId);
   if (file.audience === "STAFF" && !staff) throw new AppError("NOT_FOUND", "That file was not found.", 404);
+  // A generated form file follows the form's rule for proponents and advisers (released copies only).
+  if (!(await fileAccessAllowed(prisma, input.userId, file))) throw new AppError("FORBIDDEN", NOT_RELEASED_MESSAGE, 403);
   if (file.scanStatus === "PENDING" && !staff) {
     throw new AppError(
       "PENDING_SCAN",

@@ -9,7 +9,7 @@ import { acceptFor, formatUploadLimit, useProtocolUpload } from "@/components/pr
 import { BusyButton } from "@/components/ui/busy-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-type FileRow = { id: string; kind: string; originalName: string; scanStatus: string; size: number };
+export type FileRow = { id: string; kind: string; originalName: string; scanStatus: string; size: number; tag?: string | null };
 
 /**
  * The required uploads of this step, one row each: the latest file of that kind or an Upload
@@ -51,7 +51,7 @@ export function DocumentsSection({
   );
 }
 
-function DocumentRow({
+export function DocumentRow({
   protocolId,
   kind,
   label,
@@ -73,7 +73,10 @@ function DocumentRow({
       <div className="rec-doc-row__main">
         <p className="label">{label}</p>
         {file ? (
-          <p className="body-sm rec-doc-row__name">{file.originalName}</p>
+          <p className="body-sm rec-doc-row__name">
+            {file.originalName}
+            {file.tag ? <span className="caption rec-muted"> · {file.tag}</span> : null}
+          </p>
         ) : (
           <p className="body-sm rec-muted">Not uploaded yet</p>
         )}

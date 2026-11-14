@@ -8,6 +8,33 @@ import { readIntakeView } from "@/server/intake/service";
 import { intakeStateOf } from "@/server/intake/state";
 import { protocolHeader } from "@/server/protocols/read";
 import { requireUser } from "@/server/session";
+import { ReturnedView, type ReturnedData } from "@/components/protocols/intake/returned-view";
+import { formatManila } from "@/lib/time";
+import { returnedView, type ReturnedView as ReturnedViewModel, type UploadRow } from "@/server/revision/returned";
+
+function fileRow(file: UploadRow) {
+  return { id: file.id, kind: file.kind, originalName: file.name, scanStatus: file.scanStatus, size: 0, tag: file.tag };
+}
+
+/** The view for the client: dates worded in Manila time, nothing else added. */
+function toReturnedData(view: ReturnedViewModel): ReturnedData {
+  return {
+    roleLabel: view.roleLabel,
+    versionNumber: view.versionNumber,
+    returnedOn: view.returnedAt ? formatManila(view.returnedAt, "d MMM yyyy") : null,
+    dueOn: view.dueAt ? formatManila(view.dueAt, "d MMM yyyy") : null,
+    next: view.next,
+    started: view.started,
+    canStart: view.canStart,
+    editable: view.editable,
+    released: view.released,
+    panelRows: view.panelRows,
+    notes: view.notes.map((note) => ({ id: note.id, anchorLabel: note.anchorLabel, section: note.section, roleLabel: note.roleLabel, body: note.body, done: note.done, reply: note.reply })),
+    comment: view.comment,
+    manuscript: { required: view.manuscript.required, file: view.manuscript.file ? fileRow(view.manuscript.file) : null, suggestedName: view.manuscript.suggestedName },
+    uploads: view.uploads.map(fileRow),
+  };
+}
 
 /**
  * The Intake tab: the one place where the proponents prepare a version (INTAKE-02). F-26, F-27,
@@ -26,6 +53,17 @@ export default async function ProtocolIntakePage({ params }: { params: Promise<{
     estimateEthicsFee(id),
   ]);
 
+  // INTAKE-04: a protocol returned to the proponents opens on "Returned for revision".
+  const returned = state?.usesIntake ? await returnedView(user.id, id) : null;
+  const returnedData = returned ? toReturnedData(returned) : null;
+  if (returnedData && !returnedData.started) {
+    return (
+      <section className="rec-card rec-stack" aria-label="Returned for revision">
+        <ReturnedView protocolId={id} data={returnedData} actions={{}} onAction={null} maxBytes={0} />
+      </section>
+    );
+  }
+
   if (!state?.usesIntake) {
     return (
       <section className="rec-card rec-stack">
@@ -37,7 +75,7 @@ export default async function ProtocolIntakePage({ params }: { params: Promise<{
     );
   }
 
-  const extras = await intakePageExtras(user, id, state.versionNumber);
+  const extras = await intakePageExtras(user, id, state.versionNumber, Boolean(returnedData));
   return (
     <IntakeForm
       protocolId={id}
@@ -72,6 +110,7 @@ export default async function ProtocolIntakePage({ params }: { params: Promise<{
         documents: extras.documents,
         forms: extras.forms,
         signing: extras.signing,
+        returned: returnedData,
       }}
     />
   );

@@ -185,6 +185,7 @@ export async function deliverNotifyJob(
     taskId,
     jobId: job.id,
     variables: stringRecord(payload.variables),
+    ...(stringOf(payload.link) ? { link: stringOf(payload.link) } : {}),
     sendNow: true,
     mail,
   });
