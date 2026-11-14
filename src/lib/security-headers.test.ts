@@ -13,6 +13,16 @@ describe("security headers", () => {
     expect(headers.some((header) => header.key === "Permissions-Policy")).toBe(true);
   });
 
+  it("allows web workers from 'self' only, and blob: workers only for the dev server", () => {
+    const csp = (devBlobWorkers?: boolean) =>
+      securityHeaders({ storageOrigin: "https://example.supabase.co", hsts: true, devBlobWorkers }).find(
+        (header) => header.key === "Content-Security-Policy",
+      )?.value ?? "";
+    expect(csp()).toContain("worker-src 'self';");
+    expect(csp()).not.toMatch(/worker-src[^;]*blob:/);
+    expect(csp(true)).toContain("worker-src 'self' blob:");
+  });
+
   it("omits HSTS outside production", () => {
     const headers = securityHeaders({ storageOrigin: "https://example.supabase.co", hsts: false });
     expect(headers.some((header) => header.key === "Strict-Transport-Security")).toBe(false);

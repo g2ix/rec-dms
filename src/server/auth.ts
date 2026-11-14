@@ -9,6 +9,7 @@ import { MAGIC_LINK_TTL_SECONDS } from "@/lib/magic-link";
 import { env } from "@/lib/env";
 import { AuditAction } from "@/lib/audit-log";
 import { prisma } from "@/server/db";
+import { smtpOptions } from "@/server/mail/smtp";
 import { audit, auditRequestMeta, diffOf, recordAudit } from "@/server/audit";
 import { AppError } from "@/server/errors";
 import { createRecAdapter } from "@/server/auth/adapter";
@@ -41,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ]
       : []),
     Nodemailer({
-      server: env.SMTP_URL,
+      server: smtpOptions(),
       from: env.EMAIL_FROM,
       maxAge: MAGIC_LINK_TTL_SECONDS,
     }),

@@ -35,6 +35,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders({
           storageOrigin: storageOriginFromEndpoint(process.env.S3_ENDPOINT),
           hsts: process.env.VERCEL_ENV === "production",
+          devBlobWorkers: process.env.NODE_ENV === "development",
         }),
       },
     ];

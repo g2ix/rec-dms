@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { authorize } from "@/server/authz";
 import { AppError } from "@/server/errors";
+import { readJsonBody } from "@/server/request-body";
 import { isIntakeSection, saveIntakeSection } from "@/server/intake/service";
 import { requireUser } from "@/server/session";
 
@@ -21,7 +22,7 @@ export async function POST(request: Request, { params }: Params) {
     const user = await requireUser();
     const { id } = await params;
     await authorize(user, "protocol.edit", { type: "protocol", id });
-    const body = bodySchema.parse(await request.json().catch(() => null));
+    const body = bodySchema.parse(await readJsonBody(request));
     let revision = body.expectedRevision;
     for (const field of body.fields) {
       if (!isIntakeSection(field.path)) throw new AppError("INVALID", "That intake section does not exist.", 400);

@@ -37,7 +37,24 @@
       "esbuild",
       "prisma",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "xmldom": "npm:@xmldom/xmldom@0.8.15",
+      "dompurify": "^3.4.17",
+      "next>postcss": "^8.5.23",
+      "valibot": "^1.4.2"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "nodemailer": "10"
+      }
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-mrhx-c7xc-m3w5",
+        "GHSA-ggr8-5vv4-36mx"
+      ]
+    }
   },
   "dependencies": {
     "@auth/core": "0.41.3",
@@ -66,10 +83,11 @@
     "file-type": "^22.3.0",
     "json-logic-js": "^2.0.5",
     "lucide-react": "^1.68.0",
+    "monaco-editor": "0.57.0",
     "motion": "^14.9.1",
     "next": "15.5.29",
     "next-auth": "5.0.0-beta.32",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^10.5.0",
     "otplib": "^12.0.1",
     "pdf-lib": "^1.17.1",
     "pino": "^10.4.0",
@@ -80,7 +98,6 @@
     "react-hook-form": "^7.91.0",
     "resend": "^6.37.0",
     "server-only": "^0.0.1",
-    "shadcn": "^4.23.0",
     "sharp": "^0.35.5",
     "signature_pad": "^5.1.4",
     "sonner": "^2.0.8",
@@ -93,7 +110,6 @@
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.5",
-    "@types/nodemailer": "^8.0.2",
     "@types/pngjs": "^6.0.5",
     "@types/qrcode": "1.5.5",
     "@types/react": "^19",
@@ -108,6 +124,7 @@
     "pngjs": "^7.0.0",
     "prisma": "6.19.3",
     "s3rver": "^3.7.1",
+    "shadcn": "^4.23.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.1.0"

@@ -1,8 +1,21 @@
 "use client";
 
-import Editor from "@monaco-editor/react";
+import Editor, { loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import { useEffect, useState } from "react";
 import { BlurLoad } from "@/components/ui/blur-load";
+
+// Monaco comes from our own bundle, not the jsdelivr CDN @monaco-editor/react would fetch by
+// default: the content security policy allows scripts and workers from 'self' only.
+self.MonacoEnvironment = {
+  getWorker(_workerId, label) {
+    if (label === "json") {
+      return new Worker(new URL("monaco-editor/language/json/json.worker.js", import.meta.url), { type: "module" });
+    }
+    return new Worker(new URL("monaco-editor/editor/editor.worker.js", import.meta.url), { type: "module" });
+  },
+};
+loader.config({ monaco });
 
 export function SchemaEditor({
   value,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { AppError } from "@/server/errors";
+import { readJsonBody } from "@/server/request-body";
 import {
   authorizeFormInstance,
   keepaliveFieldsSchema,
@@ -19,7 +20,7 @@ export async function POST(request: Request, { params }: Params) {
     const user = await requireUser();
     const { instanceId } = await params;
     await authorizeFormInstance(user, instanceId);
-    const body = keepaliveFieldsSchema.parse(await request.json().catch(() => null));
+    const body = keepaliveFieldsSchema.parse(await readJsonBody(request));
     const result = await saveAuthorizedFieldsKeepalive(user.id, instanceId, body);
     if (!result.ok) {
       return NextResponse.json(result, { status: result.code === "CONFLICT" ? 409 : 400 });

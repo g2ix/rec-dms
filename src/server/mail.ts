@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { env } from "@/lib/env";
 import { paragraphsOf } from "@/lib/notifications/render";
 import { NoticeEmail } from "@/server/mail/notice-email";
+import { smtpOptions } from "@/server/mail/smtp";
 
 export const SENDER_NAME = "USC Research Ethics Committee";
 
@@ -40,7 +41,7 @@ export async function renderNoticeHtml(input: {
 }
 
 export function smtpTransactionalMail(): TransactionalMail {
-  const transport = nodemailer.createTransport(env.SMTP_URL);
+  const transport = nodemailer.createTransport(smtpOptions());
   return {
     async send(message) {
       await transport.sendMail({

@@ -1,5 +1,46 @@
 # Changelog
 
+## SEC-01 — Dependency audit cleared before the first deployment (2026-11-14)
+
+The M12 note recorded `pnpm audit` on 2026-11-07 at 2 critical, 21 high, 25 moderate and 5 low. This clears every production critical and high finding that has a fix, and documents the two that do not.
+
+| `pnpm audit` | critical | high | moderate | low |
+|---|---|---|---|---|
+| All dependencies, before (2026-11-14) | 2 | 21 | 25 | 6 |
+| All dependencies, after | 0 | 3 | 3 | 2 |
+| `--prod`, before | 2 | 20 | 23 | 5 |
+| `--prod`, after | 0 | 2 (both accepted, see `docs/SECURITY.md`) | 0 | 1 |
+
+**Upgrades and moves.**
+- `nodemailer` 7.0.13 → 10.5.0. Clears 4 high, 15 moderate and 1 low. Production mail is real SMTP through nodemailer, so these were reachable. Auth.js (`next-auth` 5.0.0-beta.32, `@auth/core` 0.41.3) declares `nodemailer ^7.0.7 || ^8.0.5`. `pnpm.peerDependencyRules.allowedVersions` accepts 10, because Auth.js only calls `createTransport` and `sendMail`. The 8, 9 and 10 breaking changes do not touch us: Node 20 or later, the error code `NoAuth` renamed to `ENOAUTH`, and TLS checks on remote fetches. `@types/nodemailer` was removed because nodemailer 10 ships its own types.
+- `monaco-editor` 0.57.0 is now a direct dependency, and `shadcn` moved to `devDependencies`. `shadcn` is the component CLI plus a CSS file that is bundled at build time.
+
+**Overrides (`pnpm.overrides`).**
+
+| Override | Reason |
+|---|---|
+| `xmldom` → `npm:@xmldom/xmldom@0.8.15` | `docxtemplater-image-module-free@1.1.1` (abandoned, last release 2022) requires `xmldom ^0.1.27`, which has 1 critical and 11 high findings and no fix under that name. 0.8 is the maintained long-term line with the same `parseFromString` call. 0.9 throws without a MIME type, which the module never passes. The module only parses XML in its PowerPoint path (`getInnerPptx`), and we only fill DOCX, so this was never on our path. |
+| `dompurify` → `^3.4.17` | 1 critical, 1 high and 3 low, via `monaco-editor`. Patch bump. |
+| `next>postcss` → `^8.5.23` | Next 15.5.29, the latest 15.x, pins `postcss` 8.4.31: 2 high and 2 moderate. Minor bump. The build passes. |
+| `valibot` → `^1.4.2` | 1 moderate via `@hookform/resolvers`. We do not import valibot. Minor bump. |
+
+**The form builder's JSON editor never loaded.** `@monaco-editor/react` fetched Monaco from cdn.jsdelivr.net, and our content security policy (`script-src 'self'`) blocked it, so the editor stayed on its loading bar. `schema-editor.tsx` now bundles the local `monaco-editor` (`loader.config({ monaco })`) and starts its workers from our own files. The CSP gained `worker-src 'self'`. Only `next dev` adds `blob:`, because Turbopack starts workers from blob URLs. The production build serves them from `/_next/static`. `e2e/form-editor.spec.ts` failed before the change, with the CDN script refused in the trace, and passes after.
+
+**SMTP.** `src/server/mail/smtp.ts` is the one SMTP configuration. It is used for notices, sign-in codes and the Auth.js magic link, with connection, greeting and socket timeouts (10 s, 10 s, 20 s), so a silent server fails the send instead of holding a function. `e2e/mail.spec.ts` sends through Mailpit. A sign-in link is emailed and signs the person in, and a queued notice is sent by `/api/cron/jobs` and marked `SENT`. CI now runs a Mailpit service. The test server gets a test-only `CRON_SECRET` when `.env.test` has none.
+
+**Request bodies.** The three JSON route handlers (form field and intake keepalive saves, notifications) read at most 64 KB (`readJsonBody`), the limit browsers already put on keepalive requests. This bounds the zod advisory below.
+
+**Left, and why.**
+- `zod` 3.25.76, high (GHSA-mrhx-c7xc-m3w5). The fix is zod 4.6.6 or later, a major migration across 36 files, to be done as its own task. It is reachable by a signed-in account through Server Actions, bounded by the 2 MB body limit. One 2 MB request measured about 340 MB of heap. Accepted in `docs/SECURITY.md` until 2026-12-14 or go-live.
+- `deepmerge-ts` 7.1.5, high (GHSA-ggr8-5vv4-36mx), via the Prisma CLI's config loader. No request data reaches it. Accepted in `docs/SECURITY.md`.
+- `deepmerge` 4.3.1, low, via react-email's `html-to-text`. No fix exists.
+- Dev only, no patch or minor fix: `s3rver` → `busboy` → `dicer` (high, no fix, `s3rver` is abandoned and only the local S3 for tests), `s3rver` → `fast-xml-parser` 3 (2 moderate, 1 low, fix is a major), `eslint-config-next` → `minimatch` (moderate, fix is a major).
+- Not upgraded here: Next 16, Prisma 7, a stable Auth.js release, and React beyond 19.1. None was needed to clear the audit.
+
+**CI.** `pnpm audit --prod --audit-level=high` runs after install. An accepted advisory must be in `pnpm.auditConfig.ignoreGhsas` and in `docs/SECURITY.md`.
+
+**Documents.** Every template in the 2025, 2026-11 and 11-01 sets (32 renders, with signature images through the image module) was filled before and after the change. Every DOCX part is byte-identical. F-27, F-30, F-36 and F-38 (2026-11 and 11-01) were converted to PDF with LibreOffice before and after, at identical sizes. A side-by-side check of those PDFs by eye is for the reviewer.
+
 ## INTAKE-04 — The "Returned for revision" page (2026-11-14)
 
 When a protocol on the November forms comes back, the proponents open one page that says what happened, what to fix and where the resubmission goes. They answer only the flagged items, then sign and resubmit. F-38 is printed from it. Protocols on the 2025 forms (09-01 / 10-01) keep their return flow; none of the rules below apply to them.

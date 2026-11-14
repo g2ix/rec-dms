@@ -2,6 +2,7 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { env } from "@/lib/env";
+import { smtpOptions } from "@/server/mail/smtp";
 
 export type OutboundMail = {
   to: string;
@@ -14,7 +15,7 @@ export type Mailer = {
 };
 
 export function smtpMailer(): Mailer {
-  const transport = nodemailer.createTransport(env.SMTP_URL);
+  const transport = nodemailer.createTransport(smtpOptions());
   return {
     async send(message) {
       await transport.sendMail({ from: env.EMAIL_FROM, ...message });

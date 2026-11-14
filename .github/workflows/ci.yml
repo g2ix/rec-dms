@@ -21,6 +21,12 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # e2e/mail.spec.ts sends real SMTP (SMTP_URL below) and reads it back from Mailpit's API.
+      mailpit:
+        image: axllent/mailpit:v1.33.0
+        ports:
+          - 1025:1025
+          - 8025:8025
     env:
       DATABASE_URL: postgresql://recdms:recdms@localhost:5432/recdms_test
       DIRECT_URL: postgresql://recdms:recdms@localhost:5432/recdms_test
@@ -39,6 +45,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # New high or critical advisories in production dependencies fail the build. Accepted
+      # exceptions are pnpm.auditConfig.ignoreGhsas in package.json, each explained in docs/SECURITY.md.
+      - run: pnpm audit --prod --audit-level=high
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

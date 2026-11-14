@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AppError } from "@/server/errors";
+import { readJsonBody } from "@/server/request-body";
 import { latestNotifications } from "@/server/notifications/inbox";
 import { markAllNotificationsRead, markNotificationRead } from "@/server/notifications/actions";
 import { requireUser } from "@/server/session";
@@ -36,7 +37,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   try {
     await requireUser();
-    const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
+    const parsed = bodySchema.safeParse((await readJsonBody(request)) ?? {});
     if (!parsed.success) return NextResponse.json({ error: "Invalid" }, { status: 400 });
     if (parsed.data.all) await markAllNotificationsRead();
     else if (parsed.data.id) await markNotificationRead(parsed.data.id);

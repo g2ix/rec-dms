@@ -37,5 +37,13 @@ export function serverEnv(): Record<string, string> {
   const env = testEnv();
   const local = path.join(root, ".env.local");
   const blanks = existsSync(local) ? Object.fromEntries(Object.keys(parse(readFileSync(local))).filter((key) => !(key in env)).map((key) => [key, ""])) : {};
-  return { ...blanks, ...env, PORT: String(E2E_PORT), NEXT_DIST_DIR: ".next-e2e" };
+  return { ...blanks, ...env, CRON_SECRET: e2eCronSecret(env), PORT: String(E2E_PORT), NEXT_DIST_DIR: ".next-e2e" };
 }
+
+/** The cron bearer secret the test server accepts: .env.test's, or a fixed test-only value. */
+export function e2eCronSecret(env: Record<string, string> = testEnv()): string {
+  return env.CRON_SECRET || "e2e-cron-secret";
+}
+
+/** Mailpit's web API; the test server sends through its SMTP port (SMTP_URL in .env.test). */
+export const MAILPIT_API = process.env.MAILPIT_API ?? "http://127.0.0.1:8025/api/v1";

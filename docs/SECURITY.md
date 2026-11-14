@@ -18,7 +18,7 @@ Reviewed with the M12 deployment. This file is the result, not a promise that a 
 
 ## Headers and cookies
 
-`next.config.ts` sends a content security policy (`default-src 'self'`, the Supabase storage origin, Google Fonts), `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` with camera, microphone, geolocation, and payment disabled, and `X-Content-Type-Options: nosniff`. HSTS is sent when `VERCEL_ENV` is `production`.
+`next.config.ts` sends a content security policy (`default-src 'self'`, the Supabase storage origin, Google Fonts), `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` with camera, microphone, geolocation, and payment disabled, and `X-Content-Type-Options: nosniff`. `worker-src` is `'self'`. Only `next dev` adds `blob:`, because Turbopack starts web workers from blob URLs. The production build serves Monaco's workers as files under `/_next/static`. Monaco is bundled, not fetched from a CDN. HSTS is sent when `VERCEL_ENV` is `production`.
 
 The Auth.js session cookie is `httpOnly`, `SameSite=Lax`, and `Secure` in production (`useSecureCookies`). The authenticator session cookie `recdms_totp` uses the same flags. `activeView` is not `httpOnly` because the role switch writes it from the browser. It is `SameSite=Lax` and `Secure` on HTTPS. It does not grant access. The server still checks the session.
 
@@ -48,6 +48,17 @@ Row level security is enabled on every table in the `recdms` schema. Policies al
 
 ## Dependencies and secrets
 
-Secrets are Vercel environment variables and Google Secret Manager entries. They are not written into the repository. Run `pnpm audit` before a release and upgrade anything with a fix available. The last local audit is recorded in `docs/CHANGELOG.md` for this milestone.
+Secrets are Vercel environment variables and Google Secret Manager entries. They are not written into the repository. Run `pnpm audit` before a release and upgrade anything with a fix available. The last local audit is recorded in `docs/CHANGELOG.md` (SEC-01).
+
+CI runs `pnpm audit --prod --audit-level=high`, so a new high or critical advisory in a production dependency fails the build. An advisory that cannot be fixed yet goes in `pnpm.auditConfig.ignoreGhsas` in `package.json` only together with an entry below. Remove the entry and the ignore when the fix lands.
+
+### Accepted audit exceptions
+
+| Advisory | Package and path | Why it is accepted | Recheck |
+|---|---|---|---|
+| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (high) | `zod@3.25.76`, our direct dependency | The fix is zod 4.6.6 or later, a major upgrade across 36 files, planned as its own task. The flaw: an array schema builds one issue per failing element, so a large array of wrong values uses a lot of memory. A 2 MB array of a million wrong elements took about 340 MB of heap in a local measurement. **It is reachable, but only by a signed-in account and bounded.** The three JSON route handlers now read at most 64 KB (`readJsonBody`, the keepalive limit browsers enforce anyway). Server Actions stop at the 2 MB `bodySizeLimit`, and the ones with uncapped arrays need a signed-in, approved account (protocol details, fee settings, form and workflow schemas, the last two System Admin only). Every such request is tied to an account. | 2026-12-14, or before production go-live, whichever comes first |
+| [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx) (high) | `deepmerge-ts@7.1.5` via `prisma` → `@prisma/config` (exact pin) | Not reachable. `@prisma/config` merges our own `prisma.config` when the Prisma CLI runs (`prisma generate`, `prisma migrate deploy` in `vercel-build`). The query engine and `@prisma/client` at runtime do not call it, and no request data reaches it. The flaw needs two self-referencing objects merged at the same path. Prisma 6.19.3 is the latest 6.x. Prisma 7 is a major upgrade and out of scope for SEC-01. | 2026-12-14: a Prisma 6.x patch that moves to deepmerge-ts 8 |
+
+Not gated, recorded for completeness: `deepmerge@4.3.1` (low, GHSA-gcqx-w48m-w2h4) via `@react-email/components` → `html-to-text`, no fixed version exists. It merges the library's own formatter options, not request data.
 
 Signed URLs, the cron bearer token, Gotenberg basic auth, and the ClamAV bearer token are the credentials in front of the data plane. Cloud Run allows unauthenticated invocations so Vercel can reach the services. The application credential is what rejects a stranger. Do not remove basic auth or the bearer token to “fix” a 401.
