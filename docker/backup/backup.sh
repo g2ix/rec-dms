@@ -13,7 +13,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 pg_dump --format=custom --no-owner --no-acl --dbname="$DIRECT_URL" --schema=recdms > "$WORKDIR/recdms.dump"
 gzip -c "$WORKDIR/recdms.dump" > "$WORKDIR/recdms.dump.gz"
 
-export RCLONE_CONFIG_GCS_TYPE=google cloud storage
+export RCLONE_CONFIG_GCS_TYPE="google cloud storage"
 export RCLONE_CONFIG_GCS_BUCKET_POLICY_ONLY=true
 rclone copyto "$WORKDIR/recdms.dump.gz" "gcs:${BACKUP_BUCKET}/db/${STAMP}.dump.gz"
 

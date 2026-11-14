@@ -1,0 +1,8 @@
+# Files that run on Linux (Cloud Build, Cloud Run, Cloud Shell, CI) must keep LF line endings
+# on every machine, including Windows checkouts with core.autocrlf=true. A shebang or
+# `set -euo pipefail` ending in \r fails on Linux. `pnpm check:eol` enforces this.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.mjs text eol=lf
+docker/** text eol=lf
+deploy/** text eol=lf

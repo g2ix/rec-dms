@@ -6,6 +6,10 @@ There is no on-prem server and no tunnel. The old compose file is in `deploy/arc
 
 Do these steps in order. Commands assume a bash shell (Cloud Shell works). Never paste a secret into chat. Create secrets in the console or with `gcloud secrets create`, and read them back only inside the scripts.
 
+Cloud Shell forgets shell variables when the session restarts or times out. Run the `export PROJECT=...` line (and the other `export` lines of the step you are on) again before running a script, or it stops with `PROJECT: Set PROJECT`.
+
+Line endings: the files under `docker/` and `deploy/` must have LF line endings, because `gcloud builds submit` uploads the working tree and `#!/bin/sh\r` fails on Linux. `.gitattributes` keeps them LF in every checkout, including Windows with `core.autocrlf=true`, and `pnpm lint` runs `pnpm check:eol`. A fresh clone in Cloud Shell is fine.
+
 ## 1. Google Cloud project
 
 ```bash
@@ -75,6 +79,21 @@ printf '%s' "$VALUE" | gcloud secrets create gotenberg-username --data-file=-
 
 Use `gcloud secrets versions add` when the secret already exists.
 
+Let the Cloud Run services and the backup job read the secrets. They run as the Compute Engine default service account, `<project-number>-compute@developer.gserviceaccount.com`, and a new project does not give it access to secrets. Without this, `gcloud run deploy` fails with `Permission denied on secret` and the revision never starts.
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+for SECRET in gotenberg-username gotenberg-password clamav-token cron-secret backup-direct-url s3-access-key s3-secret-key; do
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --project "$PROJECT" \
+    --member="serviceAccount:${RUN_SA}" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+`deploy/cloudscheduler/create-jobs.sh` reads `cron-secret` as you, so your own account needs the same role on that secret (project owners have it).
+
 ## 4. Cloud Run
 
 From the repository root:
@@ -95,6 +114,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST "$CLAMAV_URL/scan"
 ```
 
 Both must be `401`. Gotenberg leaves `GET /health` open so the app can probe it. Conversion still requires basic auth. ClamAV requires the bearer token on `/health` and `/scan`.
+
+ClamAV starts with the signature databases baked into the image when it was built, then runs `freshclam` once in the background. Its output is in the service logs. If it fails, scanning continues with the baked signatures, so rebuild and redeploy (`bash deploy/cloudrun/clamav.sh`) to pick up newer ones. clamd listens on `127.0.0.1:3310` inside the container, and the container runs as the `clamav` user.
 
 Font check, after the URL and basic-auth variables are in the environment:
 

@@ -91,7 +91,7 @@ async function waitForClamd() {
     try {
       if (await ping()) return;
     } catch {
-      // clamd is still starting, or freshclam is still loading signatures.
+      // clamd is still loading the signature databases.
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }

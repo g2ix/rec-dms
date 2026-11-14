@@ -14,5 +14,7 @@ RUN set -eux \
   && rm -rf /var/lib/apt/lists/*
 
 USER gotenberg
-ENTRYPOINT ["gotenberg"]
+# The base image starts gotenberg under tini, which reaps the LibreOffice and Chromium
+# child processes. Keep tini when setting the command line.
+ENTRYPOINT ["/usr/bin/tini", "--", "gotenberg"]
 CMD ["--api-port-from-env=PORT", "--api-enable-basic-auth", "--api-timeout=60s", "--libreoffice-restart-after=10"]

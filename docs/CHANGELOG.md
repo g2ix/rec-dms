@@ -1,5 +1,22 @@
 # Changelog
 
+## DEPLOY-01 — Cloud Run images fixed before the first deploy (2026-11-14)
+
+A check before the first deploy found problems that would have stopped the Cloud Run services and scripts. None of these images has been built yet: there is no Docker on the development machine, and Cloud Build builds them on the first deploy.
+
+**Line endings.** Git stored the `docker/` and `deploy/` files with LF, but Windows checkouts with `core.autocrlf=true` wrote them out with CRLF, and `gcloud builds submit` uploads the working tree. `#!/bin/sh\r` and `set -euo pipefail\r` fail on Linux. `.gitattributes` now forces LF for `*.sh`, `Dockerfile`, `*.mjs`, `docker/**` and `deploy/**` in every checkout, and the working files were checked out again as LF. `pnpm check:eol` (`scripts/eol-check.mjs`, run first by `pnpm lint`, so also in CI) fails when any of those files contains a carriage return. It checks the working tree, including new files.
+
+**ClamAV (`docker/clamav`).** `clamav/clamav` is the Alpine image, but the Dockerfile used `apt-get`, and `freshclam ... || true` at the end of the same command hid the error, so the image would have built without Node and crashed at `exec node`.
+- Stays on Alpine at 1.4.3 and installs Node with `apk add --no-cache nodejs` in its own step, followed by `RUN node --version`. The Debian image's apt package is Node 18, which is end of life.
+- `clamd.conf` is set at build time, with `grep` checks that fail the build if the lines change. It listens on `127.0.0.1:3310`. Before, the entrypoint only added `TCPAddr` when `TCPSocket` was missing, which it never was, so clamd listened on every interface. Logs go to the container output instead of `/var/log/clamav`.
+- The container runs as the `clamav` user. Startup no longer waits on `freshclam`. clamd starts with the databases in the image (the build checks they are there), and `freshclam` runs once in the background after clamd answers PING. The HTTP wrapper still listens only once clamd answers PING.
+
+**Gotenberg.** `ENTRYPOINT ["gotenberg"]` replaced the base image's `tini`, which reaps the LibreOffice and Chromium child processes. It is now `["/usr/bin/tini", "--", "gotenberg"]`.
+
+**Backup.** `export RCLONE_CONFIG_GCS_TYPE=google cloud storage` was unquoted, so the remote type was `google` and the upload to Cloud Storage would fail. It is now quoted.
+
+**`docs/DEPLOY.md`.** New step: give the Compute Engine default service account `roles/secretmanager.secretAccessor` on each secret, because a new project fails `gcloud run deploy` without it. Notes on running `export PROJECT=...` again after Cloud Shell restarts, on line endings, and on how ClamAV signatures are refreshed.
+
 ## SEC-01 — Dependency audit cleared before the first deployment (2026-11-14)
 
 The M12 note recorded `pnpm audit` on 2026-11-07 at 2 critical, 21 high, 25 moderate and 5 low. This clears every production critical and high finding that has a fix, and documents the two that do not.
