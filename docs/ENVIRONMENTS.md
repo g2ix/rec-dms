@@ -26,7 +26,8 @@ Production (`VERCEL_ENV=production`) refuses to boot if `CRON_SECRET`, `APP_BASE
 | `CLAMAV_URL` | Empty | Cloud Run `recdms-scan` URL | Cloud Run `recdms-scan` URL | `deploy/cloudrun/clamav.sh` | No |
 | `CLAMAV_TOKEN` | Empty | Same as `clamav-token` | Same | You choose it | Yes |
 | `SMTP_URL` | `smtp://127.0.0.1:1025` (Mailpit) | Provider SMTP URL | Provider SMTP URL | Mailpit locally. Resend or the USC relay later | Yes, when it contains a password. Only read when `MAIL_DRIVER=smtp` |
-| `EMAIL_FROM` | `USC REC-DMS <noreply@localhost>` | A verified from-address | A verified from-address | The mailbox you send as. With Resend, on a domain verified there | No |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | Empty (Mailpit through `SMTP_URL`) or a real mailbox | Mailbox or relay | Mailbox or relay | Gmail: `smtp.gmail.com`, `465`, the address, an App Password | Yes for `SMTP_PASS`. `SMTP_HOST` wins over `SMTP_URL`. `SMTP_SECURE` defaults to true on port 465 |
+| `EMAIL_FROM` (or `MAIL_FROM`) | `USC REC-DMS <noreply@localhost>` | A verified from-address | A verified from-address | The mailbox you send as. With Resend, on a domain verified there | No |
 | `MAIL_DRIVER` | `smtp` | `smtp` or `resend` | `resend` or `smtp` | Chosen per environment | No |
 | `RESEND_API_KEY` | Empty | Resend key if that driver is used | Resend key if that driver is used | Resend dashboard | Yes |
 | `APP_TIMEZONE` | `Asia/Manila` | `Asia/Manila` | `Asia/Manila` | Fixed | No |

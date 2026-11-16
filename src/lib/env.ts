@@ -21,10 +21,18 @@ const envSchema = z.object({
   GOTENBERG_SECRET: z.string().default(""),
   CLAMAV_URL: z.string().default(""),
   CLAMAV_TOKEN: z.string().default(""),
-  // Required when MAIL_DRIVER is smtp.
+  // MAIL_DRIVER=smtp needs SMTP_HOST (with port and login) or SMTP_URL. SMTP_HOST wins when both are set.
   SMTP_URL: z.string().default(""),
-  EMAIL_FROM: z.string().min(1),
-  // smtp uses SMTP_URL (Mailpit or a relay). resend uses RESEND_API_KEY.
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  // Implicit TLS. Empty means true on port 465, STARTTLS otherwise.
+  SMTP_SECURE: z.enum(["", "true", "false"]).default(""),
+  // MAIL_FROM is the other accepted name. It wins when both are set.
+  EMAIL_FROM: z.string().default(""),
+  MAIL_FROM: z.string().default(""),
+  // smtp uses SMTP_HOST or SMTP_URL (Mailpit or a relay). resend uses RESEND_API_KEY.
   MAIL_DRIVER: z.enum(["smtp", "resend"]).default("smtp"),
   RESEND_API_KEY: z.string().default(""),
   APP_TIMEZONE: z.string().min(1).default("Asia/Manila"),
@@ -58,8 +66,12 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     throw new Error(`Invalid environment. ${details}`);
   }
   const data = parsed.data;
-  if (data.MAIL_DRIVER === "smtp" && !data.SMTP_URL) {
-    throw new Error("Invalid environment. SMTP_URL is required when MAIL_DRIVER is smtp.");
+  data.EMAIL_FROM = data.MAIL_FROM || data.EMAIL_FROM;
+  if (!data.EMAIL_FROM) {
+    throw new Error("Invalid environment. EMAIL_FROM (or MAIL_FROM) is required.");
+  }
+  if (data.MAIL_DRIVER === "smtp" && !data.SMTP_URL && !data.SMTP_HOST) {
+    throw new Error("Invalid environment. SMTP_HOST or SMTP_URL is required when MAIL_DRIVER is smtp.");
   }
   if (data.MAIL_DRIVER === "resend" && !data.RESEND_API_KEY) {
     throw new Error("Invalid environment. RESEND_API_KEY is required when MAIL_DRIVER is resend.");

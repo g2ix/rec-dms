@@ -51,8 +51,30 @@ describe("env", () => {
     }
     const { loadEnv } = await import("@/lib/env");
 
-    expect(() => loadEnv({ ...required, SMTP_URL: "" })).toThrow(/SMTP_URL/);
+    expect(() => loadEnv({ ...required, SMTP_URL: "" })).toThrow(/SMTP_HOST or SMTP_URL/);
     expect(() => loadEnv({ ...required, MAIL_DRIVER: "resend" })).toThrow(/RESEND_API_KEY/);
     expect(loadEnv({ ...required, SMTP_URL: "", MAIL_DRIVER: "resend", RESEND_API_KEY: "re_test" }).MAIL_DRIVER).toBe("resend");
+  });
+
+  it("accepts SMTP_HOST and MAIL_FROM in place of SMTP_URL and EMAIL_FROM", async () => {
+    vi.resetModules();
+    for (const [key, value] of Object.entries(required)) {
+      vi.stubEnv(key, value);
+    }
+    const { loadEnv } = await import("@/lib/env");
+
+    const loaded = loadEnv({
+      ...required,
+      SMTP_URL: "",
+      EMAIL_FROM: "",
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_PORT: "465",
+      SMTP_USER: "someone@gmail.com",
+      SMTP_PASS: "app-password",
+      MAIL_FROM: "REC <someone@gmail.com>",
+    });
+    expect(loaded.SMTP_PORT).toBe(465);
+    expect(loaded.EMAIL_FROM).toBe("REC <someone@gmail.com>");
+    expect(() => loadEnv({ ...required, EMAIL_FROM: "" })).toThrow(/EMAIL_FROM/);
   });
 });
