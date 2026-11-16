@@ -231,7 +231,7 @@ export async function renderFormDocument(input: {
   const schema: FormSchema | undefined = check.ok ? check.schema : undefined;
   const map = await loadMap(instance.formDefinition.code, instance.formDefinition.placeholderMap);
   const bound = { ...(await boundValuesFor(protocol?.versionId ?? null)), ...(input.extraBound ?? {}) };
-  // An intake-sourced form prints the intake and the Details page in its proponent fields.
+  // An intake-sourced form prints the intake and the study details in its proponent fields.
   const effective = await effectiveFormData(prisma, instance, bound);
   const hidden = input.view === "proponent" && schema ? hiddenForRoles(schema, PROPONENT_SIDE_ROLES) : null;
   const data = hidden && schema ? dataForRoles(schema, effective, PROPONENT_SIDE_ROLES) : effective;

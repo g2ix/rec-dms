@@ -118,7 +118,7 @@ describe("11-01 forms are outputs of the intake", () => {
     expect(validateSchema(column).ok).toBe(false);
   });
 
-  it("shows no F-27 field that is already on Details: each one reads the protocol", () => {
+  it("shows no F-27 field that is already in the study details: each one reads the protocol", () => {
     const schema = form("F-27");
     for (const id of ["duration", "participants", "study_site", "research_type", "funds", "protocol_title", "institution", "address"]) {
       expect(findField(schema, id)?.bind, id).toMatch(/^protocol\./);
@@ -126,7 +126,7 @@ describe("11-01 forms are outputs of the intake", () => {
     expect(findField(schema, "fund_amounts")).toBeUndefined();
   });
 
-  it("follows the Details page: a new title or duration changes the F-27 preview and print with no other edit", () => {
+  it("follows the study details: a new title or duration changes the F-27 preview and print with no other edit", () => {
     const before = render("F-27", BOUND);
     expect(before.text).toContain("Study habits of Grade 10 learners");
     const after = render("F-27", { ...BOUND, "protocol.title": "Reading habits of Grade 9 learners", "protocol.durationMonths": 9 });

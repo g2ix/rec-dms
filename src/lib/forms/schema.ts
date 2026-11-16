@@ -177,7 +177,7 @@ export const sectionSchema = z
 export const formSchema = z
   .object({
     /**
-     * "intake": the proponents answer the intake and the Details page once; every proponent field
+     * "intake": the proponents answer the intake and the study details once; every proponent field
      * of this form is a binding to protocol.*, intake.*, team.* or system.* and is read-only.
      * Reviewer, staff and chair fields work as usual.
      */

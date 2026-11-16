@@ -117,6 +117,19 @@ test("a proponent prepares and submits a version from the Intake tab", async ({ 
   await page.waitForURL(/\/app\/protocols\/[0-9a-f-]{36}$/, { timeout: 30_000 });
   const protocolUrl = page.url();
 
+  // No Details tab: the study is entered on the Intake tab, and the panel the discipline suggested
+  // is read on Overview (only REC Staff or the Chair can change it). Old Details links land on Study.
+  const tabs = page.getByRole("navigation", { name: "Protocol" });
+  await expect(tabs.getByRole("link", { name: /^Intake/ })).toBeVisible();
+  await expect(tabs.getByRole("link", { name: /^Details/ })).toHaveCount(0);
+  const panelCard = page.getByRole("region", { name: "Review panel" });
+  await expect(panelCard).toContainText("Education");
+  await expect(panelCard).toContainText("REC Staff or the Chair can change the panel.");
+  await expect(panelCard.getByRole("button", { name: "Save panel" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Study", exact: true })).toHaveCount(0);
+  await page.goto(`${protocolUrl}/details`);
+  await expect(page).toHaveURL(/\/intake(#study)?$/, { timeout: 30_000 });
+
   await page.goto(`${protocolUrl}/intake`);
   const rail = page.getByRole("navigation", { name: "Intake sections" });
   await expect(rail.locator(".rec-intake-rail__item")).toHaveCount(8, { timeout: 30_000 });

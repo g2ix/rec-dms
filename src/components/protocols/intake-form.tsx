@@ -66,7 +66,7 @@ const GAP_SECTION_OF_ITEM: Record<string, IntakeGap["section"]> = {
  * The Intake tab: the one place where the proponents prepare a version. A rail of sections
  * (status from the submission checklist), one scrolling page, the generated forms to preview,
  * and a submit bar. Each section keeps its own data where it was: the Study and Funding fields
- * on the protocol (the Details page), the rest in the intake, the files in the uploads.
+ * on the protocol (the study details), the rest in the intake, the files in the uploads.
  */
 export function IntakeForm({
   protocolId,
@@ -525,7 +525,6 @@ function savedLabel(at: number): string {
 }
 
 const GROUP_NOUN: Partial<Record<ChecklistTab, [string, string]>> = {
-  details: ["detail", "details"],
   forms: ["form", "forms"],
   uploads: ["upload", "uploads"],
   members: ["member", "members"],
@@ -536,7 +535,8 @@ function alsoNeededSummary(checklist: SubmissionChecklist): string | null {
   const parts: string[] = [];
   for (const group of checklist.groups) {
     const count = groupLeft(group);
-    if (count === 0 || group.tab === "intake") continue;
+    // The study details are the Study and Funding steps of this page, so the rail already counts them.
+    if (count === 0 || group.tab === "intake" || group.tab === "details") continue;
     if (group.tab === "account") {
       parts.push("Account approval by REC Staff");
       continue;

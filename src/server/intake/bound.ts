@@ -88,7 +88,7 @@ export function intakeBindings(input: {
 }
 
 /**
- * Every value a form of this version can bind: the Details page (frozen with the version once
+ * Every value a form of this version can bind: the study details (frozen with the version once
  * submitted), the intake, the roster with each researcher's agreements, and the review type.
  */
 export async function versionBoundValues(db: Db, versionId: string): Promise<Record<string, unknown>> {

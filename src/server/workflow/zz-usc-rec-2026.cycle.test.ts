@@ -209,7 +209,7 @@ describe("USC REC November 2026 workflows", () => {
     const run = await newProtocol(who, `Client type ${crypto.randomUUID().slice(0, 6)}`);
     await prisma.protocol.update({ where: { id: run.protocolId }, data: { clientTypeKey: null } });
     await prisma.protocolMember.updateMany({ where: { protocolId: run.protocolId, isLeader: true }, data: { profileKind: "USC_ACADEMIC", academicLevel: null } });
-    // The source of funds is on Details now; F-27 prints it from there.
+    // The source of funds is in the study details now; F-27 prints it from there.
     await fillIntake(run.protocolId, run.versionId, { funding: [{ code: "AGENCY", detail: "DOST-PCHRD" }] });
     for (const code of ["F-27", "F-28", "F-30", "F-35", "F-36"]) {
       await writeForm({ ...run, code, stepKey: "proponent_submit", roles: LEADER, userId: who.leader.id });

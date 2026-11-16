@@ -159,7 +159,8 @@ function FieldBlock(props: {
     const protocolId = typeof boundValues["system.protocolId"] === "string" ? boundValues["system.protocolId"] : null;
     const onDetails = field.bind.startsWith("protocol.");
     const systemNote = SET_BY_SYSTEM[field.bind];
-    const href = protocolId ? `/app/protocols/${protocolId}/${intake && !onDetails ? "intake" : "details"}` : "/app/protocols";
+    // The study details (protocol.*) and the intake answers are both entered on the Intake tab.
+    const href = protocolId ? `/app/protocols/${protocolId}/intake${onDetails || !intake ? "#study" : ""}` : "/app/protocols";
     const previewHref = props.boundHref?.(field.bind) ?? null;
     if (field.type === "repeatingTable") {
       return (

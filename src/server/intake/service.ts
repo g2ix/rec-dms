@@ -80,7 +80,7 @@ async function intakeForms(tx: Tx, versionId: string) {
 }
 
 /**
- * After the intake or the Details page changes: each intake form copy whose printed content
+ * After the intake or the study details changes: each intake form copy whose printed content
  * changed gets a new revision (so a stored print is not reused) and its signatures are voided,
  * as an edit on the form itself would do.
  */

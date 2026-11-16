@@ -9,7 +9,7 @@ import { registerAutosaveFlusher } from "@/lib/forms/flush-registry";
 import { isAllCapsTitle } from "@/lib/protocols/format";
 import { saveStudyAction } from "@/server/intake/actions";
 
-/** The fields of the protocol the Study and Funding sections write (the Details page's fields). */
+/** The fields of the protocol the Study and Funding sections write (the protocol's study details). */
 export type StudyPatch = {
   title?: string;
   institution?: string;

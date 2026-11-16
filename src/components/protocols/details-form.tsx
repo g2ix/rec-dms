@@ -44,11 +44,8 @@ export function DetailsForm({
   return (
     <div className="rec-stack">
       <section className="rec-card rec-stack">
-        <h2 className="heading">Shown on every form</h2>
-        <p className="body-sm rec-muted">Researchers follow the proponent roster, in order, as First M. Family.</p>
-        <p className="body-sm rec-muted">
-          These details are the Study section of the intake. F-27 prints them as they are here, so there is nothing to type again on the form.
-        </p>
+        <h2 className="heading">Study details</h2>
+        <p className="body-sm rec-muted">Shown on every form. Researchers follow the proponent roster, in order, as First M. Family.</p>
         <p className="body">{researchers.length > 0 ? researchers.join(", ") : "No active proponents yet."}</p>
       </section>
       <form action={action} className="rec-form">
@@ -112,7 +109,7 @@ export function DetailsForm({
         {locked ? <p className="body-sm">This version is submitted. Start a revision to edit these details.</p> : null}
         {locked ? null : (
           <BusyButton type="submit" variant="primary" busy={pending} busyLabel="Saving…">
-            Save shared details
+            Save study details
           </BusyButton>
         )}
         <p className="caption rec-muted">Bound title on forms: {formatBoundValue(title)}</p>

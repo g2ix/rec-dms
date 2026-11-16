@@ -130,8 +130,8 @@ const studySchema = z.object({ protocolId: z.string().uuid(), patch: studyPatchS
 export type StudySaveResult = { ok: true } | { ok: false; code: string; message: string };
 
 /**
- * Autosave of the intake's Study and Funding fields, which live on the protocol (the Details page).
- * Only the fields sent are written. There is no revision check: the Details form never had one.
+ * Autosave of the intake's Study and Funding fields, which live on the protocol (the study details).
+ * Only the fields sent are written. There is no revision check: the earlier study details form never had one.
  */
 export async function saveStudyAction(input: unknown): Promise<StudySaveResult> {
   try {

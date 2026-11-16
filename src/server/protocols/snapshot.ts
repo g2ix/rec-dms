@@ -87,7 +87,7 @@ export function sharedSnapshot(
   };
 }
 
-/** The Details page as intake bindings (protocol.*), for forms with `source: "intake"`. */
+/** The study details as intake bindings (protocol.*), for forms with `source: "intake"`. */
 export function studyBindings(protocol: {
   researchTypeCodes?: string[];
   researchTypeOther?: string;

@@ -87,7 +87,7 @@ export default async function ProtocolFormPage({
     schema: form.schema,
     roles,
   });
-  // An intake-sourced form shows the intake and the Details page in its proponent fields, read-only.
+  // An intake-sourced form shows the intake and the study details in its proponent fields, read-only.
   const data = await effectiveFormData(prisma, form.instance, bound);
   const showSplit = Boolean(manuscript && form.stepKey);
 

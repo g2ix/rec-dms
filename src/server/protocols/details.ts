@@ -77,7 +77,7 @@ export async function updateSharedDetails(protocolId: string, userId: string, in
 /**
  * One autosaved field group of the intake's Study or Funding section. Only the fields sent are
  * written, each checked on its own, so a half-filled protocol can save its title before it has a
- * research type. Same audit and F-27/F-28/F-30 refresh as the Details form.
+ * research type. Same audit and F-27/F-28/F-30 refresh as the study details form on earlier versions.
  */
 export const studyPatchSchema = z
   .object({

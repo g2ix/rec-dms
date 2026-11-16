@@ -1,5 +1,6 @@
 /** Shapes and wording for the "Before you can submit" checklist. The server builds the data; this file only describes it. */
 
+/** A checklist group. "details" (the study details) has no tab of its own: it counts on the Intake tab. */
 export type ChecklistTab = "account" | "details" | "intake" | "members" | "forms" | "uploads";
 
 export type ChecklistItem = {
@@ -42,7 +43,10 @@ export function firstMissing(group: ChecklistGroup): ChecklistItem | null {
 export function tabCounts(checklist: SubmissionChecklist | null): Partial<Record<ChecklistTab, number>> {
   const counts: Partial<Record<ChecklistTab, number>> = {};
   if (!checklist) return counts;
-  for (const group of checklist.groups) counts[group.tab] = groupLeft(group);
+  for (const group of checklist.groups) {
+    const tab = group.tab === "details" ? "intake" : group.tab;
+    counts[tab] = (counts[tab] ?? 0) + groupLeft(group);
+  }
   return counts;
 }
 

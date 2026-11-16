@@ -1,5 +1,5 @@
 import { FeesSection } from "@/components/protocols/fees-section";
-import { RecentActivity, StageTrack, TeamCard, stageOf } from "@/components/protocols/overview-cards";
+import { PanelCard, RecentActivity, StageTrack, StudyCard, TeamCard, stageOf } from "@/components/protocols/overview-cards";
 import { SubmissionChecklistPanel } from "@/components/protocols/submission-checklist";
 import { SubmitStepForm } from "@/components/protocols/submit-step-card";
 import { WorkflowMigration } from "@/components/workflow/workflow-migration";
@@ -15,7 +15,7 @@ import { protocolTaskComments } from "@/server/workflow/comments";
 import { completeTaskAction } from "@/server/workflow/actions";
 import { protocolFlow } from "@/server/workflow/read";
 import { startRevisionAction, submitVersionAction } from "@/server/protocols/actions";
-import { protocolHeader } from "@/server/protocols/read";
+import { listPanels, protocolHeader } from "@/server/protocols/read";
 import { requireUser } from "@/server/session";
 
 type Flow = NonNullable<Awaited<ReturnType<typeof protocolFlow>>>;
@@ -57,6 +57,7 @@ export default async function ProtocolOverviewPage({
     protocolTaskComments(user.id, id),
     getSubmissionChecklist(user.id, id),
   ]);
+  const panels = header.staff ? await listPanels() : [];
   const leader = header.mine?.isLeader && header.mine.role === "PROPONENT" && header.mine.status === "ACTIVE";
   const workflowRunning = flow?.instance.status === "RUNNING";
   const proponentView = !header.staff && (header.mine?.role === "PROPONENT" || header.mine?.role === "ADVISER");
@@ -99,6 +100,15 @@ export default async function ProtocolOverviewPage({
       ) : null}
       {!leader && !stepCard ? <p className="body-sm rec-muted">Only the project leader can submit a version.</p> : null}
       <TeamCard protocolId={id} members={people.members} viewerId={user.id} />
+      {/* The proponents enter the study on the Intake tab; everyone else reads it here. */}
+      {proponentView ? null : <StudyCard study={header.protocol} />}
+      <PanelCard
+        protocolId={id}
+        discipline={header.protocol.discipline?.name ?? null}
+        panel={header.protocol.panel}
+        panels={panels}
+        canChange={header.staff}
+      />
       <RecentActivity protocolId={id} viewerId={user.id} />
     </div>
   );

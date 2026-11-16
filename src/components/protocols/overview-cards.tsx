@@ -3,6 +3,7 @@ import { auditActionLabel, isInternalAuditAction } from "@/lib/audit-log";
 import { mergeActivity, type ActivityEntry } from "@/lib/protocols/checklist";
 import { formatManila } from "@/lib/time";
 import { listAuditEvents } from "@/server/audit/query";
+import { changePanelAction } from "@/server/protocols/actions";
 import { reviewerNameMask } from "@/server/workflow/read";
 
 export const STAGES = ["Prepare", "Screening", "Review", "Decision"] as const;
@@ -104,6 +105,125 @@ export function TeamCard({
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * The review panel. The discipline chosen at creation suggests it; REC Staff or a Chair can change it.
+ * Everyone else reads it here.
+ */
+export function PanelCard({
+  protocolId,
+  discipline,
+  panel,
+  panels,
+  canChange,
+}: {
+  protocolId: string;
+  discipline: string | null;
+  panel: { id: string; name: string } | null;
+  /** The active panels to choose from. Only read when canChange. */
+  panels: { id: string; name: string }[];
+  canChange: boolean;
+}) {
+  return (
+    <section className="rec-card rec-stack" aria-labelledby="panel-heading">
+      <h2 id="panel-heading" className="heading">
+        Review panel
+      </h2>
+      <dl className="rec-facts">
+        <div>
+          <dt className="caption rec-muted">Discipline</dt>
+          <dd className="body-sm">{discipline ?? "Not set"}</dd>
+        </div>
+        <div>
+          <dt className="caption rec-muted">{discipline ? "Panel (suggested by the discipline)" : "Panel"}</dt>
+          <dd className="body-sm">
+            <strong>{panel?.name ?? "Not set"}</strong>
+          </dd>
+        </div>
+      </dl>
+      {canChange ? (
+        <form action={changePanelAction} className="rec-form">
+          <input type="hidden" name="protocolId" value={protocolId} />
+          <label className="label" htmlFor="panel">
+            Change the panel
+          </label>
+          <select id="panel" name="panelId" className="rec-select" defaultValue={panel?.id ?? ""}>
+            {panel ? null : (
+              <option value="" disabled>
+                Choose a panel
+              </option>
+            )}
+            {panels.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <button className="rec-btn rec-btn--secondary" type="submit">
+            <span>Save panel</span>
+          </button>
+        </form>
+      ) : (
+        <p className="body-sm rec-muted">REC Staff or the Chair can change the panel.</p>
+      )}
+    </section>
+  );
+}
+
+type StudyFacts = {
+  title: string;
+  institution: string;
+  institutionAddress: string;
+  researchType: string;
+  durationMonths: number | null;
+  expectedParticipants: number | null;
+  studySite: string;
+  fundingSources: unknown;
+};
+
+function fundingText(value: unknown): string {
+  if (!Array.isArray(value)) return "";
+  return value
+    .flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const row = item as { name?: unknown; detail?: unknown };
+      if (typeof row.name !== "string" || !row.name) return [];
+      return [typeof row.detail === "string" && row.detail ? `${row.name} (${row.detail})` : row.name];
+    })
+    .join("; ");
+}
+
+/**
+ * The study facts, read only, for REC Staff, reviewers and anyone else who does not prepare the
+ * protocol. The proponents enter them in the Study section of the Intake tab.
+ */
+export function StudyCard({ study }: { study: StudyFacts }) {
+  const institution = [study.institution, study.institutionAddress].filter(Boolean).join(", ");
+  const rows: [string, string][] = [
+    ["Title", study.title],
+    ["Institution", institution],
+    ["Research type", study.researchType],
+    ["Duration", study.durationMonths == null ? "" : `${study.durationMonths} ${study.durationMonths === 1 ? "month" : "months"}`],
+    ["Expected participants", study.expectedParticipants == null ? "" : String(study.expectedParticipants)],
+    ["Study site", study.studySite],
+    ["Source of funds", fundingText(study.fundingSources)],
+  ];
+  return (
+    <section className="rec-card rec-stack" aria-labelledby="study-heading">
+      <h2 id="study-heading" className="heading">
+        Study
+      </h2>
+      <dl className="rec-facts">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="caption rec-muted">{label}</dt>
+            <dd className="body-sm">{value || <span className="rec-muted">Not given</span>}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

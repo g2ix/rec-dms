@@ -97,24 +97,25 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
 
   const details = protocolDetailsSchema.shape;
   groups.push({
+    // The study details, entered in the Study section of the Intake tab (the Details tab was folded into it).
     tab: "details",
-    label: "Details",
-    href: `${base}/details`,
+    label: "Study details",
+    href: `${base}/intake#study`,
     items: [
-      { key: "details.title", label: "Protocol title", done: details.title.safeParse(protocol.title).success, hint: null, href: `${base}/details` },
+      { key: "details.title", label: "Protocol title", done: details.title.safeParse(protocol.title).success, hint: null, href: `${base}/intake#study` },
       {
         key: "details.institution",
         label: "Institution",
         done: details.institution.safeParse(protocol.institution).success,
         hint: null,
-        href: `${base}/details`,
+        href: `${base}/intake#study`,
       },
       {
         key: "details.researchType",
         label: "Research type",
         done: details.researchTypeCodes.safeParse(protocol.researchTypeCodes).success,
         hint: null,
-        href: `${base}/details`,
+        href: `${base}/intake#study`,
       },
     ],
   });
@@ -162,8 +163,6 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
     const funding = intake.gaps.filter((gap) => gap.section === "funding");
     const detailsGroup = groups.find((group) => group.tab === "details");
     if (detailsGroup) {
-      // On an intake version the proponents answer these on the Intake tab (Study, Funding and budget).
-      for (const item of detailsGroup.items) item.href = `${base}/intake#study`;
       detailsGroup.items.push(
         {
           key: "details.study",

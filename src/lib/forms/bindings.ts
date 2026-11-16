@@ -19,7 +19,7 @@ export const SHARED_BINDINGS: readonly SharedBinding[] = [
 
 /**
  * Paths an intake-sourced form (`source: "intake"`) can also bind. protocol.* comes from the
- * Details page, intake.* from the intake, team.* from the roster and its agreements, system.*
+ * study details, intake.* from the intake, team.* from the roster and its agreements, system.*
  * from the workflow. Every bound field is read-only on the form.
  */
 export const INTAKE_BINDINGS: readonly SharedBinding[] = [

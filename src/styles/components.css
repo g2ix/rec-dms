@@ -1327,6 +1327,18 @@ html.theme-fade * {
   font-weight: 600;
 }
 
+/* Label-over-value facts on the Overview cards (Review panel, Study). One column on a phone. */
+.rec-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+}
+.rec-facts div { min-width: 0; }
+.rec-facts dt,
+.rec-facts dd { margin: 0; }
+.rec-facts dd { overflow-wrap: anywhere; }
+
 .rec-team { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .rec-team__chip {
   display: flex;

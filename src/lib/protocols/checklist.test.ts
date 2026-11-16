@@ -33,6 +33,21 @@ describe("submission checklist", () => {
     expect(tabCounts(null)).toEqual({});
   });
 
+  it("counts the study details on the Intake tab, which has no Details tab beside it", () => {
+    const item = (key: string, done: boolean) => ({ key, label: key, done, hint: null, href: "/intake" });
+    const list: SubmissionChecklist = {
+      stepName: "Submit the initial protocol",
+      groups: [
+        { tab: "details", label: "Study details", href: "/intake#study", items: [item("details.title", false), item("details.institution", true)] },
+        { tab: "intake", label: "Intake", href: "/intake", items: [item("intake.coi", false), item("intake.budget", false)] },
+      ],
+      done: 1,
+      total: 4,
+      accountApproved: true,
+    };
+    expect(tabCounts(list)).toEqual({ intake: 3 });
+  });
+
   it("merges consecutive repeats by the same person, newest first", () => {
     const at = (minute: number) => new Date(Date.UTC(2026, 10, 11, 11, minute));
     const merged = mergeActivity([

@@ -6,11 +6,57 @@ import { estimateEthicsFee } from "@/server/intake/fee";
 import { intakePageExtras } from "@/server/intake/page";
 import { readIntakeView } from "@/server/intake/service";
 import { intakeStateOf } from "@/server/intake/state";
-import { protocolHeader } from "@/server/protocols/read";
+import { boundValues, protocolHeader } from "@/server/protocols/read";
+import { DetailsForm } from "@/components/protocols/details-form";
 import { requireUser } from "@/server/session";
 import { ReturnedView, type ReturnedData } from "@/components/protocols/intake/returned-view";
 import { formatManila } from "@/lib/time";
 import { returnedView, type ReturnedView as ReturnedViewModel, type UploadRow } from "@/server/revision/returned";
+
+type Header = Awaited<ReturnType<typeof protocolHeader>>;
+
+/**
+ * Versions on the earlier forms have no Study section, so the shared study details are edited
+ * here, on the same tab as intake versions (the Details tab was folded into the Intake tab).
+ */
+async function LegacyStudyDetails({ protocolId, header }: { protocolId: string; header: Header }) {
+  const bound = await boundValues(protocolId);
+  const storedFunding = Array.isArray(header.protocol.fundingSources) ? header.protocol.fundingSources : [];
+  const funding = storedFunding.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("code" in item) || typeof item.code !== "string") return [];
+    const detail = "detail" in item && typeof item.detail === "string" ? item.detail : "";
+    return [{ code: item.code, detail }];
+  });
+  const legacyFunding = storedFunding.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("name" in item) || typeof item.name !== "string") return [];
+    if ("code" in item && typeof item.code === "string" && item.code) return [];
+    return [item.name];
+  });
+  const researchers = Array.isArray(bound["protocol.researchers"])
+    ? bound["protocol.researchers"].filter((item): item is string => typeof item === "string")
+    : [];
+  const canEdit = header.mine?.status === "ACTIVE" && (header.mine.role === "PROPONENT" || header.mine.role === "ADVISER");
+  return (
+    <DetailsForm
+      protocolId={protocolId}
+      locked={!header.working || !canEdit}
+      researchers={researchers}
+      values={{
+        title: header.protocol.title,
+        institution: header.protocol.institution,
+        institutionAddress: header.protocol.institutionAddress,
+        researchTypeCodes: header.protocol.researchTypeCodes,
+        researchTypeOther: header.protocol.researchTypeOther,
+        legacyResearchType: header.protocol.researchTypeCodes.length === 0 ? header.protocol.researchType : "",
+        durationMonths: header.protocol.durationMonths,
+        expectedParticipants: header.protocol.expectedParticipants,
+        studySite: header.protocol.studySite,
+        funding,
+        legacyFunding,
+      }}
+    />
+  );
+}
 
 function fileRow(file: UploadRow) {
   return { id: file.id, kind: file.kind, originalName: file.name, scanStatus: file.scanStatus, size: 0, tag: file.tag };
@@ -66,12 +112,16 @@ export default async function ProtocolIntakePage({ params }: { params: Promise<{
 
   if (!state?.usesIntake) {
     return (
-      <section className="rec-card rec-stack">
-        <h2 className="heading">Intake</h2>
-        <p className="body">
-          This protocol uses the earlier forms, so its answers are on each form. Open the <Link href={`/app/protocols/${id}/forms`}>Forms</Link> tab.
-        </p>
-      </section>
+      <div className="rec-stack" id="study">
+        <section className="rec-card rec-stack">
+          <h2 className="heading">Intake</h2>
+          <p className="body">
+            This protocol uses the earlier forms, so most answers are on each form. Open the <Link href={`/app/protocols/${id}/forms`}>Forms</Link> tab.
+            The study details below are shared by every form.
+          </p>
+        </section>
+        <LegacyStudyDetails protocolId={id} header={header} />
+      </div>
     );
   }
 

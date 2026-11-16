@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * The intake: what the proponents answer once per protocol version. The study details (title,
  * institution, address, research type, duration, participants, site and funding) stay on the
- * protocol (the Details page); the intake holds the rest. F-27, F-28, F-30 and the proponent
+ * protocol (the study details); the intake holds the rest. F-27, F-28, F-30 and the proponent
  * columns of F-35, F-36 and F-38 are printed from both.
  */
 

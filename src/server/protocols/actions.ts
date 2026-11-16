@@ -120,7 +120,8 @@ export async function updateDetailsAction(_prev: ActionState, formData: FormData
       fundingSources: study.fundingSources,
     });
     await updateSharedDetails(id, user.id, details);
-    revalidatePath(`/app/protocols/${id}`);
+    // The form sits on the Intake tab and the title in the header of every tab.
+    revalidatePath(`/app/protocols/${id}`, "layout");
     return null;
   } catch (error) {
     return fail(error, "The shared details could not be saved.");
