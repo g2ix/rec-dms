@@ -16,10 +16,5 @@ export async function RoleHome() {
     const [profile, activity] = await Promise.all([getPersonProfile(user.id), recentActivity(user.id)]);
     return <ProponentDashboard model={model} profile={profile} activity={activity} viewerName={user.displayName} />;
   }
-  return (
-    <article className="rec-stack">
-      <h1 className="title">Dashboard</h1>
-      <DashboardView model={model} />
-    </article>
-  );
+  return <DashboardView model={model} />;
 }
