@@ -114,6 +114,10 @@ function RoleSwitch({ roleView, roleViews }: { roleView: RoleView; roleViews: Ro
   function select(view: RoleView) {
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `activeView=${view}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+    // The current page may belong to the previous role, so every switch lands on
+    // the new role's dashboard. refresh() re-renders the shared layout too, so the
+    // sidebar and the content both follow the new cookie.
+    router.push("/app");
     router.refresh();
   }
 

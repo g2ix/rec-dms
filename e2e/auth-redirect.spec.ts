@@ -153,6 +153,37 @@ test("sign-in keeps the last used view when the identity has none", async ({ pag
   await expect(page.getByRole("link", { name: "My reviews" })).toBeVisible();
 });
 
+test("switching role opens the new role's dashboard and sidebar", async ({ page }) => {
+  await setDefaultView(null);
+  await grantRole("REC_MEMBER");
+  await page.context().addCookies([
+    { name: "activeView", value: "reviewer", url: E2E_ORIGIN },
+  ]);
+  await page.goto("/sign-in");
+  await signIn(page);
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  const switcher = page.getByRole("button", { name: "Switch role" });
+
+  // A reviewer-only page; staying on it as a proponent would be confusing.
+  await page.getByRole("link", { name: "My reviews", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/reviews$/);
+  await switcher.click();
+  await page.getByRole("menuitem", { name: "Proponent" }).click();
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(switcher).toHaveText("Proponent");
+  await expect(page.getByRole("link", { name: "My protocols", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "My reviews", exact: true })).toHaveCount(0);
+
+  // And back again from a proponent page.
+  await page.getByRole("link", { name: "My protocols", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/protocols$/);
+  await switcher.click();
+  await page.getByRole("menuitem", { name: "Reviewer" }).click();
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(switcher).toHaveText("Reviewer");
+  await expect(page.getByRole("link", { name: "My reviews", exact: true })).toBeVisible();
+});
+
 test("sign-in opens a path stored as the identity default view", async ({ page }) => {
   await setDefaultView("/app/tasks");
   await page.context().addCookies([
