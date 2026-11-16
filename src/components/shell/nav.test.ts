@@ -50,6 +50,28 @@ describe("navGroups", () => {
     );
   });
 
+  it.each<RoleView>(["staff", "chair"])("lists each screen once with its own icon in the %s view", (view) => {
+    const items = navGroups(view, {
+      manageUsers: true,
+      viewAudit: true,
+      editForms: true,
+      editWorkflow: true,
+      editSettings: true,
+      editHolidays: true,
+      reviewRetention: true,
+      manageFees: true,
+    }).flatMap((group) => group.items);
+    expect(new Set(items.map((item) => item.label)).size).toBe(items.length);
+    expect(new Set(items.map((item) => item.icon)).size).toBe(items.length);
+    expect(items.map((item) => item.href)).not.toContain("/app/settings");
+  });
+
+  it("drops a group whose links are all gated away", () => {
+    const groups = navGroups("staff");
+    expect(groups.every((group) => group.items.length > 0)).toBe(true);
+    expect(groups.map((group) => group.label)).not.toContain("Administration");
+  });
+
   it.each<RoleView>(["proponent", "adviser", "reviewer", "panel-chair"])("leaves the %s view unchanged", (view) => {
     expect(hrefs(view, { manageUsers: true, editForms: true })).toEqual(hrefs(view));
     expect(hrefs(view, { manageUsers: true })).not.toContain("/admin/panels");

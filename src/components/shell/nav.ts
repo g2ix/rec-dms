@@ -1,6 +1,8 @@
 import {
+  Banknote,
   Bell,
   CalendarDays,
+  CalendarOff,
   ChartColumn,
   ClipboardCheck,
   FilePlus,
@@ -47,30 +49,49 @@ export const ROLE_LABEL: Record<RoleView, string> = {
   chair: "REC Chair",
 };
 
-const staffItems: NavItem[] = [
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/app/tasks", label: "My tasks", icon: ListChecks },
-  { href: "/app/screening", label: "Screening queue", icon: Inbox },
-  { href: "/app/receipts", label: "Fee receipts", icon: Receipt },
-  { href: "/app/releases", label: "Releases", icon: Send },
-  { href: "/app/protocols", label: "All protocols", icon: Library },
-  { href: "/app/users", label: "Users", icon: Users },
-  { href: "/app/reports", label: "Reports", icon: ChartColumn },
-  { href: "/app/meetings", label: "Meetings", icon: CalendarDays },
-  { href: "/app/search", label: "Search", icon: Search },
-  { href: "/admin/retention", label: "Retention", icon: Archive },
-  { href: "/admin/holidays", label: "Holidays", icon: CalendarDays },
-  { href: "/admin/fees", label: "Fees", icon: Receipt },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/admin/audit", label: "Audit log", icon: ScrollText },
-  { href: "/admin/workflows", label: "Workflows", icon: Workflow },
-  { href: "/admin/notifications", label: "Notifications", icon: Bell },
-  { href: "/admin/forms", label: "Forms", icon: FileText },
-];
-
-const chairItems: NavItem[] = [
-  ...staffItems,
-  { href: "/app/settings", label: "Settings", icon: Settings },
+/**
+ * REC Staff and the REC Chair share one sidebar, split by how often each screen is used:
+ * daily queues first, then records, then configuration that rarely changes.
+ * Every item keeps its own icon so the collapsed rail stays scannable.
+ */
+const officeGroups: NavGroup[] = [
+  {
+    items: [
+      { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/app/tasks", label: "My tasks", icon: ListChecks },
+      { href: "/app/search", label: "Search", icon: Search },
+    ],
+  },
+  {
+    label: "Queues",
+    items: [
+      { href: "/app/screening", label: "Screening queue", icon: Inbox },
+      { href: "/app/receipts", label: "Fee receipts", icon: Receipt },
+      { href: "/app/meetings", label: "Meetings", icon: CalendarDays },
+      { href: "/app/releases", label: "Releases", icon: Send },
+    ],
+  },
+  {
+    label: "Records",
+    items: [
+      { href: "/app/protocols", label: "All protocols", icon: Library },
+      { href: "/app/reports", label: "Reports", icon: ChartColumn },
+      { href: "/app/users", label: "Users", icon: Users },
+      { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+    ],
+  },
+  {
+    label: "Administration",
+    items: [
+      { href: "/admin/settings", label: "Settings", icon: Settings },
+      { href: "/admin/fees", label: "Fees", icon: Banknote },
+      { href: "/admin/holidays", label: "Holidays", icon: CalendarOff },
+      { href: "/admin/retention", label: "Retention", icon: Archive },
+      { href: "/admin/workflows", label: "Workflows", icon: Workflow },
+      { href: "/admin/forms", label: "Forms", icon: FileText },
+      { href: "/admin/notifications", label: "Notifications", icon: Bell },
+    ],
+  },
 ];
 
 export const NAV: Record<RoleView, NavGroup[]> = {
@@ -116,8 +137,8 @@ export const NAV: Record<RoleView, NavGroup[]> = {
       ],
     },
   ],
-  staff: [{ items: staffItems }],
-  chair: [{ items: chairItems }],
+  staff: officeGroups,
+  chair: officeGroups,
 };
 
 const USER_ADMIN_ITEMS: NavItem[] = [
@@ -160,15 +181,17 @@ const HREF_CAPABILITY: Partial<Record<string, keyof NavCapabilities>> = {
 
 /** Admin links appear only when the person passes the matching authorize check. */
 export function navGroups(view: RoleView, caps: NavCapabilities = EMPTY_NAV_CAPABILITIES): NavGroup[] {
-  return NAV[view].map((group) => ({
-    ...group,
-    items: group.items.flatMap((item) => {
-      if (item.href === "/app/users") return caps.manageUsers ? USER_ADMIN_ITEMS : [item];
-      const needed = HREF_CAPABILITY[item.href];
-      if (needed && !caps[needed]) return [];
-      return [item];
-    }),
-  }));
+  return NAV[view]
+    .map((group) => ({
+      ...group,
+      items: group.items.flatMap((item) => {
+        if (item.href === "/app/users") return caps.manageUsers ? USER_ADMIN_ITEMS : [item];
+        const needed = HREF_CAPABILITY[item.href];
+        if (needed && !caps[needed]) return [];
+        return [item];
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 const LEDES: Record<string, string> = {
@@ -190,7 +213,6 @@ const LEDES: Record<string, string> = {
   "/app/search": "Find a protocol by code, title, or proponent.",
   "/app/workflows": "Workflow versions will be listed here.",
   "/admin/forms": "Form definitions, versions, and the sandbox.",
-  "/app/settings": "Committee settings will be edited here.",
   "/admin/audit": "Recorded actions and the hash chain.",
   "/admin/notifications": "Templates for in-app notices and email.",
   "/app/notifications": "Notices for your account.",
