@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Seal } from "@/components/brand/seal";
+import { BrandMarks } from "@/components/brand/seal";
 import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 import { siteContent } from "@/lib/site-content";
 
@@ -12,7 +12,7 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
       <header className="site-header">
         <div className="site-wrap site-header__bar">
           <Link className="site-brand" href="/" aria-label={siteContent.brand.homeLabel}>
-            <Seal size={36} alt="" priority />
+            <BrandMarks size={36} decorative priority sealClassName="site-brand__seal" />
             <span className="site-brand__text">
               <span className="site-brand__name">{siteContent.brand.name}</span>
               <span className="site-brand__unit">{siteContent.brand.unit}</span>
@@ -37,7 +37,7 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
       <footer className="site-footer">
         <div className="site-wrap site-footer__bar">
           <p className="site-footer__name">
-            <Seal size={24} alt="" />
+            <BrandMarks size={24} decorative />
             <span>{siteContent.footer.name}</span>
           </p>
           <div className="site-footer__meta">

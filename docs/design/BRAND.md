@@ -16,9 +16,11 @@ The interface of the USC Research Ethics Committee's protocol review system. It 
 
 ## Logo
 
-- Use the USC seal (`public/brand/usc-seal.png` (512px copy: `usc-seal-512.png`), transparent background) as provided: never recolor, outline, crop, add effects, or place it on a busy image.
-- Sidebar: seal at 32px beside "REC-DMS" set in `subheading`; collapsed rail shows the seal alone at 32px.
-- Sign-in page: seal at 96px above the `display` title "Research Ethics Committee".
+- Two marks: the USC REC logo (`public/brand/rec-logo.png`, 512px copy `rec-logo-512.png`) is the main mark, and the USC seal (`public/brand/usc-seal.png`, 512px copy `usc-seal-512.png`) sits beside it at the same size. Both have transparent backgrounds. Use them as provided: never recolor, outline, crop, add effects, or place them on a busy image.
+- Render the pair with `<BrandMarks>` (`src/components/brand/seal.tsx`): REC logo first, USC seal second.
+- Favicon, app icons and the web manifest use the REC logo alone.
+- Sidebar: the pair at 32px beside "REC-DMS" set in `subheading`; collapsed rail shows the REC logo alone at 32px.
+- Front page hero: the pair at 96px. Sign-in page: the pair at 80px above the title.
 - Minimum size 24px. Keep clear space of half its height around it.
 - The seal works on `bg`, `surface` and `surface-sunken` in both themes. Do not set it on `primary` or any brand fill.
 

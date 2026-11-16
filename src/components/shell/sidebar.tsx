@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
 import { LayoutGroup, motion } from "motion/react";
-import { Seal } from "@/components/brand/seal";
+import { BrandMarks } from "@/components/brand/seal";
 import { Icon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -69,7 +69,7 @@ export function SidebarPanel({
   return (
     <div className="rec-side" data-collapsed={collapsed ? "true" : "false"}>
       <Link href="/app" className="rec-side__brand">
-        <Seal size={32} />
+        <BrandMarks size={32} decorative sealClassName="rec-side__seal" />
         <span className="subheading rec-side__label">REC-DMS</span>
       </Link>
       <div className="rec-side__body">

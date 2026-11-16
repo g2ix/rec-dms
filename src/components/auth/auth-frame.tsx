@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { Seal } from "@/components/brand/seal";
+import { BrandMarks } from "@/components/brand/seal";
 import { Icon } from "@/components/icons";
 import { ThemeIconSwitch } from "@/components/theme/theme-switch";
 
@@ -40,7 +40,7 @@ export function AuthFrame({
       )}
       <Main className="signin-main">
         <div className="signin-head">
-          <Seal size={80} alt="" priority />
+          <BrandMarks size={80} decorative priority className="rec-marks--hero" />
           <div className="signin-titles">
             <Title className="signin-title">{title}</Title>
             <p className="signin-sub">{subtitle}</p>

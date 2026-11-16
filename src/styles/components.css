@@ -676,6 +676,12 @@ html.theme-fade * {
   flex: none;
 }
 .rec-side__brand img { width: 32px; height: 32px; flex: none; }
+.rec-side__seal { transition: opacity calc(var(--dur-slow) / 2) var(--ease-standard); }
+.rec-side[data-collapsed="true"] .rec-side__seal {
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+}
 .rec-side__body {
   flex: 1;
   min-height: 0;
@@ -2878,3 +2884,13 @@ html.theme-fade * {
   border-top: 1px solid var(--border);
 }
 .rec-version-list { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+
+/* Brand marks: the REC logo (main mark) beside the USC seal. */
+.rec-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.rec-marks img { flex: none; }
+.rec-marks--hero { gap: var(--space-4); }

@@ -333,6 +333,7 @@ html:has(.site) { scroll-behavior: smooth; }
   .site-brand { flex: none; gap: var(--space-2); }
   .site-brand__name { white-space: nowrap; }
   .site-brand__unit { display: none; }
+  .site-brand__seal { display: none; }
   .site-tools { gap: var(--space-1); }
   .site-header .rec-theme-btn,
   .site-header .rec-btn { height: 44px; }

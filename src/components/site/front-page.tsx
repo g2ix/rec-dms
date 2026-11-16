@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
-import { Seal } from "@/components/brand/seal";
+import { BrandMarks } from "@/components/brand/seal";
 import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { siteContent, type SampleStepState } from "@/lib/site-content";
@@ -19,7 +19,7 @@ export function FrontPage() {
       <section className="site-hero-band" aria-labelledby="site-title">
         <div className="site-wrap site-hero">
           <div className="site-hero__copy">
-            <Seal size={96} alt="" priority />
+            <BrandMarks size={96} decorative priority className="rec-marks--hero" />
             <div className="site-hero__intro">
               <p className="body-sm rec-muted">{hero.institution}</p>
               <h1 id="site-title" className="site-title">
