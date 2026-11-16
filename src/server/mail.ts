@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { env } from "@/lib/env";
 import { paragraphsOf } from "@/lib/notifications/render";
 import { NoticeEmail } from "@/server/mail/notice-email";
+import { logMailFailed, logMailSent } from "@/server/mail/log";
 import { smtpOptions } from "@/server/mail/smtp";
 
 export const SENDER_NAME = "USC Research Ethics Committee";
@@ -44,13 +45,19 @@ export function smtpTransactionalMail(): TransactionalMail {
   const transport = nodemailer.createTransport(smtpOptions());
   return {
     async send(message) {
-      await transport.sendMail({
-        from: senderAddress(),
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-      });
+      try {
+        const info = await transport.sendMail({
+          from: senderAddress(),
+          to: message.to,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        });
+        logMailSent("notice", message.to, info);
+      } catch (error) {
+        logMailFailed("notice", message.to, error);
+        throw error;
+      }
     },
   };
 }
@@ -59,15 +66,21 @@ export function resendTransactionalMail(apiKey = env.RESEND_API_KEY): Transactio
   const client = new Resend(apiKey);
   return {
     async send(message) {
-      if (!apiKey) throw new Error("RESEND_API_KEY is empty.");
-      const result = await client.emails.send({
-        from: senderAddress(),
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-      });
-      if (result.error) throw new Error(result.error.message);
+      try {
+        if (!apiKey) throw new Error("RESEND_API_KEY is empty.");
+        const result = await client.emails.send({
+          from: senderAddress(),
+          to: message.to,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        });
+        if (result.error) throw new Error(result.error.message);
+        logMailSent("notice", message.to, { messageId: result.data?.id });
+      } catch (error) {
+        logMailFailed("notice", message.to, error);
+        throw error;
+      }
     },
   };
 }
