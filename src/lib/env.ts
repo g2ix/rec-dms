@@ -24,7 +24,11 @@ const envSchema = z.object({
   // MAIL_DRIVER=smtp needs SMTP_HOST (with port and login) or SMTP_URL. SMTP_HOST wins when both are set.
   SMTP_URL: z.string().default(""),
   SMTP_HOST: z.string().default(""),
-  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  // An empty value (as .env files and test setups write it) means unset.
+  SMTP_PORT: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(587),
+  ),
   SMTP_USER: z.string().default(""),
   SMTP_PASS: z.string().default(""),
   // Implicit TLS. Empty means true on port 465, STARTTLS otherwise.

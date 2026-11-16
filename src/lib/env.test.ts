@@ -76,5 +76,6 @@ describe("env", () => {
     expect(loaded.SMTP_PORT).toBe(465);
     expect(loaded.EMAIL_FROM).toBe("REC <someone@gmail.com>");
     expect(() => loadEnv({ ...required, EMAIL_FROM: "" })).toThrow(/EMAIL_FROM/);
+    expect(loadEnv({ ...required, SMTP_PORT: "" }).SMTP_PORT).toBe(587);
   });
 });
