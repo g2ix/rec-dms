@@ -14,6 +14,8 @@ export type SignatureSlotView = {
 export type SigningPrompt = {
   instanceId: string;
   hasPassword: boolean;
+  /** An authenticator app is set up, so its code can confirm a signature too. */
+  hasAuthenticator: boolean;
   fresh: boolean;
   email: string | null;
 };

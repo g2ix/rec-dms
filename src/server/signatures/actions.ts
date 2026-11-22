@@ -20,6 +20,7 @@ const signSchema = z.object({
   fieldPath: z.string().min(1).max(240),
   password: z.string().optional(),
   code: z.string().optional(),
+  totp: z.string().optional(),
 });
 
 async function protocolForInstance(instanceId: string): Promise<string> {
@@ -75,11 +76,12 @@ export async function signFieldAction(
     const parsed = signSchema.parse(input);
     const protocolId = await protocolForInstance(parsed.instanceId);
     await authorize(user, "protocol.view", { type: "protocol", id: protocolId });
-    if (!user.passwordHash ? parsed.code : parsed.password) {
+    if (parsed.totp !== undefined || (!user.passwordHash ? parsed.code : parsed.password)) {
       await confirmSigningStepUp({
         userId: user.id,
         password: parsed.password,
         code: parsed.code,
+        totp: parsed.totp,
       });
     }
     const meta = await auditRequestMeta({ fieldPath: parsed.fieldPath });

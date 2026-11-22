@@ -82,6 +82,7 @@ export default async function ProtocolFormPage({
   const signatures = await loadSignaturePanel({
     userId: user.id,
     hasPassword: Boolean(user.passwordHash),
+    hasAuthenticator: Boolean(user.totpEnabledAt && user.totpSecret),
     protocolId: id,
     instanceId: form.instance.id,
     schema: form.schema,
@@ -131,6 +132,7 @@ export default async function ProtocolFormPage({
         signing={{
           instanceId: form.instance.id,
           hasPassword: signatures.hasPassword,
+          hasAuthenticator: signatures.hasAuthenticator,
           fresh: signatures.fresh,
           email: signatures.email,
         }}

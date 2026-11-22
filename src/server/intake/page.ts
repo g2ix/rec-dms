@@ -69,7 +69,7 @@ export async function generatedFormPreview(userId: string, protocolId: string, i
  * carries the date, the image and the button, so nobody signs for someone else.
  */
 async function intakeSigning(
-  user: { id: string; passwordHash: string | null },
+  user: { id: string; passwordHash: string | null; totpEnabledAt?: Date | null; totpSecret?: string | null },
   protocolId: string,
   versionId: string,
   editable: boolean,
@@ -116,7 +116,7 @@ async function intakeSigning(
     forms: forms.map((form) => ({ code: form.code, title: form.instance.formDefinition.title })),
     rows,
     editable,
-    prompt: { hasPassword: Boolean(user.passwordHash), fresh, email },
+    prompt: { hasPassword: Boolean(user.passwordHash), hasAuthenticator: Boolean(user.totpEnabledAt && user.totpSecret), fresh, email },
     savedImageDataUrl: saved ? await imageDataUrl(saved.imageKey, images) : null,
     hasSavedSignature: Boolean(saved),
   };
@@ -154,7 +154,7 @@ export type IntakePageExtras = {
 };
 
 export async function intakePageExtras(
-  user: { id: string; passwordHash: string | null },
+  user: { id: string; passwordHash: string | null; totpEnabledAt?: Date | null; totpSecret?: string | null },
   protocolId: string,
   versionNumber: number,
   /** INTAKE-04: the protocol was returned, so the rail opens on "Returned for revision". */

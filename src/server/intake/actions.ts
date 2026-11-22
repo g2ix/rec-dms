@@ -72,6 +72,7 @@ const signSchema = z.object({
   protocolId: z.string().uuid(),
   password: z.string().optional(),
   code: z.string().optional(),
+  totp: z.string().optional(),
 });
 
 /**
@@ -85,8 +86,8 @@ export async function signIntakeFormsAction(
     const user = await requireUser();
     const parsed = signSchema.parse(input);
     await authorize(user, "protocol.edit", { type: "protocol", id: parsed.protocolId });
-    if (!user.passwordHash ? parsed.code : parsed.password) {
-      await confirmSigningStepUp({ userId: user.id, password: parsed.password, code: parsed.code });
+    if (parsed.totp !== undefined || (!user.passwordHash ? parsed.code : parsed.password)) {
+      await confirmSigningStepUp({ userId: user.id, password: parsed.password, code: parsed.code, totp: parsed.totp });
     }
     const meta = await auditRequestMeta({});
     const { signed } = await signIntakeForms({ protocolId: parsed.protocolId, userId: user.id, meta });

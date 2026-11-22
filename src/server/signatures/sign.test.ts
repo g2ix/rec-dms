@@ -4,7 +4,9 @@ import type { FormSchema } from "@/lib/forms/schema";
 import { AuditAction } from "@/lib/audit-log";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
+import { authenticator } from "otplib";
 import { issueEmailCode } from "@/server/auth/codes";
+import { newTotpSecret, sealSecret } from "@/server/auth/totp";
 import { createDefinition } from "@/server/forms/definitions";
 import { saveField } from "@/server/forms/fill";
 import { submitVersion } from "@/server/protocols/versions";
@@ -231,5 +233,18 @@ describe("signing a form", () => {
     await expect(confirmSigningStepUp({ userId: user.id, code: "000000" })).rejects.toMatchObject({
       code: "CODE_INVALID",
     });
+  });
+
+  it("confirms with the authenticator app instead of the password or emailed code", async () => {
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const user = await makeUser({ email: `totp.${suffix}@usc.edu.ph`, firstName: "Lea", familyName: "Cruz" });
+    // Not set up yet: the authenticator is not an option.
+    await expect(confirmSigningStepUp({ userId: user.id, totp: "123456" })).rejects.toMatchObject({ code: "STEP_UP_FAILED" });
+
+    const secret = newTotpSecret();
+    await prisma.user.update({ where: { id: user.id }, data: { totpSecret: sealSecret(secret), totpEnabledAt: new Date() } });
+    await expect(confirmSigningStepUp({ userId: user.id, totp: "000000" })).rejects.toMatchObject({ code: "STEP_UP_FAILED" });
+    await confirmSigningStepUp({ userId: user.id, totp: authenticator.generate(secret) });
+    expect(await signingStepUpFresh(user.id)).toBe(true);
   });
 });

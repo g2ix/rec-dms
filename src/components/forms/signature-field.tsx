@@ -6,6 +6,7 @@ import { useActionResult } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Radio, RadioGroup } from "@/components/ui/radio";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { flushRegisteredAutosaves } from "@/lib/forms/flush-registry";
 import type { FormField } from "@/lib/forms/schema";
@@ -94,11 +95,14 @@ function SignPrompt({ slot, signing }: { slot: SignatureSlotView; signing: Signi
   return <StepUpConfirm prompt={signing} idPrefix={slot.fieldPath} busy={pending} error={error} onConfirm={sign} />;
 }
 
-export type StepUpCredentials = { password?: string; code?: string };
+export type StepUpCredentials = { password?: string; code?: string; totp?: string };
+
+type StepUpMethod = "authenticator" | "password" | "email";
 
 /**
- * The confirmation before a signature: nothing while a recent one still holds, else the password,
- * or for accounts without one a 6-digit code emailed to the contact email.
+ * The confirmation before a signature: nothing while a recent one still holds. Otherwise the
+ * current code from the authenticator app (when one is set up), or the password, or for accounts
+ * without one a 6-digit code emailed to the contact email.
  */
 export function StepUpConfirm({
   prompt,
@@ -108,24 +112,27 @@ export function StepUpConfirm({
   label = "Sign",
   onConfirm,
 }: {
-  prompt: { hasPassword: boolean; fresh: boolean; email: string | null };
+  prompt: { hasPassword: boolean; hasAuthenticator: boolean; fresh: boolean; email: string | null };
   idPrefix: string;
   busy: boolean;
   error: string | null;
   label?: string;
   onConfirm: (credentials: StepUpCredentials) => void;
 }) {
+  const fallback: StepUpMethod = prompt.hasPassword ? "password" : "email";
+  const [method, setMethod] = useState<StepUpMethod>(prompt.hasAuthenticator ? "authenticator" : fallback);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [totp, setTotp] = useState("");
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, startSending] = useTransition();
 
   function confirm() {
-    onConfirm({
-      password: prompt.hasPassword && !prompt.fresh ? password : undefined,
-      code: !prompt.hasPassword && !prompt.fresh ? code : undefined,
-    });
+    if (prompt.fresh) return onConfirm({});
+    if (method === "authenticator") return onConfirm({ totp: totp.replace(/\s/g, "") });
+    if (method === "password") return onConfirm({ password });
+    onConfirm({ code });
   }
 
   function sendCode() {
@@ -141,6 +148,11 @@ export function StepUpConfirm({
   }
 
   const shown = error ?? sendError;
+  const signButton = (disabled = false) => (
+    <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm} disabled={disabled}>
+      {label}
+    </BusyButton>
+  );
   return (
     <div className="rec-stack">
       {shown ? (
@@ -149,50 +161,76 @@ export function StepUpConfirm({
         </p>
       ) : null}
       {prompt.fresh ? (
-        <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm}>
-          {label}
-        </BusyButton>
-      ) : prompt.hasPassword ? (
-        <>
-          <Field label="Password" htmlFor={`sign-password-${idPrefix}`} help="Confirm it is you. This lasts 10 minutes for signing.">
-            <Input
-              id={`sign-password-${idPrefix}`}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </Field>
-          <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm}>
-            {label}
-          </BusyButton>
-        </>
+        signButton()
       ) : (
         <>
-          <p className="body-sm rec-muted">
-            {prompt.email ? `We email a code to ${prompt.email}.` : "A code is emailed to your contact email."} It confirms it is you for 10 minutes.
-          </p>
-          <div className="rec-actions">
-            <BusyButton type="button" busy={sending} busyLabel="Sending…" onClick={sendCode}>
-              Email a code
-            </BusyButton>
-            <BusyButton type="button" variant="primary" busy={busy} busyLabel="Signing…" onClick={confirm} disabled={!sent || code.trim().length < 6}>
-              {label}
-            </BusyButton>
-          </div>
-          {sent ? (
-            <Field label="Code" htmlFor={`sign-code-${idPrefix}`}>
-              <Input
-                id={`sign-code-${idPrefix}`}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                minLength={6}
-                maxLength={6}
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
+          {prompt.hasAuthenticator ? (
+            <RadioGroup label="Confirm it is you with">
+              <Radio name={`sign-method-${idPrefix}`} label="Authenticator app" checked={method === "authenticator"} onChange={() => setMethod("authenticator")} />
+              <Radio
+                name={`sign-method-${idPrefix}`}
+                label={fallback === "password" ? "Password" : "Emailed code"}
+                checked={method === fallback}
+                onChange={() => setMethod(fallback)}
               />
-            </Field>
+            </RadioGroup>
           ) : null}
+          {method === "authenticator" ? (
+            <>
+              <Field label="Authenticator code" htmlFor={`sign-totp-${idPrefix}`} help="The 6-digit code your authenticator app shows now. This lasts 10 minutes for signing.">
+                <Input
+                  id={`sign-totp-${idPrefix}`}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={7}
+                  value={totp}
+                  onChange={(event) => setTotp(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && totp.replace(/\s/g, "").length === 6) confirm();
+                  }}
+                />
+              </Field>
+              {signButton(totp.replace(/\s/g, "").length !== 6)}
+            </>
+          ) : method === "password" ? (
+            <>
+              <Field label="Password" htmlFor={`sign-password-${idPrefix}`} help="Confirm it is you. This lasts 10 minutes for signing.">
+                <Input
+                  id={`sign-password-${idPrefix}`}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </Field>
+              {signButton()}
+            </>
+          ) : (
+            <>
+              <p className="body-sm rec-muted">
+                {prompt.email ? `We email a code to ${prompt.email}.` : "A code is emailed to your contact email."} It confirms it is you for 10 minutes.
+              </p>
+              <div className="rec-actions">
+                <BusyButton type="button" busy={sending} busyLabel="Sending…" onClick={sendCode}>
+                  Email a code
+                </BusyButton>
+                {signButton(!sent || code.trim().length < 6)}
+              </div>
+              {sent ? (
+                <Field label="Code" htmlFor={`sign-code-${idPrefix}`}>
+                  <Input
+                    id={`sign-code-${idPrefix}`}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    minLength={6}
+                    maxLength={6}
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                  />
+                </Field>
+              ) : null}
+            </>
+          )}
         </>
       )}
     </div>

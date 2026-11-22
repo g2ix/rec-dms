@@ -22,8 +22,8 @@ export type IntakeSigningView = {
   rows: SigningRow[];
   /** Whether the viewer can sign or withdraw now: a proponent on a working version. */
   editable: boolean;
-  /** How the viewer confirms it is them: password, or a code emailed to their contact email. */
-  prompt: { hasPassword: boolean; fresh: boolean; email: string | null };
+  /** How the viewer confirms it is them: their authenticator app, the password, or a code emailed to their contact email. */
+  prompt: { hasPassword: boolean; hasAuthenticator: boolean; fresh: boolean; email: string | null };
   /** The viewer's saved signature image, shown in the dialog before signing. */
   savedImageDataUrl: string | null;
   /** Whether the viewer has a saved signature at all (its image may still fail to load). */

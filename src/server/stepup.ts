@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { verifyEmailCode } from "@/server/auth/codes";
 import { verifyPassword } from "@/server/auth/passwords";
+import { openSecret, totpCodeMatches } from "@/server/auth/totp";
 import { rateLimiter } from "@/server/auth/rate-limit";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
@@ -19,11 +20,15 @@ export async function contactEmail(userId: string): Promise<string | null> {
   return row?.email ?? null;
 }
 
-/** Password accounts re-enter the password. Accounts without a password use the emailed code. */
+/**
+ * Accounts with an authenticator app may enter its current code. Otherwise password accounts
+ * re-enter the password, and accounts without a password use the emailed code.
+ */
 export async function confirmSigningStepUp(input: {
   userId: string;
   password?: string;
   code?: string;
+  totp?: string;
   now?: Date;
 }): Promise<{ expiresAt: Date }> {
   const now = input.now ?? new Date();
@@ -35,7 +40,13 @@ export async function confirmSigningStepUp(input: {
     throw new AppError("UNAUTHENTICATED", "Sign in to continue.", 401);
   }
 
-  if (user.passwordHash) {
+  if (input.totp !== undefined) {
+    const secret = user.totpEnabledAt && user.totpSecret ? openSecret(user.totpSecret) : null;
+    if (!secret) throw new AppError("STEP_UP_FAILED", "This account has no authenticator app set up.", 400);
+    if (!totpCodeMatches(secret, input.totp)) {
+      throw new AppError("STEP_UP_FAILED", "That authenticator code is not right. Enter the current 6-digit code.", 400);
+    }
+  } else if (user.passwordHash) {
     const password = input.password?.trim() ?? "";
     if (!password || !(await verifyPassword(user.passwordHash, password))) {
       throw new AppError("STEP_UP_FAILED", "Enter your password to confirm it is you.", 400);

@@ -12,6 +12,7 @@ import { contactEmail, signingStepUpFresh } from "@/server/stepup";
 export type SignaturePanel = {
   byField: Record<string, SignatureSlotView[]>;
   hasPassword: boolean;
+  hasAuthenticator: boolean;
   fresh: boolean;
   email: string | null;
 };
@@ -41,6 +42,7 @@ export async function imageDataUrl(storageKey: string, cache: Map<string, string
 export async function loadSignaturePanel(input: {
   userId: string;
   hasPassword: boolean;
+  hasAuthenticator: boolean;
   protocolId: string;
   instanceId: string;
   schema: FormSchema;
@@ -95,5 +97,5 @@ export async function loadSignaturePanel(input: {
     list.push(view);
     byField[slot.fieldId] = list;
   }
-  return { byField, hasPassword: input.hasPassword, fresh, email };
+  return { byField, hasPassword: input.hasPassword, hasAuthenticator: input.hasAuthenticator, fresh, email };
 }
