@@ -2898,3 +2898,51 @@ html.theme-fade * {
 }
 .rec-marks img { flex: none; }
 .rec-marks--hero { gap: var(--space-4); }
+
+/* Uploads tab: one drop box per file kind. Drop or click; it uploads at once. */
+.rec-dropzones { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+.rec-dropzone {
+  position: relative;
+  border: 1.5px dashed var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.rec-dropzone__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+}
+.rec-dropzone:hover { border-color: var(--primary); }
+.rec-dropzone:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rec-dropzone--over { border-color: var(--primary); border-style: solid; background: var(--primary-soft); }
+.rec-dropzone--busy .rec-dropzone__body { cursor: progress; }
+.rec-dropzone--done { border-style: solid; border-color: var(--primary); background: var(--primary-soft); }
+.rec-dropzone--error { border-style: solid; border-color: var(--danger); background: var(--danger-soft); }
+.rec-dropzone__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+.rec-dropzone--done .rec-dropzone__icon { background: var(--primary); color: var(--surface); }
+.rec-dropzone--error .rec-dropzone__icon { background: var(--danger); color: var(--surface); }
+.rec-dropzone--busy .rec-dropzone__icon { background: var(--primary-soft); color: var(--primary-ink); }
+.rec-dropzone__text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.rec-dropzone__text .caption { overflow-wrap: anywhere; }
+.rec-dropzone--error .rec-dropzone__text .caption { color: var(--danger-ink); }
+.rec-dropzone__action { flex: none; color: var(--primary-ink); font-weight: 500; }
+.rec-dropzone__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--border); }
+.rec-dropzone__bar span { display: block; height: 100%; background: var(--primary); transition: width 150ms linear; }
+@media (prefers-reduced-motion: reduce) {
+  .rec-dropzone, .rec-dropzone__bar span { transition: none; }
+}

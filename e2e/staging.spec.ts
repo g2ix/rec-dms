@@ -37,13 +37,11 @@ test("EICAR upload is blocked", async ({ page }) => {
   test.skip(!process.env.STAGING_PROTOCOL_PATH, "Set STAGING_PROTOCOL_PATH to a working protocol, for example /app/protocols/<id>/uploads.");
   await signIn(page);
   await page.goto(process.env.STAGING_PROTOCOL_PATH ?? "/");
-  await page.locator("#upload-kind").selectOption("SUPPORTING");
-  await page.locator("#upload-file").setInputFiles({
+  await page.getByTestId("upload-SUPPORTING").setInputFiles({
     name: "eicar.pdf",
     mimeType: "application/pdf",
     buffer: Buffer.from(eicar),
   });
-  await page.getByRole("button", { name: "Upload file" }).click();
   await expect(page.getByText("Blocked")).toBeVisible({ timeout: 120_000 });
 });
 

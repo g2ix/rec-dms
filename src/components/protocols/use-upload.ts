@@ -14,7 +14,8 @@ export function useProtocolUpload(protocolId: string) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function upload(kind: string, file: File): Promise<boolean> {
+  /** `onProgress` gets 0–1 as the file goes to storage. */
+  async function upload(kind: string, file: File, onProgress?: (fraction: number) => void): Promise<boolean> {
     setBusy(true);
     setMessage(null);
     try {
@@ -23,8 +24,8 @@ export function useProtocolUpload(protocolId: string) {
         setMessage(prepared.message);
         return false;
       }
-      const response = await fetch(prepared.url, { method: "PUT", headers: prepared.headers, body: file });
-      if (!response.ok) {
+      const stored = await putWithProgress(prepared.url, prepared.headers, file, onProgress);
+      if (!stored) {
         setMessage("The file could not be stored.");
         return false;
       }
@@ -44,6 +45,23 @@ export function useProtocolUpload(protocolId: string) {
   }
 
   return { upload, busy, message, setMessage };
+}
+
+/** PUT through XHR so the upload can report progress (fetch cannot). Rejects on a network error. */
+function putWithProgress(url: string, headers: HeadersInit | undefined, file: File, onProgress?: (fraction: number) => void): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    new Headers(headers).forEach((value, key) => xhr.setRequestHeader(key, value));
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(event.loaded / event.total);
+      };
+    }
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => reject(new Error("network"));
+    xhr.send(file);
+  });
 }
 
 /** What the file input accepts for each kind. */

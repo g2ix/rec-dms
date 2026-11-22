@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { CircleAlert, CircleCheck, Upload } from "lucide-react";
 import { OpenStoredFileButton } from "@/components/docs/document-open";
+import { Icon } from "@/components/icons";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { BusyButton } from "@/components/ui/busy-button";
-import { Field } from "@/components/ui/field";
 import { acceptFor, formatUploadLimit, useProtocolUpload } from "@/components/protocols/use-upload";
 
 type FileRow = {
@@ -39,17 +39,7 @@ export function UploadsPanel({
   feeStatus: string | null;
   maxBytes: number;
 }) {
-  const [kind, setKind] = useState<(typeof KINDS)[number]["value"]>("MANUSCRIPT");
-  const { upload, busy, message, setMessage } = useProtocolUpload(protocolId);
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const input = form.elements.namedItem("file");
-    const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
-    if (!file) return;
-    if (await upload(kind, file)) form.reset();
-  }
+  const { message, setMessage } = useProtocolUpload(protocolId);
 
   return (
     <div className="rec-stack">
@@ -101,28 +91,168 @@ export function UploadsPanel({
       {locked ? (
         <p className="body-sm">This version is submitted. Start a revision to upload a new file.</p>
       ) : (
-        <form className="rec-form" onSubmit={(event) => void onSubmit(event)}>
-          <Field
-            label="Kind"
-            htmlFor="upload-kind"
-            help={`Manuscript and cover letter must be PDF. A receipt may be a PDF or an image. Limit ${formatUploadLimit(maxBytes)}.`}
-          >
-            <select id="upload-kind" className="rec-select" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
-              {KINDS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="File" htmlFor="upload-file">
-            <input id="upload-file" name="file" className="rec-input" type="file" required accept={acceptFor(kind)} />
-          </Field>
-          <BusyButton type="submit" variant="primary" busy={busy} busyLabel="Uploading…">
-            Upload file
-          </BusyButton>
-        </form>
+        <section className="rec-stack" aria-labelledby="upload-heading">
+          <div>
+            <h2 id="upload-heading" className="label">
+              Add files
+            </h2>
+            <p className="caption rec-muted">
+              Drop a file on its box, or click the box to choose one. It uploads right away. Manuscript and cover letter must be PDF; a
+              receipt or supporting file may be a PDF or an image. Limit {formatUploadLimit(maxBytes)}.
+            </p>
+          </div>
+          <div className="rec-dropzones">
+            {KINDS.map((item) => (
+              <DropZone
+                key={item.value}
+                protocolId={protocolId}
+                kind={item.value}
+                label={item.label}
+                multiple={item.value === "SUPPORTING"}
+                existing={files.filter((file) => file.kind === item.value)}
+                maxBytes={maxBytes}
+              />
+            ))}
+          </div>
+        </section>
       )}
+    </div>
+  );
+}
+
+type ZoneState =
+  | { phase: "idle" }
+  | { phase: "uploading"; name: string; progress: number; index: number; total: number }
+  | { phase: "done"; names: string[] }
+  | { phase: "error"; message: string };
+
+/** One box per file kind: drop or click to choose, uploads at once, shows progress and a done mark. */
+function DropZone({
+  protocolId,
+  kind,
+  label,
+  multiple,
+  existing,
+  maxBytes,
+}: {
+  protocolId: string;
+  kind: string;
+  label: string;
+  multiple: boolean;
+  existing: FileRow[];
+  maxBytes: number;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const depth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [state, setState] = useState<ZoneState>({ phase: "idle" });
+  const { upload, message } = useProtocolUpload(protocolId);
+  const uploading = state.phase === "uploading";
+  const accepted = acceptFor(kind).split(",");
+
+  async function handle(list: FileList | null) {
+    if (!list || list.length === 0 || uploading) return;
+    const chosen = multiple ? Array.from(list) : [list[0]];
+    const wrong = chosen.find((file) => !accepted.includes(file.type));
+    if (wrong) {
+      setState({ phase: "error", message: `${wrong.name} is not an accepted type for ${label.toLowerCase()}.` });
+      return;
+    }
+    const tooBig = chosen.find((file) => file.size > maxBytes);
+    if (tooBig) {
+      setState({ phase: "error", message: `${tooBig.name} is over the ${formatUploadLimit(maxBytes)} limit.` });
+      return;
+    }
+    const names: string[] = [];
+    for (const [index, file] of chosen.entries()) {
+      setState({ phase: "uploading", name: file.name, progress: 0, index, total: chosen.length });
+      const ok = await upload(kind, file, (progress) =>
+        setState({ phase: "uploading", name: file.name, progress, index, total: chosen.length }),
+      );
+      if (!ok) {
+        setState({ phase: "error", message: "" });
+        return;
+      }
+      names.push(file.name);
+    }
+    setState({ phase: "done", names });
+  }
+
+  const latest = existing[0] ?? null;
+  const hasFile = state.phase === "done" || existing.length > 0;
+  const zoneClass = [
+    "rec-dropzone",
+    dragging ? "rec-dropzone--over" : "",
+    uploading ? "rec-dropzone--busy" : "",
+    state.phase === "error" ? "rec-dropzone--error" : hasFile ? "rec-dropzone--done" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div
+      className={zoneClass}
+      data-testid={`dropzone-${kind}`}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        depth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={() => {
+        depth.current -= 1;
+        if (depth.current <= 0) setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        depth.current = 0;
+        setDragging(false);
+        void handle(event.dataTransfer.files);
+      }}
+    >
+      <input
+        ref={input}
+        id={`upload-${kind}`}
+        type="file"
+        className="sr-only"
+        accept={acceptFor(kind)}
+        multiple={multiple}
+        data-testid={`upload-${kind}`}
+        disabled={uploading}
+        onChange={(event) => {
+          const target = event.currentTarget;
+          void handle(target.files).then(() => (target.value = ""));
+        }}
+      />
+      <label htmlFor={`upload-${kind}`} className="rec-dropzone__body" aria-busy={uploading}>
+        <span className="rec-dropzone__icon" aria-hidden="true">
+          <Icon icon={uploading ? Upload : state.phase === "error" ? CircleAlert : hasFile ? CircleCheck : Upload} size={18} />
+        </span>
+        <span className="rec-dropzone__text">
+          <span className="label">{label}</span>
+          <span className="caption rec-muted" aria-live="polite">
+            {state.phase === "uploading"
+              ? `Uploading ${state.name}${state.total > 1 ? ` (${state.index + 1} of ${state.total})` : ""} · ${Math.round(state.progress * 100)}%`
+              : state.phase === "done"
+                ? `Uploaded ${state.names.join(", ")}`
+                : state.phase === "error"
+                  ? state.message || message || "The upload did not go through."
+                  : latest
+                    ? `${existing.length > 1 ? `${existing.length} files · ` : ""}${latest.originalName}`
+                    : dragging
+                      ? "Drop to upload"
+                      : multiple
+                        ? "Drop files or click to choose"
+                        : "Drop a file or click to choose"}
+          </span>
+        </span>
+        {!uploading && hasFile ? <span className="caption rec-dropzone__action">{multiple ? "Add more" : "Replace"}</span> : null}
+      </label>
+      {uploading ? (
+        <span className="rec-dropzone__bar" aria-hidden="true">
+          <span style={{ width: `${Math.max(4, state.progress * 100)}%` }} />
+        </span>
+      ) : null}
     </div>
   );
 }
