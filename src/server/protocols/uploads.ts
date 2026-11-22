@@ -224,14 +224,19 @@ export async function downloadFile(input: { fileId: string; userId: string }) {
       meta,
     });
   });
-  const url = await getSignedDownloadUrl(file.storageKey, 300);
+  const fileName = file.suggestedName || file.originalName;
+  const [url, downloadUrl] = await Promise.all([
+    getSignedDownloadUrl(file.storageKey, 300),
+    getSignedDownloadUrl(file.storageKey, 300, fileName),
+  ]);
   const warning =
     file.scanStatus === "PENDING" ? "This file has not been scanned yet. Open it only if you trust the source." : null;
   return {
     url,
+    downloadUrl,
     file,
     warning,
-    fileName: file.suggestedName || file.originalName,
+    fileName,
     mime: file.mime,
     protocolCode: file.protocolVersion.protocol.code,
   };

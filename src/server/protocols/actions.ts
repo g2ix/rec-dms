@@ -212,7 +212,15 @@ export async function confirmUploadAction(input: unknown): Promise<{ ok: true } 
 export async function downloadFileAction(
   input: unknown,
 ): Promise<
-  | { ok: true; url: string; warning: string | null; fileName: string; mime: string; protocolCode: string | null }
+  | {
+      ok: true;
+      url: string;
+      downloadUrl: string;
+      warning: string | null;
+      fileName: string;
+      mime: string;
+      protocolCode: string | null;
+    }
   | { ok: false; message: string }
 > {
   try {
@@ -223,6 +231,7 @@ export async function downloadFileAction(
     return {
       ok: true,
       url: result.url,
+      downloadUrl: result.downloadUrl,
       warning: result.warning,
       fileName: result.fileName,
       mime: result.mime,

@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 
 export type DocumentViewerDoc = {
   url: string;
+  /** A URL that makes the browser save the file. Cross-origin links ignore `download`, so storage files need one. */
+  downloadUrl?: string;
   fileName: string;
   mime: string;
   protocolCode?: string | null;
@@ -103,7 +105,7 @@ export function DocumentViewer({
               </div>
               <div className="rec-doc-viewer__actions">
                 {url ? (
-                  <a className="rec-btn rec-btn--secondary" href={url} download={doc?.fileName}>
+                  <a className="rec-btn rec-btn--secondary" href={doc?.downloadUrl ?? url} download={doc?.fileName}>
                     <span>Download</span>
                   </a>
                 ) : null}
@@ -131,6 +133,7 @@ export function DocumentViewer({
                   fileName={doc.fileName}
                   mime={doc.mime}
                   kind={kind}
+                  downloadUrl={doc.downloadUrl}
                   pdfFailed={pdfFailed}
                   onPdfFailed={() => setPdfFailed(true)}
                 />
@@ -148,11 +151,13 @@ export function DocumentFrame({
   fileName,
   mime,
   kind,
+  downloadUrl,
   pdfFailed = false,
   onPdfFailed,
   className,
 }: {
   url: string;
+  downloadUrl?: string;
   fileName: string;
   mime: string;
   kind: ViewerKind;
@@ -163,9 +168,8 @@ export function DocumentFrame({
   if (kind === "pdf" && !pdfFailed) {
     return (
       <div className={cn("rec-doc-plate", className)}>
-        <object data={url} type="application/pdf" className="rec-doc-frame" aria-label={fileName}>
-          <iframe title={fileName} src={url} className="rec-doc-frame" onError={() => onPdfFailed?.()} />
-        </object>
+        {/* An <iframe>, not <object>: the CSP keeps object-src 'none' and allows frames from storage and blob:. */}
+        <iframe title={fileName} src={url} className="rec-doc-frame" onError={() => onPdfFailed?.()} />
       </div>
     );
   }
@@ -188,7 +192,7 @@ export function DocumentFrame({
           : `${fileName} cannot be previewed in the app.`}
       </p>
       <p className="caption rec-muted">{mime || "Unknown type"}</p>
-      <a className="rec-btn rec-btn--primary" href={url} download={fileName}>
+      <a className="rec-btn rec-btn--primary" href={downloadUrl ?? url} download={fileName}>
         <span>Download</span>
       </a>
     </div>

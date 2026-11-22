@@ -15,6 +15,8 @@ export function securityHeaders(options: {
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src 'self' data: blob: ${storage} https://*.supabase.co`,
     `connect-src 'self' ${storage} https://*.supabase.co`,
+    // The in-app document viewer frames signed storage URLs and blob: URLs of generated PDFs.
+    `frame-src 'self' blob: ${storage} https://*.supabase.co`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -39,6 +39,7 @@ export function OpenStoredFileButton({
     if (result.warning) onWarning?.(result.warning);
     return {
       url: result.url,
+      downloadUrl: result.downloadUrl,
       fileName: result.fileName,
       mime: result.mime,
       protocolCode: result.protocolCode,

@@ -59,15 +59,23 @@ export async function getObjectBytes(key: string): Promise<{ body: Uint8Array; c
 export async function getSignedDownloadUrl(
   key: string,
   expiresInSeconds = 300,
+  /** When set, storage answers with Content-Disposition: attachment so the browser saves the file. */
+  attachmentName?: string,
 ): Promise<string> {
   return getSignedUrl(
     getS3Client(),
     new GetObjectCommand({
       Bucket: env.S3_BUCKET,
       Key: key,
+      ...(attachmentName ? { ResponseContentDisposition: attachmentDisposition(attachmentName) } : {}),
     }),
     { expiresIn: expiresInSeconds },
   );
+}
+
+function attachmentDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
 
 export async function getSignedUploadUrl(

@@ -8,6 +8,8 @@ describe("security headers", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("https://example.supabase.co");
     expect(csp).toContain("https://fonts.googleapis.com");
+    expect(csp).toContain("frame-src 'self' blob: https://example.supabase.co");
+    expect(csp).toContain("object-src 'none'");
     expect(headers.some((header) => header.key === "Strict-Transport-Security")).toBe(true);
     expect(headers.some((header) => header.key === "Referrer-Policy")).toBe(true);
     expect(headers.some((header) => header.key === "Permissions-Policy")).toBe(true);
