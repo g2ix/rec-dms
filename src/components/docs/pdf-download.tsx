@@ -78,12 +78,12 @@ export function useFileDownload() {
           continue;
         }
         if (!probe.ok) {
-          setMessage("The file could not be prepared.");
+          setMessage(await errorMessage(probe, "The file could not be prepared."));
           return;
         }
         const file = await fetch(href);
         if (!file.ok) {
-          setMessage("The file could not be downloaded.");
+          setMessage(await errorMessage(file, "The file could not be downloaded."));
           return;
         }
         const blob = await file.blob();
@@ -103,6 +103,18 @@ export function useFileDownload() {
   }
 
   return { pending, message, run };
+}
+
+/** The server's own message when it sent one; a timeout or crash gets the fallback and its status. */
+async function errorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    if (typeof body.error === "string" && body.error) return body.error;
+  } catch {
+    // Not JSON, such as a gateway timeout page.
+  }
+  if (response.status === 504) return `${fallback} The server took too long. Try again in a minute.`;
+  return `${fallback} (error ${response.status})`;
 }
 
 function fileName(response: Response): string | null {

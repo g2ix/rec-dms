@@ -3,7 +3,8 @@ import { env } from "@/lib/env";
 import { authorize } from "@/server/authz";
 import { prisma } from "@/server/db";
 import { buildProtocolPackage, recordPackageDownload } from "@/server/docs/bundle";
-import { cachedGeneratedPdf } from "@/server/docs/render";
+import { cachedGeneratedPdf, PROPONENT_VIEW_VARIANT } from "@/server/docs/render";
+import { formAccess } from "@/server/revision/visibility";
 import { fileResponse, errorResponse } from "@/server/docs/response";
 import { AppError } from "@/server/errors";
 import { protocolHeader } from "@/server/protocols/read";
@@ -26,10 +27,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         where: { ownerType: "PROTOCOL_VERSION", ownerId: versionId },
         select: { id: true },
       });
+      // Check the same copy the package will use, or the build converts forms inline and
+      // runs past the function's time limit. Proponents (staff who lead the study included)
+      // get their own proponent-view copy; released copies and hidden forms need no render.
       let waiting = false;
       for (const instance of instances) {
-        if (await cachedGeneratedPdf(instance.id)) continue;
-        await enqueuePdfConversion(instance.id, user.id);
+        const access = await formAccess(prisma, user.id, instance.id);
+        if (access.kind === "denied" || access.kind === "released") continue;
+        const own = access.kind === "own";
+        if (await cachedGeneratedPdf(instance.id, own ? PROPONENT_VIEW_VARIANT : null)) continue;
+        await enqueuePdfConversion(instance.id, user.id, own ? "proponent" : undefined);
         waiting = true;
       }
       if (waiting || url.searchParams.get("probe") === "1") {
