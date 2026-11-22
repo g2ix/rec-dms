@@ -1,12 +1,9 @@
 "use client";
 
-import { useRef } from "react";
 import Link from "next/link";
-import { Upload } from "lucide-react";
 import { OpenStoredFileButton } from "@/components/docs/document-open";
-import { Icon } from "@/components/icons";
-import { acceptFor, formatUploadLimit, useProtocolUpload } from "@/components/protocols/use-upload";
-import { BusyButton } from "@/components/ui/busy-button";
+import { DropZone } from "@/components/protocols/drop-zone";
+import { formatUploadLimit, useProtocolUpload } from "@/components/protocols/use-upload";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export type FileRow = { id: string; kind: string; originalName: string; scanStatus: string; size: number; tag?: string | null };
@@ -31,17 +28,17 @@ export function DocumentsSection({
   const { message, setMessage } = useProtocolUpload(protocolId);
   return (
     <div className="rec-stack">
-      <p className="body-sm rec-muted">PDF only. Limit {formatUploadLimit(maxBytes)} per file. Every file is scanned for viruses before reviewers see it.</p>
+      <p className="body-sm rec-muted">Drop a PDF on its box, or click the box to choose one. It uploads right away. Limit {formatUploadLimit(maxBytes)} per file. Every file is scanned for viruses before reviewers see it.</p>
       {message ? (
         <p className="rec-alert" role="alert">
           {message}
         </p>
       ) : null}
       {required.length === 0 ? <p className="body-sm">No uploads are required at this step.</p> : null}
-      <ul className="rec-doc-rows">
+      <ul className="rec-doc-drops">
         {required.map((item) => {
           const file = files.find((row) => row.kind === item.kind) ?? null;
-          return <DocumentRow key={item.kind} protocolId={protocolId} kind={item.kind} label={item.label} file={file} canUpload={canUpload} onMessage={setMessage} />;
+          return <DocumentRow key={item.kind} protocolId={protocolId} kind={item.kind} label={item.label} file={file} canUpload={canUpload} maxBytes={maxBytes} onMessage={setMessage} />;
         })}
       </ul>
       <p className="caption rec-muted">
@@ -57,6 +54,7 @@ export function DocumentRow({
   label,
   file,
   canUpload,
+  maxBytes,
   onMessage,
 }: {
   protocolId: string;
@@ -64,25 +62,20 @@ export function DocumentRow({
   label: string;
   file: FileRow | null;
   canUpload: boolean;
+  maxBytes: number;
   onMessage: (message: string | null) => void;
 }) {
-  const input = useRef<HTMLInputElement>(null);
-  const { upload, busy, message } = useProtocolUpload(protocolId);
   return (
-    <li className="rec-doc-row" data-testid={`document-${kind}`}>
-      <div className="rec-doc-row__main">
-        <p className="label">{label}</p>
-        {file ? (
-          <p className="body-sm rec-doc-row__name">
-            {file.originalName}
-            {file.tag ? <span className="caption rec-muted"> · {file.tag}</span> : null}
-          </p>
-        ) : (
-          <p className="body-sm rec-muted">Not uploaded yet</p>
-        )}
-        {message ? <p className="rec-field__error">{message}</p> : null}
-      </div>
-      <div className="rec-doc-row__actions">
+    <li className="rec-doc-drop" data-testid={`document-${kind}`}>
+      {canUpload ? (
+        <DropZone protocolId={protocolId} kind={kind} label={label} multiple={false} existing={file ? [file] : []} maxBytes={maxBytes} />
+      ) : (
+        <div className="rec-doc-drop__static">
+          <p className="label">{label}</p>
+          <p className="body-sm rec-doc-row__name">{file ? file.originalName : <span className="rec-muted">Not uploaded yet</span>}</p>
+        </div>
+      )}
+      <div className="rec-doc-drop__meta">
         {file ? (
           <StatusBadge
             tone={file.scanStatus === "INFECTED" ? "danger" : file.scanStatus === "CLEAN" ? "success" : "info"}
@@ -91,27 +84,8 @@ export function DocumentRow({
         ) : (
           <StatusBadge tone="draft" label="Missing" />
         )}
+        {file?.tag ? <span className="caption rec-muted">{file.tag}</span> : null}
         {file && file.scanStatus !== "INFECTED" ? <OpenStoredFileButton fileId={file.id} protocolId={protocolId} onWarning={onMessage} onError={onMessage} /> : null}
-        {canUpload ? (
-          <>
-            <input
-              ref={input}
-              type="file"
-              className="sr-only"
-              accept={acceptFor(kind)}
-              aria-label={`${file ? "Replace" : "Upload"} ${label}`}
-              data-testid={`upload-${kind}`}
-              onChange={(event) => {
-                const chosen = event.target.files?.[0];
-                if (chosen) void upload(kind, chosen).then(() => (event.target.value = ""));
-              }}
-            />
-            <BusyButton type="button" variant={file ? "secondary" : "primary"} busy={busy} busyLabel="Uploading…" onClick={() => input.current?.click()}>
-              <Icon icon={Upload} size={16} />
-              {file ? "Replace" : "Upload"}
-            </BusyButton>
-          </>
-        ) : null}
       </div>
     </li>
   );

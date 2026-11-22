@@ -118,6 +118,7 @@ async function intakeSigning(
     editable,
     prompt: { hasPassword: Boolean(user.passwordHash), fresh, email },
     savedImageDataUrl: saved ? await imageDataUrl(saved.imageKey, images) : null,
+    hasSavedSignature: Boolean(saved),
   };
 }
 

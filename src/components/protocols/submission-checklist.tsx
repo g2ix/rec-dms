@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronDown, CircleCheck, ListChecks } from "lucide-react";
 import { Icon } from "@/components/icons";
-import { firstMissing, groupLeft, tabCounts, type ChecklistTab, type SubmissionChecklist } from "@/lib/protocols/checklist";
+import { firstMissing, groupLeft, isReady, submitSummary, tabCounts, type ChecklistTab, type SubmissionChecklist } from "@/lib/protocols/checklist";
 
 export const CHECKLIST_ID = "submission-checklist";
 const REVEAL = "rec:checklist-reveal";
@@ -179,6 +179,94 @@ function ChecklistBody({ checklist }: { checklist: SubmissionChecklist }) {
           );
         })}
         <p className="caption rec-muted">Items update as you save each tab. Optional items are not listed.</p>
+      </div>
+    </aside>
+  );
+}
+
+/**
+ * The compact checklist beside every protocol tab except Overview (which shows the full panel):
+ * progress, then only what is still missing, each linking to where it is answered.
+ */
+export function SubmissionSidebar({ protocolId }: { protocolId: string }) {
+  const checklist = useContext(ChecklistContext);
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  if (!checklist) return null;
+  if (pathname === `/app/protocols/${protocolId}`) return null;
+  const percent = checklist.total === 0 ? 100 : Math.round((checklist.done / checklist.total) * 100);
+  const ready = isReady(checklist);
+  const missing = checklist.groups
+    .map((group) => ({ group, items: group.items.filter((item) => !item.done) }))
+    .filter((entry) => entry.items.length > 0);
+  const left = checklist.total - checklist.done;
+  return (
+    <aside className="rec-ready" aria-labelledby="ready-heading" data-ready={ready || undefined} data-open={open || undefined}>
+      <button type="button" className="rec-ready__head" aria-expanded={open} aria-controls="ready-body" onClick={() => setOpen((value) => !value)}>
+        <span className={ready ? "rec-ready__icon rec-ready__icon--done" : "rec-ready__icon"} aria-hidden="true">
+          <Icon icon={ready ? CircleCheck : ListChecks} size={18} />
+        </span>
+        <span className="rec-ready__title">
+          <span id="ready-heading" className="label">
+            {ready ? "Ready to submit" : "Before you can submit"}
+          </span>
+          <span className="caption rec-muted">{ready ? "Everything required is in." : submitSummary(checklist)}</span>
+        </span>
+        <span className="rec-ready__chevron" aria-hidden="true">
+          <Icon icon={ChevronDown} size={16} />
+        </span>
+      </button>
+      <div
+        className="rec-checklist__bar"
+        role="progressbar"
+        aria-label="Required items done"
+        aria-valuemin={0}
+        aria-valuemax={checklist.total}
+        aria-valuenow={checklist.done}
+      >
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <p className="caption rec-muted">
+        {checklist.done} of {checklist.total} done{left > 0 ? ` · ${left} left` : ""}
+      </p>
+      <div id="ready-body" className="rec-ready__body">
+        {ready ? (
+          <p className="body-sm">
+            Go to <Link href={`/app/protocols/${protocolId}`}>Overview</Link> to submit {checklist.stepName ? `(${checklist.stepName})` : ""}.
+          </p>
+        ) : (
+          missing.map(({ group, items }) => (
+            <section key={group.tab} className="rec-ready__group" aria-label={group.label}>
+              <h3 className="rec-ready__group-name caption">{group.label}</h3>
+              <ul className="rec-ready__items">
+                {items.map((item) => (
+                  <li key={item.key}>
+                    {item.href ? (
+                      <Link href={item.href} className="rec-ready__item">
+                        <span className="rec-ready__dot" aria-hidden="true" />
+                        <span>
+                          <span className="body-sm">{item.label}</span>
+                          {item.hint && item.hint !== item.label ? <span className="caption rec-muted rec-ready__hint">{item.hint}</span> : null}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="rec-ready__item">
+                        <span className="rec-ready__dot" aria-hidden="true" />
+                        <span>
+                          <span className="body-sm">{item.label}</span>
+                          {item.hint ? <span className="caption rec-muted rec-ready__hint">{item.hint}</span> : null}
+                        </span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        )}
+        <Link className="caption rec-ready__all" href={`/app/protocols/${protocolId}#${CHECKLIST_ID}`}>
+          See the full checklist
+        </Link>
       </div>
     </aside>
   );

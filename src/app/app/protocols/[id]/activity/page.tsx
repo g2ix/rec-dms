@@ -7,7 +7,7 @@ export default async function ProtocolActivityPage({ params }: { params: Promise
   return (
     <section className="rec-stack">
       <h2 className="heading">Activity</h2>
-      <AuditTimeline protocolId={id} viewerUserId={user.id} simplified />
+      <AuditTimeline protocolId={id} viewerUserId={user.id} simplified order="desc" />
     </section>
   );
 }

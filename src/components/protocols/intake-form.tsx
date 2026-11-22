@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { CircleCheck } from "lucide-react";
+import { ProgressRow } from "@/components/ui/progress-row";
+import { Icon } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useReducedMotion } from "motion/react";
 import { DocumentsSection } from "@/components/protocols/intake/documents-section";
@@ -258,6 +261,8 @@ export function IntakeForm({
 
   // "Saved just now": the latest save from the intake queue or the study fields.
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // True while an agreement tick is saving and the page refreshes; the Sign button waits for it.
+  const [agreeing, setAgreeing] = useState(false);
   const [, setTick] = useState(0);
   const saving = saver.ui.state === "saving" || Object.values(ui).some((entry) => entry?.state === "saving");
   const anySaved = saver.ui.state === "saved" || Object.values(ui).some((entry) => entry?.state === "saved");
@@ -475,8 +480,8 @@ export function IntakeForm({
 
             {current === "sign" ? (
               <>
-                <Agreements protocolId={protocolId} editable={editable} mine={mine} wording={wording} />
-                {page.signing ? <IntakeSigningSection protocolId={protocolId} signing={page.signing} /> : null}
+                <Agreements protocolId={protocolId} editable={editable} mine={mine} wording={wording} onPendingChange={setAgreeing} />
+                {page.signing ? <IntakeSigningSection protocolId={protocolId} signing={page.signing} agreeing={agreeing} /> : null}
               </>
             ) : null}
 
@@ -874,33 +879,53 @@ function ReferenceGroup({
   );
 }
 
+type AgreementKind = "DECLARATIONS" | "F28_CONSENT";
+
 function Agreements({
   protocolId,
   editable,
   mine,
   wording,
+  onPendingChange,
 }: {
   protocolId: string;
   editable: boolean;
   mine: { memberId: string | null; declarationsAt: string | null; consentsAt: string | null };
   wording: { declarations: string[]; consents: string[] };
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Which box is saving on the server, then which one just finished ("Saved" for a few seconds).
+  const [saving, setSaving] = useState<AgreementKind | null>(null);
+  const [last, setLast] = useState<AgreementKind | null>(null);
+  const [savedKind, setSavedKind] = useState<AgreementKind | null>(null);
+  // The refresh that brings back the server's answer (and unlocks the Sign button) runs as a transition.
+  const [refreshing, startRefresh] = useTransition();
+  const busy = saving !== null || refreshing;
   // The box follows the click at once; the server's answer (after the refresh) replaces it, and a refusal puts it back.
-  const [shown, setShown] = useState<Partial<Record<"DECLARATIONS" | "F28_CONSENT", boolean>>>({});
+  const [shown, setShown] = useState<Partial<Record<AgreementKind, boolean>>>({});
   useEffect(() => {
     setShown({});
   }, [mine.declarationsAt, mine.consentsAt]);
+  useEffect(() => {
+    onPendingChange?.(busy);
+  }, [busy, onPendingChange]);
+  useEffect(() => {
+    if (!savedKind || busy) return;
+    const timer = setTimeout(() => setSavedKind(null), 4000);
+    return () => clearTimeout(timer);
+  }, [savedKind, busy]);
   const declared = shown.DECLARATIONS ?? Boolean(mine.declarationsAt);
   const consented = shown.F28_CONSENT ?? Boolean(mine.consentsAt);
-  async function agree(kind: "DECLARATIONS" | "F28_CONSENT", agreed: boolean) {
-    setBusy(true);
+  async function agree(kind: AgreementKind, agreed: boolean) {
+    setSaving(kind);
+    setLast(kind);
+    setSavedKind(null);
     setError(null);
     setShown((current) => ({ ...current, [kind]: agreed }));
     const result = await setAgreementAction({ protocolId, kind, agreed });
-    setBusy(false);
+    setSaving(null);
     if (!result.ok) {
       setError(result.message);
       setShown((current) => {
@@ -908,8 +933,28 @@ function Agreements({
         delete next[kind];
         return next;
       });
+    } else {
+      setSavedKind(kind);
     }
-    router.refresh();
+    startRefresh(() => router.refresh());
+  }
+  function state(kind: AgreementKind) {
+    if (saving === kind || (refreshing && last === kind)) {
+      return (
+        <div className="rec-agree-state rec-agree-state--busy" role="status" aria-live="polite">
+          <ProgressRow label={saving === kind ? "Saving your answer…" : "Updating the Sign button…"} />
+        </div>
+      );
+    }
+    if (savedKind === kind) {
+      return (
+        <p className="caption rec-agree-state rec-agree-state--done" role="status" aria-live="polite">
+          <Icon icon={CircleCheck} size={14} />
+          Saved
+        </p>
+      );
+    }
+    return null;
   }
   return (
     <div id="agreements" className="rec-stack">
@@ -921,7 +966,10 @@ function Agreements({
         ))}
       </ul>
       {mine.memberId ? (
-        <Checkbox label="I agree to these declarations." checked={declared} disabled={!editable || busy} onChange={(event) => void agree("DECLARATIONS", event.target.checked)} />
+        <div className="rec-agree-row">
+          <Checkbox label="I agree to these declarations." checked={declared} disabled={!editable || busy} onChange={(event) => void agree("DECLARATIONS", event.target.checked)} />
+          {state("DECLARATIONS")}
+        </div>
       ) : null}
       <h3 className="label">F-28 Consent</h3>
       <p className="body-sm">The General Privacy Statement is printed in full on F-28; preview it under Preview forms.</p>
@@ -931,7 +979,10 @@ function Agreements({
         ))}
       </ul>
       {mine.memberId ? (
-        <Checkbox label="I give these consents." checked={consented} disabled={!editable || busy} onChange={(event) => void agree("F28_CONSENT", event.target.checked)} />
+        <div className="rec-agree-row">
+          <Checkbox label="I give these consents." checked={consented} disabled={!editable || busy} onChange={(event) => void agree("F28_CONSENT", event.target.checked)} />
+          {state("F28_CONSENT")}
+        </div>
       ) : null}
       {error ? (
         <p className="rec-alert" role="alert">

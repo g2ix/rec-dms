@@ -192,8 +192,8 @@ export function ReturnedView({
           <p className="body-sm rec-muted">
             Highlight your changes in it.{data.manuscript.suggestedName ? ` Its file name will be ${data.manuscript.suggestedName}.` : ""} PDF only, up to {Math.round(maxBytes / (1024 * 1024))} MB.
           </p>
-          <ul className="rec-doc-rows">
-            <DocumentRow protocolId={protocolId} kind="MANUSCRIPT" label="Manuscript" file={data.manuscript.file} canUpload={data.editable} onMessage={() => undefined} />
+          <ul className="rec-doc-drops">
+            <DocumentRow protocolId={protocolId} kind="MANUSCRIPT" label="Manuscript" file={data.manuscript.file} canUpload={data.editable} maxBytes={maxBytes} onMessage={() => undefined} />
           </ul>
         </section>
       ) : null}
@@ -204,7 +204,7 @@ export function ReturnedView({
             Other files
           </h3>
           <p className="body-sm rec-muted">Carried over from the last version. Replace one if you changed it.</p>
-          <ul className="rec-doc-rows">
+          <ul className="rec-doc-drops">
             {data.uploads.map((file) => (
               <DocumentRow
                 key={file.id}
@@ -213,6 +213,7 @@ export function ReturnedView({
                 label={file.kind === "COVER_LETTER" ? "Cover letter" : "Supporting file"}
                 file={file}
                 canUpload={data.editable && file.kind !== "SUPPORTING"}
+                maxBytes={maxBytes}
                 onMessage={() => undefined}
               />
             ))}

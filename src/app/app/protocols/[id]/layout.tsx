@@ -3,7 +3,7 @@ import { DownloadMenu } from "@/components/protocols/download-menu";
 import { PreviewFormsButton } from "@/components/protocols/intake/preview-button";
 import { ProtocolHeader } from "@/components/protocols/protocol-header";
 import { ProtocolNav } from "@/components/protocols/protocol-nav";
-import { ChecklistProvider } from "@/components/protocols/submission-checklist";
+import { ChecklistProvider, SubmissionSidebar } from "@/components/protocols/submission-checklist";
 import { ProtocolCrumb } from "@/components/shell/crumbs";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
@@ -47,7 +47,10 @@ export default async function ProtocolLayout({
           }
         />
         <ProtocolNav protocolId={id} />
-        {children}
+        <div className="rec-proto-body">
+          <div className="rec-proto-body__main rec-stack">{children}</div>
+          <SubmissionSidebar protocolId={id} />
+        </div>
       </article>
     );
     if (!proponentView || !checklist) return page;

@@ -26,4 +26,6 @@ export type IntakeSigningView = {
   prompt: { hasPassword: boolean; fresh: boolean; email: string | null };
   /** The viewer's saved signature image, shown in the dialog before signing. */
   savedImageDataUrl: string | null;
+  /** Whether the viewer has a saved signature at all (its image may still fail to load). */
+  hasSavedSignature: boolean;
 };

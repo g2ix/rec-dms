@@ -7,6 +7,7 @@ import { protocolDetailsSchema } from "@/server/protocols/details";
 import { intakeStateOf } from "@/server/intake/state";
 import { RESEARCH_TYPE_GAP } from "@/lib/intake/gaps";
 import { listWorkingForms, requireView } from "@/server/protocols/read";
+import { activeSignature } from "@/server/signatures/store";
 
 const UPLOAD_LABEL: Record<string, string> = {
   MANUSCRIPT: "Manuscript",
@@ -142,11 +143,26 @@ export const getSubmissionChecklist = cache(async (userId: string, protocolId: s
         href: `${base}/intake#agreements`,
       };
     });
+    // The viewer signs with their saved signature, so flag a missing one before they reach the Sign button.
+    const me = intake.researchers.find((researcher) => researcher.userId === userId);
+    const stillToSign = me ? Object.values(me.signatures).some((state) => state !== "signed") : false;
+    const signatureItems: ChecklistItem[] = [];
+    if (me && stillToSign) {
+      const saved = Boolean(await activeSignature(userId));
+      signatureItems.push({
+        key: "intake.savedSignature",
+        label: "Your saved signature",
+        done: saved,
+        hint: saved ? null : "Draw or upload one under My signature before you sign.",
+        href: "/app/account/signature",
+      });
+    }
     groups.push({
       tab: "intake",
       label: "Intake",
       href: `${base}/intake`,
       items: [
+        ...signatureItems,
         ...sections.map((item) => {
           const gap = intake.gaps.find((entry) => entry.section === item.section);
           return { key: item.key, label: item.label, done: !gap, hint: gap?.message ?? null, href: `${base}/intake#${item.section}` };

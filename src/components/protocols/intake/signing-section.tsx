@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PenLine } from "lucide-react";
+import { Icon } from "@/components/icons";
 import { StepUpConfirm, type StepUpCredentials } from "@/components/forms/signature-field";
 import { useActionResult } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
@@ -22,14 +24,28 @@ function andList(items: string[]): string {
  * One row per researcher. A researcher agrees above, then signs F-27 and F-28 with one act from
  * their own row. Other rows show only whether that researcher has signed.
  */
-export function IntakeSigningSection({ protocolId, signing }: { protocolId: string; signing: IntakeSigningView }) {
+export function IntakeSigningSection({ protocolId, signing, agreeing = false }: { protocolId: string; signing: IntakeSigningView; agreeing?: boolean }) {
   const codes = signing.forms.map((form) => form.code);
+  const mine = signing.rows.find((row) => row.mine);
+  // Signing uses the saved signature, so say so up front instead of inside the dialog.
+  const needsSignature = Boolean(mine && mine.state !== "signed" && signing.editable && !signing.hasSavedSignature);
   return (
     <div className="rec-stack" data-testid="signing">
       <h3 className="subheading">Sign {andList(codes)}</h3>
       <p className="body-sm rec-muted">
         {codes.length > 1 ? "One signature covers both forms." : `Your signature goes on ${codes[0] ?? "the form"}.`} Every researcher signs on their own account.
       </p>
+      {needsSignature ? (
+        <div className="rec-banner rec-sign-missing" role="status" data-testid="signature-missing">
+          <Icon icon={PenLine} size={18} />
+          <div>
+            <p className="label">You have no saved signature yet</p>
+            <p className="body-sm">
+              Signing places your saved signature on {andList(codes)}. <Link href="/app/account/signature">Add one under My signature</Link>, then come back to sign.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="rec-table-wrap">
         <table className="rec-table">
           <thead>
@@ -47,7 +63,7 @@ export function IntakeSigningSection({ protocolId, signing }: { protocolId: stri
                   {row.mine ? <span className="rec-muted"> (you)</span> : null}
                 </th>
                 <td>{row.agreed ? "Agreed" : "Not yet"}</td>
-                <td>{row.mine ? <MyRow protocolId={protocolId} row={row} signing={signing} /> : row.state === "signed" ? "Signed" : "Not yet"}</td>
+                <td>{row.mine ? <MyRow protocolId={protocolId} row={row} signing={signing} agreeing={agreeing} /> : row.state === "signed" ? "Signed" : "Not yet"}</td>
               </tr>
             ))}
           </tbody>
@@ -57,7 +73,7 @@ export function IntakeSigningSection({ protocolId, signing }: { protocolId: stri
   );
 }
 
-function MyRow({ protocolId, row, signing }: { protocolId: string; row: SigningRow; signing: IntakeSigningView }) {
+function MyRow({ protocolId, row, signing, agreeing }: { protocolId: string; row: SigningRow; signing: IntakeSigningView; agreeing: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -113,12 +129,12 @@ function MyRow({ protocolId, row, signing }: { protocolId: string; row: SigningR
       ) : (
         <p className="body-sm rec-muted">Not yet</p>
       )}
-      {signing.editable ? <SignDialog protocolId={protocolId} row={row} signing={signing} /> : null}
+      {signing.editable ? <SignDialog protocolId={protocolId} row={row} signing={signing} agreeing={agreeing} /> : null}
     </div>
   );
 }
 
-function SignDialog({ protocolId, row, signing }: { protocolId: string; row: SigningRow; signing: IntakeSigningView }) {
+function SignDialog({ protocolId, row, signing, agreeing }: { protocolId: string; row: SigningRow; signing: IntakeSigningView; agreeing: boolean }) {
   const router = useRouter();
   const showResult = useActionResult();
   const [open, setOpen] = useState(false);
@@ -145,11 +161,28 @@ function SignDialog({ protocolId, row, signing }: { protocolId: string; row: Sig
   return (
     <>
       <div className="rec-actions">
-        <Button type="button" variant="primary" disabled={!row.agreed} onClick={() => setOpen(true)}>
+        <BusyButton
+          type="button"
+          variant="primary"
+          busy={agreeing}
+          busyLabel="Saving your answers…"
+          disabled={!row.agreed || !signing.hasSavedSignature}
+          onClick={() => setOpen(true)}
+        >
           {label}
-        </Button>
+        </BusyButton>
       </div>
-      {!row.agreed ? <p className="caption rec-muted">Agree to the declarations and give the consents above first.</p> : null}
+      {agreeing ? (
+        <p className="caption rec-muted" role="status">
+          The Sign button turns on once your answers above are saved.
+        </p>
+      ) : !row.agreed ? (
+        <p className="caption rec-muted">Agree to the declarations and give the consents above first.</p>
+      ) : !signing.hasSavedSignature ? (
+        <p className="caption rec-muted">
+          Add your signature under <Link href="/app/account/signature">My signature</Link> first.
+        </p>
+      ) : null}
       <Dialog
         open={open}
         onOpenChange={(next) => {
