@@ -1762,12 +1762,16 @@ html.theme-fade * {
 .rec-table--flat { min-width: 560px; border: 0; border-radius: 0; background: transparent; }
 .rec-table a.code { color: var(--primary); text-decoration: none; }
 .rec-num { text-align: right; white-space: nowrap; }
-.rec-timeline { list-style: none; margin: 0; padding: 0; }
-.rec-timeline__item {
+/* Timeline variant with explicit dot/line markup (proponent dashboard). The plain
+   .rec-timeline above draws its marks with ::before/::after instead. */
+.rec-timeline--marked .rec-timeline__item {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   column-gap: var(--space-3);
+  padding: 0;
 }
+.rec-timeline--marked .rec-timeline__item::before,
+.rec-timeline--marked .rec-timeline__item::after { content: none; }
 .rec-timeline__mark { display: flex; flex-direction: column; align-items: center; }
 .rec-timeline__dot {
   width: 9px;

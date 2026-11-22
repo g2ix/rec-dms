@@ -242,7 +242,7 @@ function ActivityCard({ events }: { events: ActivityEvent[] }) {
       {events.length === 0 ? (
         <p className="body rec-muted">Nothing has been recorded on your protocols yet.</p>
       ) : (
-        <ol className="rec-timeline">
+        <ol className="rec-timeline rec-timeline--marked">
           {events.map((event, index) => (
             <li key={event.id} className="rec-timeline__item">
               <div className="rec-timeline__mark" aria-hidden="true">
