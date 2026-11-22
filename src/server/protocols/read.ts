@@ -1,4 +1,5 @@
 import "server-only";
+import { cookies } from "next/headers";
 import { cache } from "react";
 import { isRoleKey } from "@/lib/forms/roles";
 import { validateSchema } from "@/lib/forms/schema";
@@ -8,6 +9,7 @@ import { diffFieldValues, type FieldChange } from "@/lib/protocols/format";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { isCommitteeStaff } from "@/server/authz/staff";
+import { resolveRoleView } from "@/server/auth/view";
 import { ensureWorkingForms, sharedSnapshot } from "@/server/protocols/versions";
 import { maxUploadBytes } from "@/server/protocols/settings";
 import { suggestedManuscriptName } from "@/lib/protocols/format";
@@ -53,14 +55,34 @@ export const protocolHeader = cache(async (userId: string, protocolId: string) =
   if (!protocol) throw new AppError("NOT_FOUND", "That protocol was not found.", 404);
   const working = protocol.versions.find((version) => version.state === "WORKING") ?? null;
   const latest = protocol.versions[0] ?? null;
+  const mine = protocol.members[0] ?? null;
   return {
     protocol,
     working,
     shown: working ?? latest,
-    mine: protocol.members[0] ?? null,
-    staff: await isCommitteeStaff(userId),
+    mine,
+    staff: await showsStaffView(userId, mine?.role ?? null),
   };
 });
+
+/**
+ * Whether the protocol pages show the staff layout. A staff account that is also a proponent or
+ * adviser on this protocol gets the proponent layout while the role switcher is on Proponent or
+ * Adviser. Display only: every action still checks permissions on the server.
+ */
+async function showsStaffView(userId: string, memberRole: string | null): Promise<boolean> {
+  if (!(await isCommitteeStaff(userId))) return false;
+  if (memberRole !== "PROPONENT" && memberRole !== "ADVISER") return true;
+  let active: string | undefined;
+  try {
+    active = (await cookies()).get("activeView")?.value;
+  } catch {
+    // Outside a request (scripts, tests) there is no switcher: keep the staff layout.
+    return true;
+  }
+  const { view } = await resolveRoleView(userId, active);
+  return view !== "proponent" && view !== "adviser";
+}
 
 export async function listForRole(userId: string, role: "PROPONENT" | "ADVISER") {
   const rows = await prisma.protocolMember.findMany({
