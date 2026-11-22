@@ -763,6 +763,8 @@ model Notification {
   protocolId  String?                 @map("protocol_id")
   taskId      String?                 @map("task_id")
   payload     Json                    @default("{}")
+  /// The role view this notice is for (proponent, reviewer, staff…). Empty: shown in every role.
+  roleView    String?                 @map("role_view")
   readAt      DateTime?               @map("read_at")
   emailedAt   DateTime?               @map("emailed_at")
   emailStatus NotificationEmailStatus @default(NONE) @map("email_status")
@@ -774,6 +776,7 @@ model Notification {
   task     Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt])
+  @@index([userId, roleView, readAt])
   @@index([emailStatus])
   @@index([protocolId, createdAt])
   @@map("notifications")

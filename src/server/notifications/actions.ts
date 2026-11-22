@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { knownRoleView, type RoleView } from "@/lib/role-view";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { authorize } from "@/server/authz";
@@ -26,10 +27,11 @@ export async function markNotificationRead(id: string): Promise<void> {
   });
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
+/** Marks every unread notice read; with a role view, only that role's notices and the untagged ones. */
+export async function markAllNotificationsRead(view?: RoleView): Promise<void> {
   const user = await requireUser();
   await prisma.notification.updateMany({
-    where: { userId: user.id, readAt: null },
+    where: { userId: user.id, readAt: null, ...(view ? { OR: [{ roleView: view }, { roleView: null }] } : {}) },
     data: { readAt: new Date() },
   });
 }
@@ -40,8 +42,8 @@ export async function markReadAction(formData: FormData): Promise<void> {
   revalidatePath("/app/notifications");
 }
 
-export async function markAllReadAction(): Promise<void> {
-  await markAllNotificationsRead();
+export async function markAllReadAction(formData: FormData): Promise<void> {
+  await markAllNotificationsRead(knownRoleView(String(formData.get("view") ?? "")) ?? undefined);
   revalidatePath("/app/notifications");
 }
 

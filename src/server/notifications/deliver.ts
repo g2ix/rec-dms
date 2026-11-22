@@ -7,6 +7,8 @@ import { env } from "@/lib/env";
 import { toJson } from "@/server/forms/json";
 import { renderNoticeHtml, transactionalMail, type TransactionalMail } from "@/server/mail";
 import { useAppSchema as pinAppSchema } from "@/server/db";
+import { noticeRoleView } from "@/lib/notifications/role";
+import { roleViewsOf } from "@/server/auth/view";
 
 type Tx = Prisma.TransactionClient;
 
@@ -17,6 +19,8 @@ export type NoticeInput = {
   taskId?: string | null;
   link?: string | null;
   variables?: Record<string, string | null | undefined>;
+  /** The role view the notice is for, when the sender knows it. Otherwise worked out per recipient. */
+  roleView?: string | null;
   /** When set, a retry of the same job does not create a second notice. */
   jobId?: string | null;
   /** False keeps the row in-app and queues email on a SEND_EMAIL job. */
@@ -92,6 +96,9 @@ export async function recordNotice(tx: Tx, input: NoticeInput): Promise<Notifica
   const template = await resolveTemplate(tx, input.templateKey);
   const shared = await baseVariables(tx, input);
   const wantsEmail = input.email !== false && template.channels.includes("EMAIL");
+  const taskRule = input.taskId
+    ? ((await tx.task.findUnique({ where: { id: input.taskId }, select: { candidateRule: true } }))?.candidateRule ?? null)
+    : null;
   const created: Notification[] = [];
   for (const userId of [...new Set(input.userIds)]) {
     const sourceKey = input.jobId ? `${input.jobId}:${userId}:${template.key}` : null;
@@ -111,9 +118,11 @@ export async function recordNotice(tx: Tx, input: NoticeInput): Promise<Notifica
     const preference = await tx.notificationPreference.findUnique({ where: { userId } });
     const digest = wantsEmail && prefersDigest(template.key, preference?.digest ?? "IMMEDIATE");
     const emailStatus = !wantsEmail ? "NONE" : digest ? "DIGEST" : "QUEUED";
+    const roleView = await recipientRoleView(tx, { userId, templateKey: template.key, protocolId: input.protocolId, taskRule, explicit: input.roleView });
     const notice = await tx.notification.create({
       data: {
         userId,
+        roleView,
         type: template.key,
         title: subject,
         body: text,
@@ -138,6 +147,27 @@ export async function recordNotice(tx: Tx, input: NoticeInput): Promise<Notifica
   }
   if (input.sendNow) await sendQueued(tx, created, input.mail ?? transactionalMail());
   return created;
+}
+
+async function recipientRoleView(
+  tx: Tx,
+  input: { userId: string; templateKey: string; protocolId?: string | null; taskRule: unknown; explicit?: string | null },
+): Promise<string | null> {
+  const { views } = await roleViewsOf(input.userId, tx);
+  if (views.length < 2) return null;
+  const member = input.protocolId
+    ? await tx.protocolMember.findFirst({
+        where: { protocolId: input.protocolId, userId: input.userId, status: "ACTIVE" },
+        select: { role: true },
+      })
+    : null;
+  return noticeRoleView({
+    templateKey: input.templateKey,
+    held: views,
+    taskRule: input.taskRule,
+    memberRole: member?.role ?? null,
+    explicit: input.explicit,
+  });
 }
 
 export async function sendQueued(tx: Tx, notices: Notification[], mail: TransactionalMail): Promise<void> {

@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { ROLE_LABEL } from "@/components/shell/nav";
+import { resolveRoleView } from "@/server/auth/view";
 import { z } from "zod";
 import { AppError } from "@/server/errors";
 import { readJsonBody } from "@/server/request-body";
@@ -9,9 +12,12 @@ import { requireUser } from "@/server/session";
 export async function GET() {
   try {
     const user = await requireUser();
-    const latest = await latestNotifications(user.id);
+    const { view, views } = await resolveRoleView(user.id, (await cookies()).get("activeView")?.value);
+    const latest = await latestNotifications(user.id, view, views);
     return NextResponse.json({
       unread: latest.unread,
+      view,
+      elsewhere: latest.elsewhere.map((item) => ({ ...item, label: ROLE_LABEL[item.view] })),
       items: latest.items.map((item) => ({
         id: item.id,
         title: item.title || item.type,

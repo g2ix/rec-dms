@@ -150,7 +150,7 @@ export function AppShell({
                 </span>
               </span>
             ) : (
-              <NotificationBell />
+              <NotificationBell roleView={roleView} />
             )}
             <AccountMenu name={account?.name ?? "Account"} role={ROLE_LABEL[roleView]} />
           </div>

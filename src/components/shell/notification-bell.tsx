@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Icon } from "@/components/icons";
+import { setActiveView } from "@/lib/active-view-cookie";
+import type { RoleView } from "@/lib/role-view";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,17 +24,32 @@ type Item = {
   createdAt: string;
 };
 
-export function NotificationBell() {
+type Elsewhere = { view: RoleView; label: string; count: number };
+
+/**
+ * The bell shows the notices for the role the app is viewed as, plus those not tied to a role.
+ * Unread notices under the person's other roles are listed below, each switching to that role.
+ */
+export function NotificationBell({ roleView }: { roleView?: RoleView }) {
+  const router = useRouter();
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Item[]>([]);
+  const [elsewhere, setElsewhere] = useState<Elsewhere[]>([]);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/notifications");
     if (!response.ok) return;
-    const data = (await response.json()) as { unread: number; items: Item[] };
+    const data = (await response.json()) as { unread: number; items: Item[]; elsewhere?: Elsewhere[] };
     setUnread(data.unread);
     setItems(data.items);
+    setElsewhere(data.elsewhere ?? []);
   }, []);
+
+  function openAs(view: RoleView) {
+    setActiveView(view);
+    router.push("/app/notifications");
+    router.refresh();
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -44,7 +62,8 @@ export function NotificationBell() {
       window.clearTimeout(timer);
       window.clearInterval(interval);
     };
-  }, [load]);
+    // A role switch reloads the list for the new role.
+  }, [load, roleView]);
 
   async function mark(id: string) {
     await fetch("/api/notifications", {
@@ -83,10 +102,17 @@ export function NotificationBell() {
               </DropdownMenuItem>
             ))
           )}
+          {elsewhere.map((item) => (
+            <DropdownMenuItem key={item.view} onClick={() => openAs(item.view)}>
+              <span className="caption">
+                {item.count} unread as {item.label}. Switch to {item.label}
+              </span>
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuItem render={<Link href="/app/notifications" />}>All notifications</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {unread > 0 ? <span className="rec-bell__dot" aria-hidden="true" /> : null}
+      {unread > 0 || elsewhere.length > 0 ? <span className="rec-bell__dot" aria-hidden="true" /> : null}
     </div>
   );
 }
