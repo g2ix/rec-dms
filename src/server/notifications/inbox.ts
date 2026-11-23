@@ -33,30 +33,6 @@ export async function listNotifications(userId: string, take = 50, view?: RoleVi
   });
 }
 
-/** Unread notices waiting under the person's other roles, so the bell can point to them. */
-export async function unreadInOtherViews(userId: string, view: RoleView, views: RoleView[]): Promise<{ view: RoleView; count: number }[]> {
-  const others = views.filter((item) => item !== view);
-  if (others.length === 0) return [];
-  const rows = await prisma.notification.groupBy({
-    by: ["roleView"],
-    where: { userId, readAt: null, roleView: { in: others } },
-    _count: { _all: true },
-  });
-  return others.flatMap((item) => {
-    const count = rows.find((row) => row.roleView === item)?._count._all ?? 0;
-    return count > 0 ? [{ view: item, count }] : [];
-  });
-}
-
-export async function latestNotifications(userId: string, view?: RoleView, views: RoleView[] = []) {
-  const [unread, items, elsewhere] = await Promise.all([
-    unreadCount(userId, view),
-    listNotifications(userId, 10, view),
-    view ? unreadInOtherViews(userId, view, views) : Promise.resolve([]),
-  ]);
-  return { unread, items, elsewhere };
-}
-
 export async function preferenceFor(userId: string): Promise<"IMMEDIATE" | "DAILY"> {
   const row = await prisma.notificationPreference.findUnique({ where: { userId } });
   return row?.digest ?? "IMMEDIATE";

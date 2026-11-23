@@ -23,7 +23,7 @@ import {
 } from "@/server/authz/policy";
 import { userAdminFacts } from "@/server/authz/user-admin";
 import { AppError } from "@/server/errors";
-import { inboxTotal } from "@/server/workflow/inbox";
+import { attentionByRole } from "@/server/notifications/attention";
 import { requireUser } from "@/server/session";
 
 function navCapabilitiesFromFacts(facts: Awaited<ReturnType<typeof userAdminFacts>>): NavCapabilities {
@@ -86,11 +86,14 @@ export async function SignedInChrome({
   }
   const showAdminNav = roleView === "staff" || roleView === "chair";
   const pendingUser = user.status === "PENDING_APPROVAL";
-  const [waiting, adminFacts, profileMissing] = await Promise.all([
-    inboxTotal(user.id, roleView),
+  const [attention, adminFacts, profileMissing] = await Promise.all([
+    attentionByRole(user.id, roleViews),
     showAdminNav ? userAdminFacts(user.id) : null,
     pendingUser ? getPersonProfile(user.id).then((profile) => profileGaps(profile).length > 0) : false,
   ]);
+  const waiting = attention.roles.find((item) => item.view === roleView)?.tasks ?? 0;
+  // Account notices show in every role, so only role-tagged notices and tasks mark a role.
+  const roleWaiting = Object.fromEntries(attention.roles.map((item) => [item.view, item.tasks + item.unread]));
   return (
     <AppShell
       collapsed={jar.get("sidebar")?.value === "rail"}
@@ -100,6 +103,7 @@ export async function SignedInChrome({
       navCapabilities={adminFacts ? navCapabilitiesFromFacts(adminFacts) : EMPTY_NAV_CAPABILITIES}
       account={{ name: user.displayName, email: user.email ?? "" }}
       counts={waiting > 0 ? { "/app/tasks": { value: waiting, waiting: true } } : undefined}
+      roleWaiting={roleWaiting}
     >
       {user.status === "PENDING_APPROVAL" ? (
         <p className="rec-banner rec-banner--pending" role="status">

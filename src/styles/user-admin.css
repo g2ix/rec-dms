@@ -426,6 +426,7 @@ button.rec-role-card:focus-visible .rec-role-card__hint { opacity: 1; }
   max-height: 460px;
   overflow-y: auto;
 }
+.rec-pick-list--all { max-height: none; overflow: hidden; }
 .rec-pick {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

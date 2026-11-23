@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AuditAction } from "@/lib/audit-log";
+import { knownRoleView } from "@/lib/role-view";
 import { postSignInPath, SUSPENDED_SIGN_IN_MESSAGE } from "@/lib/auth-redirect";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/lib/email";
@@ -20,6 +21,7 @@ import { assertPasswordAcceptable, hashPassword, verifyPassword } from "@/server
 import { authenticatePassword, confirmRegistration, startRegistration } from "@/server/auth/register";
 import { signIn, signOut } from "@/server/auth";
 import { redirectToStartPage } from "@/server/auth/gate";
+import { setStartRole, startRoleOf } from "@/server/auth/start-role";
 import { ensureVerifiedEmail } from "@/server/auth/users";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
@@ -89,9 +91,10 @@ export async function signInWithPassword(_prev: ActionState, formData: FormData)
     if (isAuthErrorRedirect(landed)) redirect(authErrorPath(landed));
     const row = await prisma.userEmail.findUnique({
       where: { email: normalizeEmail(parsed.data.email) },
-      select: { defaultView: true },
+      select: { defaultView: true, userId: true },
     });
-    await redirectToStartPage(String(formData.get("callbackUrl") ?? ""), row?.defaultView ?? null);
+    const startView = row?.defaultView ?? (row ? await startRoleOf(row.userId) : null);
+    await redirectToStartPage(String(formData.get("callbackUrl") ?? ""), startView);
     return null;
   } catch (error) {
     if (isNextRedirect(error)) throw error;
@@ -334,5 +337,21 @@ export async function createProtocolAction(_prev: ActionState, formData: FormDat
     redirect(`/app/protocols/${created.protocol.id}`);
   } catch (error) {
     return actionError(error, "The protocol could not be created.");
+  }
+}
+
+export type StartRoleState = { ok: true; saved: string } | { ok: false; error: string } | null;
+
+/** Saves the role the app opens in after each sign-in. "last" keeps the role used last time. */
+export async function saveStartRoleAction(_prev: StartRoleState, formData: FormData): Promise<StartRoleState> {
+  try {
+    const user = await requireUser();
+    const raw = String(formData.get("startRole") ?? "");
+    const view = raw === "last" ? null : knownRoleView(raw);
+    if (raw !== "last" && !view) throw new AppError("INVALID", "Choose a role.", 400);
+    await setStartRole(user.id, view);
+    return { ok: true, saved: view ?? "last" };
+  } catch (error) {
+    return actionError(error, "Your start role could not be saved. Try again.");
   }
 }

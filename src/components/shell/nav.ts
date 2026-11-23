@@ -217,6 +217,11 @@ const LEDES: Record<string, string> = {
 
 const EXTRA_PAGES: { href: string; title: string; lede: string }[] = [
   {
+    href: "/app/account/preferences",
+    title: "Preferences",
+    lede: "The role REC-DMS opens in when you sign in.",
+  },
+  {
     href: "/app/account/sign-in-methods",
     title: "Sign-in methods",
     lede: "Google accounts, emails, and your password.",

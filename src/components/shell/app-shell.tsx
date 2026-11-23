@@ -25,6 +25,7 @@ export function AppShell({
   navCapabilities = EMPTY_NAV_CAPABILITIES,
   account,
   counts,
+  roleWaiting,
   locked = false,
   pathnameOverride,
 }: {
@@ -36,6 +37,8 @@ export function AppShell({
   navCapabilities?: NavCapabilities;
   account?: { name: string; email: string };
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
+  /** Tasks and unread notices waiting in each role, for the role switcher. */
+  roleWaiting?: Partial<Record<RoleView, number>>;
   /** Drawn behind the authenticator check: no search, no live bell, nothing that fetches data. */
   locked?: boolean;
   /** The page the person was heading to, so the nav and crumbs match it while the check is open. */
@@ -71,6 +74,7 @@ export function AppShell({
           navCapabilities={navCapabilities}
           markerId="nav-marker-desktop"
           counts={counts}
+          roleWaiting={roleWaiting}
         />
         <SidebarCollapse collapsed={collapsed} onToggle={toggleCollapsed} />
       </div>
@@ -103,6 +107,7 @@ export function AppShell({
                     navCapabilities={navCapabilities}
                     markerId="nav-marker-drawer"
                     counts={counts}
+                    roleWaiting={roleWaiting}
                   />
                 </motion.div>
               </DialogPrimitive.Popup>

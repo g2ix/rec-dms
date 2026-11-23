@@ -53,6 +53,7 @@ export function SidebarPanel({
   roleSwitcher,
   markerId,
   counts,
+  roleWaiting,
 }: {
   pathname: string;
   collapsed: boolean;
@@ -62,6 +63,7 @@ export function SidebarPanel({
   roleSwitcher?: React.ReactNode;
   markerId: string;
   counts?: Record<string, { value: number; overdue?: boolean; waiting?: boolean }>;
+  roleWaiting?: Partial<Record<RoleView, number>>;
 }) {
   const groups = navGroups(roleView, navCapabilities);
   const items = groups.flatMap((group) => group.items);
@@ -75,7 +77,7 @@ export function SidebarPanel({
       </Link>
       <div className="rec-side__body">
         {roleSwitcher ?? (
-          <RoleSwitch roleView={roleView} roleViews={roleViews ?? [roleView]} />
+          <RoleSwitch roleView={roleView} roleViews={roleViews ?? [roleView]} waiting={roleWaiting ?? {}} />
         )}
         <LayoutGroup id={markerId}>
           {groups.map((group) => (
@@ -101,8 +103,17 @@ export function SidebarPanel({
   );
 }
 
-function RoleSwitch({ roleView, roleViews }: { roleView: RoleView; roleViews: RoleView[] }) {
+function RoleSwitch({
+  roleView,
+  roleViews,
+  waiting,
+}: {
+  roleView: RoleView;
+  roleViews: RoleView[];
+  waiting: Partial<Record<RoleView, number>>;
+}) {
   const router = useRouter();
+  const elsewhere = roleViews.filter((view) => view !== roleView).reduce((sum, view) => sum + (waiting[view] ?? 0), 0);
   if (roleViews.length < 2) {
     return (
       <div className="rec-role">
@@ -123,23 +134,36 @@ function RoleSwitch({ roleView, roleViews }: { roleView: RoleView; roleViews: Ro
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rec-role" aria-label="Switch role">
+      <DropdownMenuTrigger
+        className="rec-role"
+        aria-label={elsewhere > 0 ? `Switch role, ${elsewhere} waiting in your other roles` : "Switch role"}
+      >
         <Icon icon={ChevronsUpDown} size={16} />
         <span className="rec-side__label">{ROLE_LABEL[roleView]}</span>
+        {elsewhere > 0 ? (
+          <span className="rec-role__flag" aria-hidden="true">
+            {elsewhere}
+          </span>
+        ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        {roleViews.map((view) => (
-          <DropdownMenuItem
-            key={view}
-            aria-current={view === roleView ? "true" : undefined}
-            onClick={() => {
-              if (view !== roleView) select(view);
-            }}
-          >
-            {ROLE_LABEL[view]}
-            {view === roleView ? <Icon icon={Check} size={16} className="rec-menu__check" /> : null}
-          </DropdownMenuItem>
-        ))}
+        {roleViews.map((view) => {
+          const count = waiting[view] ?? 0;
+          return (
+            <DropdownMenuItem
+              key={view}
+              aria-current={view === roleView ? "true" : undefined}
+              aria-label={count > 0 ? `${ROLE_LABEL[view]}, ${count} waiting` : undefined}
+              onClick={() => {
+                if (view !== roleView) select(view);
+              }}
+            >
+              {ROLE_LABEL[view]}
+              {count > 0 ? <span className="rec-role__flag">{count}</span> : null}
+              {view === roleView ? <Icon icon={Check} size={16} className="rec-menu__check" /> : null}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

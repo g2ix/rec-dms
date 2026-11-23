@@ -34,6 +34,7 @@ export function AccountMenu({ name, role }: { name: string; role: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem render={<Link href="/app/account/profile" />}>Your details</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/app/account/preferences" />}>Preferences</DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/app/account/signature" />}>Signature</DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/app/account/sign-in-methods" />}>Sign-in methods</DropdownMenuItem>
         <DropdownMenuItem render={<Link href="/app/account/security" />}>Authenticator</DropdownMenuItem>

@@ -123,6 +123,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           view = emailRow?.defaultView ?? null;
         }
+        if (!view && userId) {
+          // An email or Google account added after the start role was chosen still follows it.
+          const anyRow = await prisma.userEmail.findFirst({
+            where: { userId: String(userId), defaultView: { not: null } },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: { defaultView: true },
+          });
+          view = anyRow?.defaultView ?? null;
+        }
         token.identityDefaultView = view;
       }
       if (userId) {
