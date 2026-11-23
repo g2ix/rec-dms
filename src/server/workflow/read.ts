@@ -3,11 +3,13 @@ import type { Prisma } from "@prisma/client";
 import type { RoleView } from "@/lib/role-view";
 import { isReviewerAuthor, REVIEWER_LABEL, seesReviewerNames } from "@/lib/workflow/blinding";
 import { dueState, type DueState } from "@/lib/workflow/due";
-import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type ReviewerSlot, type Step } from "@/lib/workflow/graph";
+import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type ReviewerSlot, type Step, type WorkflowGraph } from "@/lib/workflow/graph";
+import { returnsToProponent } from "@/lib/workflow/review-stage";
+import { pickTransition, type LogicData } from "@/lib/workflow/transitions";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { prisma, useAppSchema } from "@/server/db";
 import { openTasks } from "@/server/workflow/inbox";
-import { readAssignments, readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
+import { isSharedStaffRule, readAssignments, readRule, roleKeysFor, userMatchesRule } from "@/server/workflow/who";
 import { REDESIGNATE_SIDE_KEY, reviewerCaptures } from "@/server/workflow/engine";
 
 export { taskMatchesView } from "@/lib/workflow/views";
@@ -87,6 +89,22 @@ export async function reviewerNameMask(protocolId: string, viewerId: string) {
   };
 }
 
+export type OutcomeHint = { returns: boolean; assignsCode: boolean };
+
+/** What each outcome of a step leads to: back to the proponents, or on to a step that issues the code. */
+function outcomeHints(graph: WorkflowGraph, step: Step, code: string | null): Record<string, OutcomeHint> {
+  const hints: Record<string, OutcomeHint> = {};
+  for (const outcome of step.outcomes ?? []) {
+    const next = pickTransition(graph, step.key, { outcome: outcome.key } as unknown as LogicData);
+    const target = next ? graph.steps.find((item) => item.key === next.to) : undefined;
+    hints[outcome.key] = {
+      returns: returnsToProponent(graph, step.key, outcome.key),
+      assignsCode: !code && Boolean(target?.actions?.some((action) => action.kind === "ASSIGN_PROTOCOL_CODE")),
+    };
+  }
+  return hints;
+}
+
 export async function protocolFlow(protocolId: string, userId: string) {
   const instance = await prisma.workflowInstance.findFirst({
     where: { protocolId },
@@ -114,7 +132,8 @@ export async function protocolFlow(protocolId: string, userId: string) {
       actionable.push(task);
       continue;
     }
-    if (!task.assigneeUserId) {
+    const shared = task.kind === "MAIN" && isSharedStaffRule(readRule(task.candidateRule));
+    if (!task.assigneeUserId || shared) {
       const rule = readRule(task.candidateRule);
       if (rule && (await userMatchesRule(db, rule, userId, protocol, readAssignments(instance.assignments)))) actionable.push(task);
     }
@@ -162,6 +181,9 @@ export async function protocolFlow(protocolId: string, userId: string) {
           noteToReviewers: captures.noteToReviewers,
           reviewDueDate: captures.reviewDueDate,
           canDeclareConflict: Boolean(step && task.kind === "MAIN" && stepAllowsConflict(step)),
+          /** Any REC Staff member may act on it, whoever holds it now. */
+          shared: task.kind === "MAIN" && isSharedStaffRule(readRule(task.candidateRule)),
+          outcomeHints: step && graph.ok ? outcomeHints(graph.graph, step, protocol.code) : {},
         };
       }),
     ),

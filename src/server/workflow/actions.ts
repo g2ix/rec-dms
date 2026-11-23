@@ -114,7 +114,10 @@ export async function completeTaskAction(formData: FormData): Promise<ActionOutc
       if (z.string().uuid().safeParse(id).success) reviewerSlots[name.slice("reviewerSlot:".length)] = id;
     }
     const text = (name: string) => String(formData.get(name) ?? "").trim() || null;
+    const panelId = text("panelId");
+    if (panelId) await authorize(user, "protocol.panel", { type: "protocol", id: protocolId });
     await completeTask(taskId, user.id, {
+      panelId: panelId ? z.string().uuid().parse(panelId) : null,
       outcome: text("outcome"),
       comment: text("comment"),
       reviewerUserIds: reviewers,

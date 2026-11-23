@@ -268,7 +268,12 @@ describe("workflow engine", () => {
     await claimTask(screen.id, staffA.id);
     const moved = await reassignTask(screen.id, staffA.id, staffB.id, "Covering the desk");
     await expect(reassignTask(screen.id, reviewerA.id, staffA.id, "No")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await completeTask(moved, staffB.id, { outcome: "RETURN" });
+    // A REC Staff task is shared: staffA may finish it while it sits with staffB; a reviewer may not.
+    await expect(completeTask(moved, reviewerA.id, { outcome: "RETURN" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await completeTask(moved, staffA.id, { outcome: "RETURN" });
+    const returned = await prisma.task.findUniqueOrThrow({ where: { id: moved } });
+    expect(returned.completedById).toBe(staffA.id);
+    expect(returned.assigneeUserId).toBe(staffA.id);
     const waiting = await prisma.protocol.findUniqueOrThrow({ where: { id: created.protocol.id } });
     expect(waiting.status).toBe("Awaiting Revision");
     const revise = await prisma.task.findFirstOrThrow({ where: { instanceId: pinned.id, stepKey: "revise", status: "OPEN" } });

@@ -15,11 +15,13 @@ import { renderProtocolCode, sequenceFromCode, hasSequenceToken } from "@/lib/pr
 import { parseGraph, slotsOf, stepAllowsConflict, type AssigneeRule, type Step, type WorkflowGraph, type Transition } from "@/lib/workflow/graph";
 import { pickTransition, stepIsComplete, type LogicData } from "@/lib/workflow/transitions";
 import { settleRevisionNotes } from "@/server/revision/notes";
+import { returnsToProponent } from "@/lib/workflow/review-stage";
 import { audit } from "@/server/audit";
 import { prisma, useAppSchema as pinAppSchema } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
 import { freezeWorkingVersion } from "@/server/protocols/snapshot";
+import { changePanelTx } from "@/server/protocols/panel";
 import { signatureMarks, toRoster } from "@/server/signatures/sign";
 import { isCommitteeStaff } from "@/server/authz/staff";
 import { loadAuthoredRows } from "@/server/forms/authored";
@@ -28,6 +30,7 @@ import {
   claimable,
   eligibleForSlot,
   firstAvailable,
+  isSharedStaffRule,
   readAssignments,
   readRule,
   readSlotAssignments,
@@ -66,6 +69,8 @@ export type CompleteInput = {
   newDueAt?: string | null;
   /** yyyy-MM-dd. Required when the step records a meeting date. */
   meetingDate?: string | null;
+  /** REC Staff: the panel to send the protocol to, set as the staff step completes. */
+  panelId?: string | null;
 };
 
 export type TaskResult = {
@@ -292,7 +297,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
     return completeSideTask(tx, task, instance, graph, userId, input, meta);
   }
   const step = stepOf(graph, task.stepKey ?? "");
-  const protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
+  let protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
   const assignments = readAssignments(instance.assignments);
   const outcome = input.outcome?.trim() || null;
   if (userId) {
@@ -308,6 +313,12 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
   const chosen = step.outcomes?.find((item) => item.key === outcome);
   if (chosen?.requiresComment && !input.comment?.trim()) {
     throw new AppError("INVALID", `Give a reason for “${chosen.label}”.`, 400);
+  }
+  // The panel goes with an accept; on a return it stays as it is.
+  if (input.panelId && userId && !returnsToProponent(graph, step.key, outcome)) {
+    if (!isSharedStaffRule(step.assignee)) throw new AppError("INVALID", "The panel can only be chosen on a REC Staff step.", 400);
+    await changePanelTx(tx, { protocolId: protocol.id, panelId: input.panelId, actorUserId: userId, meta });
+    protocol = await tx.protocol.findUniqueOrThrow({ where: { id: instance.protocolId } });
   }
   if (userId && step.decline && outcome === step.decline.outcome) {
     return declineTaskTx(tx, { task, instance, graph, step, protocol, userId, reason: input.comment?.trim() ?? "", meta });
@@ -393,7 +404,7 @@ export async function completeTaskTx(tx: Tx, taskId: string, userId: string | nu
       status: "COMPLETED",
       outcome,
       comment,
-      assigneeUserId: task.assigneeUserId ?? userId,
+      assigneeUserId: userId ?? task.assigneeUserId, // a shared REC Staff task finished by a colleague is recorded as theirs
       completedAt,
       completedById: userId,
     },
@@ -858,10 +869,8 @@ async function assertCanAct(
   protocol: { id: string; panelId: string | null; leaderUserId: string },
   assignments: Record<string, string[]>,
 ) {
-  if (assigneeUserId) {
-    if (assigneeUserId !== userId) throw new AppError("FORBIDDEN", "This task is not assigned to you.", 403);
-    return;
-  }
+  if (assigneeUserId === userId) return;
+  if (assigneeUserId && !isSharedStaffRule(rule)) throw new AppError("FORBIDDEN", "This task is not assigned to you.", 403);
   if (!rule || !(await userMatchesRule(tx, rule, userId, protocol, assignments))) {
     throw new AppError("FORBIDDEN", "This task is not assigned to you.", 403);
   }

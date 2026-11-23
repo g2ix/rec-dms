@@ -8,6 +8,7 @@ import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { toJson } from "@/server/forms/json";
 import { intakeFormsBefore, refreshIntakeForms } from "@/server/intake/service";
+import { changePanelTx } from "@/server/protocols/panel";
 
 export const protocolDetailsSchema = z.object({
   title: z.string().trim().min(1, "Enter the protocol title.").max(300),
@@ -177,21 +178,5 @@ async function writeDetails(protocolId: string, userId: string, data: Prisma.Pro
 
 export async function changePanel(protocolId: string, actorUserId: string, panelId: string) {
   const meta = await auditRequestMeta({});
-  return prisma.$transaction(async (tx) => {
-    const panel = await tx.panel.findUnique({ where: { id: panelId } });
-    if (!panel || !panel.active) throw new AppError("NOT_FOUND", "That panel was not found.", 404);
-    const before = await tx.protocol.findUnique({ where: { id: protocolId } });
-    if (!before) throw new AppError("NOT_FOUND", "That protocol was not found.", 404);
-    await tx.protocol.update({ where: { id: protocolId }, data: { panelId: panel.id } });
-    await audit.record(tx, {
-      actorUserId,
-      actingRole: "REC_STAFF",
-      action: AuditAction.panelChanged,
-      entityType: "protocol",
-      entityId: protocolId,
-      protocolId,
-      diff: diffOf({ panelId: before.panelId }, { panelId: panel.id }),
-      meta,
-    });
-  });
+  return prisma.$transaction((tx) => changePanelTx(tx, { protocolId, panelId, actorUserId, meta }));
 }

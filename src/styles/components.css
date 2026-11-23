@@ -3216,3 +3216,45 @@ a.rec-ready__item:hover .body-sm { text-decoration: underline; }
 .rec-notice[data-unread="true"] { border-left: 4px solid var(--brand-gold); }
 .rec-notice__unread { color: var(--warning); font-weight: 600; }
 
+/* Screening: the submission to check, and the two decisions. */
+.rec-screening__grid { display: grid; align-items: start; gap: var(--space-6); grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.rec-screening__list { list-style: none; margin: 0; padding: 0; display: grid; }
+.rec-screening__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.rec-screening__row:last-child { border-bottom: 0; }
+.rec-screening__text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.rec-screening__row .rec-inline { flex: none; flex-wrap: nowrap; }
+.rec-screening__grid > .rec-stack { align-content: start; }
+.rec-screening__missing {
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  display: grid;
+  gap: var(--space-1);
+}
+.rec-decisions { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.rec-decision {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+.rec-decision input { margin-top: 3px; flex: none; }
+.rec-decision__text { display: grid; gap: var(--space-1); }
+.rec-decision--return:has(input:checked) { border-color: var(--warning); background: var(--warning-soft); }
+.rec-decision--accept:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.rec-decision:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rec-disclosure > summary { cursor: pointer; font-weight: 600; }
+.rec-disclosure[open] > summary { margin-bottom: var(--space-3); }

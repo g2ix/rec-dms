@@ -8,6 +8,7 @@ import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
 import { usesIntake } from "@/server/intake/state";
+import { isSharedStaffRule } from "@/server/workflow/who";
 
 type Tx = Prisma.TransactionClient;
 
@@ -67,7 +68,6 @@ export async function returnableTask(db: Tx | typeof prisma, userId: string, pro
       kind: "MAIN",
       status: { in: ["OPEN", "CLAIMED"] },
       instance: { protocolId, status: "RUNNING" },
-      OR: [{ assigneeUserId: userId }, { assigneeUserId: null }],
     },
     include: { instance: { include: { version: { select: { graph: true } } } } },
   });
@@ -79,7 +79,11 @@ export async function returnableTask(db: Tx | typeof prisma, userId: string, pro
     if (!step || returnOutcomes(parsed.graph, step).length === 0) continue;
     // Protocols on the 2025 forms keep their return flow: a single comment, no pinned notes.
     if (!(await usesIntake(db, task.instance.protocolVersionId))) continue;
-    if (task.assigneeUserId !== userId && !(await mayClaim(db, userId, protocolId, step))) continue;
+    if (task.assigneeUserId !== userId) {
+      // Someone else's task counts only when it is a shared REC Staff task.
+      if (task.assigneeUserId && !isSharedStaffRule(step.assignee)) continue;
+      if (!(await mayClaim(db, userId, protocolId, step))) continue;
+    }
     return { task, step, graph: parsed.graph, versionId: task.instance.protocolVersionId, role: noteRoleOf(step) };
   }
   return null;

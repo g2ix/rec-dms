@@ -14,6 +14,7 @@ import {
   decideProtocolAction,
 } from "@/server/authz/policy";
 import { isCommitteeStaff } from "@/server/authz/staff";
+import { isSharedStaffRule, readRule } from "@/server/workflow/who";
 import { userAdminFacts } from "@/server/authz/user-admin";
 
 let reader: ProtocolMembershipReader = prismaMembershipReader();
@@ -103,10 +104,15 @@ export async function authorize(
   }
   if (action === "task.complete" || action === "task.claim") {
     if (!resource?.id) throw new AppError("FORBIDDEN", "You cannot do that.", 403);
-    const task = await prisma.task.findUnique({ where: { id: resource.id }, select: { assigneeUserId: true, status: true } });
+    const task = await prisma.task.findUnique({
+      where: { id: resource.id },
+      select: { assigneeUserId: true, status: true, kind: true, candidateRule: true },
+    });
     if (!task) throw new AppError("NOT_FOUND", "That task was not found.", 404);
     if (task.status === "COMPLETED") return;
-    if (task.assigneeUserId && task.assigneeUserId !== user.id) {
+    // A REC Staff task is shared by the office; the engine checks the person holds REC Staff.
+    const shared = action === "task.complete" && task.kind === "MAIN" && isSharedStaffRule(readRule(task.candidateRule));
+    if (task.assigneeUserId && task.assigneeUserId !== user.id && !shared) {
       throw new AppError("FORBIDDEN", "This task is not assigned to you.", 403);
     }
     return;

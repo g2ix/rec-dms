@@ -3,6 +3,8 @@ import { ActionForm } from "@/components/ui/action-result";
 import { BusyButton } from "@/components/ui/busy-button";
 import { TaskCommentList } from "@/components/workflow/task-comments";
 import { ReturnNotes } from "@/components/workflow/return-notes";
+import { ScreeningPanel } from "@/components/workflow/screening-panel";
+import { listPanels } from "@/server/protocols/read";
 import { returnNotesPanel } from "@/server/revision/notes";
 import { dueState } from "@/lib/workflow/due";
 import { formatManila } from "@/lib/time";
@@ -54,7 +56,10 @@ export async function ProtocolFlow({
         return (
           <article key={task.id} className="rec-card rec-stack">
             <h3 className="subheading">{task.title}</h3>
-            <p className="body-sm">{task.assigneeName ?? "Unclaimed"}</p>
+            <p className="body-sm">
+              {task.assigneeName ?? "Unclaimed"}
+              {staff && isShared(task.candidateRule) ? " · any REC Staff member can process it" : ""}
+            </p>
             {task.dueAt ? <p className="body-sm">{formatManila(task.dueAt, "d MMM yyyy, h:mm a")}</p> : null}
             {due ? <StatusBadge tone={due.tone} label={due.label} /> : null}
           </article>
@@ -76,15 +81,24 @@ export async function ProtocolFlow({
       {flow.mine.map((task) =>
         task.step && task.step.type !== "WAIT_PROPONENT" ? (
           <div key={task.id} className="rec-stack">
-            {task.assigneeUserId != null && !task.side && !task.redesignate ? <ReturnNotesFor protocolId={protocolId} userId={userId} taskId={task.id} /> : null}
-            <TaskForm protocolId={protocolId} task={task} unclaimed={task.assigneeUserId == null} />
+            {isScreening(task) ? <ScreeningPanel protocolId={protocolId} userId={userId} requiredUploads={requiredUploads(flow.steps)} /> : null}
+            {(task.assigneeUserId != null || task.shared) && !task.side && !task.redesignate ? (
+              <ReturnNotesFor protocolId={protocolId} userId={userId} taskId={task.id} />
+            ) : null}
+            <TaskForm protocolId={protocolId} task={task} unclaimed={task.assigneeUserId == null && !task.shared} />
             {task.canDeclareConflict && task.assigneeUserId ? <ConflictForm protocolId={protocolId} taskId={task.id} /> : null}
           </div>
         ) : null,
       )}
       {staff
         ? flow.open.map((task) => (
-            <Reassign key={`reassign-${task.id}`} protocolId={protocolId} taskId={task.id} ruleRole={roleOf(task.candidateRule)} />
+            <Reassign
+              key={`reassign-${task.id}`}
+              protocolId={protocolId}
+              taskId={task.id}
+              ruleRole={roleOf(task.candidateRule)}
+              holder={task.assigneeName}
+            />
           ))
         : null}
       <TaskCommentList comments={comments} level="h3" />
@@ -97,6 +111,24 @@ async function ReturnNotesFor({ protocolId, userId, taskId }: { protocolId: stri
   const panel = await returnNotesPanel(userId, protocolId);
   if (!panel || panel.taskId !== taskId) return null;
   return <ReturnNotes protocolId={protocolId} anchors={panel.anchors} drafts={panel.drafts} />;
+}
+
+function isShared(value: unknown): boolean {
+  const rule = readRule(value);
+  return rule?.kind === "ROLE" && rule.role === "REC_STAFF";
+}
+
+/** Uploads the submission step (the first one that asks for files) requires: what screening checks for. */
+function requiredUploads(steps: { uploads?: { kind: string; required?: boolean }[] }[]): string[] {
+  const submission = steps.find((step) => (step.uploads?.length ?? 0) > 0);
+  return [...new Set((submission?.uploads ?? []).filter((upload) => upload.required).map((upload) => upload.kind))];
+}
+
+/** A REC Staff step that can either send the protocol back or move it on: the screening of a submission. */
+function isScreening(task: MineTask): boolean {
+  if (!task.shared || task.side || task.redesignate) return false;
+  const hints = Object.values(task.outcomeHints);
+  return hints.some((hint) => hint.returns) && hints.some((hint) => !hint.returns);
 }
 
 function roleOf(value: unknown): string | null {
@@ -126,6 +158,11 @@ async function TaskForm({ protocolId, task, unclaimed }: { protocolId: string; t
   const redesignateOptions = redesignate && task.slot ? await slotReviewerOptions(protocolId, task.slot) : [];
   const meetingDay = step.capture?.meetingDate && !side ? await meetingDefault(protocolId) : undefined;
   const title = redesignate ? "Re-designate the reviewer" : side?.name ?? step.name;
+  const screening = isScreening(task);
+  const panels = screening ? await listPanels() : [];
+  const currentPanelId = screening
+    ? ((await prisma.protocol.findUnique({ where: { id: protocolId }, select: { panelId: true } }))?.panelId ?? null)
+    : null;
   if (unclaimed) {
     return (
       <form action={claimTaskAction} className="rec-card rec-stack">
@@ -138,7 +175,7 @@ async function TaskForm({ protocolId, task, unclaimed }: { protocolId: string; t
     );
   }
   return (
-    <ActionForm action={completeTaskAction} className="rec-card rec-stack" submitLabel={`Complete ${title}`} busyLabel="Completing…">
+    <ActionForm action={completeTaskAction} className="rec-card rec-stack" submitLabel={screening ? "Submit decision" : `Complete ${title}`} busyLabel="Completing…">
       <input type="hidden" name="taskId" value={task.id} />
       <input type="hidden" name="protocolId" value={protocolId} />
       {task.slot && !redesignate ? <p className="body-sm">Your slot: {task.slot.label}</p> : null}
@@ -148,7 +185,45 @@ async function TaskForm({ protocolId, task, unclaimed }: { protocolId: string; t
           <span className="label">Note from the chair</span> {task.noteToReviewers}
         </p>
       ) : null}
-      {outcomes && outcomes.length > 0 ? (
+      {screening && outcomes ? (
+        <fieldset className="rec-stack">
+          <legend className="label">Decision</legend>
+          <div className="rec-decisions">
+            {[...outcomes]
+              .sort((a, b) => Number(Boolean(task.outcomeHints[b.key]?.returns)) - Number(Boolean(task.outcomeHints[a.key]?.returns)))
+              .map((outcome) => {
+                const hint = task.outcomeHints[outcome.key];
+                return (
+                  <label key={outcome.key} className={`rec-decision ${hint?.returns ? "rec-decision--return" : "rec-decision--accept"}`}>
+                    <input type="radio" name="outcome" value={outcome.key} required />
+                    <span className="rec-decision__text">
+                      <span className="body">{hint?.returns ? "Return to the proponents for editing" : "Complete: send to the panel"}</span>
+                      <span className="caption rec-muted">
+                        {hint?.returns
+                          ? "Add your comments to the sections above first. The proponents (and the adviser) are told, and see each comment where it applies."
+                          : `${hint?.assignsCode ? "The protocol code is assigned automatically. " : ""}The Panel Chair of the panel below decides the type of review.`}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+          </div>
+          {panels.length > 0 ? (
+            <label className="rec-field">
+              <span className="label">Panel to review it</span>
+              <select className="rec-select" name="panelId" defaultValue={currentPanelId ?? ""}>
+                {currentPanelId ? null : <option value="">Choose…</option>}
+                {panels.map((panel) => (
+                  <option key={panel.id} value={panel.id}>
+                    {panel.code} · {panel.name}
+                  </option>
+                ))}
+              </select>
+              <span className="rec-field__help">Filled in from the discipline. Used only when you complete it; a return keeps the panel as it is.</span>
+            </label>
+          ) : null}
+        </fieldset>
+      ) : outcomes && outcomes.length > 0 ? (
         <fieldset className="rec-stack">
           <legend className="label">Outcome</legend>
           {outcomes.map((outcome) => (
@@ -244,8 +319,11 @@ async function TaskForm({ protocolId, task, unclaimed }: { protocolId: string; t
         </label>
       ) : null}
       <label className="rec-field rec-field--wide">
-        <span className="label">Comment</span>
+        <span className="label">{screening ? "Overall note (optional)" : "Comment"}</span>
         <textarea className="rec-input" name="comment" rows={3} />
+        {screening ? (
+          <span className="rec-field__help">A general message that goes with your decision. Comments on a specific section go in the box above.</span>
+        ) : null}
       </label>
     </ActionForm>
   );
@@ -267,11 +345,28 @@ function ConflictForm({ protocolId, taskId }: { protocolId: string; taskId: stri
   );
 }
 
-async function Reassign({ protocolId, taskId, ruleRole }: { protocolId: string; taskId: string; ruleRole: string | null }) {
+async function Reassign({
+  protocolId,
+  taskId,
+  ruleRole,
+  holder,
+}: {
+  protocolId: string;
+  taskId: string;
+  ruleRole: string | null;
+  holder: string | null;
+}) {
   const people = ruleRole ? await reviewerOptions(protocolId, [ruleRole]) : [];
   if (people.length === 0) return null;
   return (
-    <form action={reassignTaskAction} className="rec-actions">
+    <details className="rec-disclosure">
+      <summary className="body-sm">Hand this task to someone else{holder ? ` (now with ${holder})` : ""}</summary>
+      <p className="caption rec-muted">
+        {ruleRole === "REC_STAFF"
+          ? "You don't need this to process it: any REC Staff member can complete this task. Use it to make one person responsible, for example during leave."
+          : "Moves the task to another person with the same role. They are notified, and the reason is kept in the audit log."}
+      </p>
+      <form action={reassignTaskAction} className="rec-actions">
       <input type="hidden" name="taskId" value={taskId} />
       <input type="hidden" name="protocolId" value={protocolId} />
       <label className="rec-field">
@@ -289,6 +384,7 @@ async function Reassign({ protocolId, taskId, ruleRole }: { protocolId: string; 
         <input className="rec-input" name="reason" required />
       </label>
       <BusyButton type="submit">Reassign</BusyButton>
-    </form>
+      </form>
+    </details>
   );
 }

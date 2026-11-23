@@ -6,6 +6,14 @@ import { bootstrapAdminEmails } from "@/server/auth/bootstrap";
 type Tx = Prisma.TransactionClient;
 type ProtocolRef = { id: string; panelId: string | null; leaderUserId: string };
 
+/**
+ * REC Staff tasks belong to the whole office: any REC Staff member may act on one, even while it
+ * sits with a colleague, so a task never waits on one person. Other role tasks stay personal.
+ */
+export function isSharedStaffRule(rule: AssigneeRule | null | undefined): boolean {
+  return rule?.kind === "ROLE" && rule.role === "REC_STAFF";
+}
+
 export async function roleKeysFor(tx: Tx, userId: string): Promise<Set<string>> {
   const grants = await tx.userRole.findMany({
     where: { userId, revokedAt: null },
