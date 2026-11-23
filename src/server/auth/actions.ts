@@ -20,7 +20,7 @@ import { assertPasswordAcceptable, hashPassword, verifyPassword } from "@/server
 import { authenticatePassword, confirmRegistration, startRegistration } from "@/server/auth/register";
 import { signIn, signOut } from "@/server/auth";
 import { redirectToStartPage } from "@/server/auth/gate";
-import { decidePendingUser, ensureVerifiedEmail } from "@/server/auth/users";
+import { ensureVerifiedEmail } from "@/server/auth/users";
 import { AppError } from "@/server/errors";
 import { requireUser } from "@/server/session";
 import { studySelectionFromForm } from "@/lib/protocols/catalog";
@@ -288,22 +288,6 @@ export async function completeMergeAction(_prev: ActionState, formData: FormData
   }
 }
 
-export async function approveUserAction(formData: FormData) {
-  const actor = await requireUser();
-  await authorize(actor, "users.manage");
-  const userId = String(formData.get("userId") ?? "");
-  await decidePendingUser({ actorUserId: actor.id, userId, decision: "approve" });
-  redirect("/admin/users/pending");
-}
-
-export async function rejectUserAction(formData: FormData) {
-  const actor = await requireUser();
-  await authorize(actor, "users.manage");
-  const userId = String(formData.get("userId") ?? "");
-  await decidePendingUser({ actorUserId: actor.id, userId, decision: "reject" });
-  redirect("/admin/users/pending");
-}
-
 export async function adminMergeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const actor = await requireUser();
@@ -315,7 +299,7 @@ export async function adminMergeAction(_prev: ActionState, formData: FormData): 
     const secondaryUserId = primaryUserId === first ? second : first;
     await assertMayMergeAccounts(actor.id, [primaryUserId, secondaryUserId]);
     await mergeAsAdmin(actor.id, primaryUserId, secondaryUserId);
-    redirect("/admin/users?merged=1");
+    redirect("/admin/users/merge?merged=1");
   } catch (error) {
     return actionError(error, "The accounts could not be merged.");
   }

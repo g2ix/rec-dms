@@ -4,7 +4,15 @@ import { AuditAction } from "@/lib/audit-log";
 import { authorize } from "@/server/authz";
 import { prisma } from "@/server/db";
 import { makeUser } from "@/server/test/users";
-import { assertMayMergeAccounts, changePanelChair, grantRole, panelOverview, revokeRole } from "@/server/users/roles";
+import {
+  applyRoleChanges,
+  approvePendingUser,
+  assertMayMergeAccounts,
+  changePanelChair,
+  grantRole,
+  panelOverview,
+  revokeRole,
+} from "@/server/users/roles";
 
 const person = (name: string, status?: "ACTIVE" | "PENDING_APPROVAL") => {
   const suffix = crypto.randomUUID().slice(0, 8);
@@ -50,7 +58,7 @@ afterEach(() => {
 });
 
 describe("users.manage", () => {
-  it("allows REC Staff and System Admin, and nobody else", async () => {
+  it("allows REC Staff, the REC Chair, and System Admin, and nobody else", async () => {
     const staff = await person("staff");
     const admin = await person("admin");
     const chair = await person("chair");
@@ -61,7 +69,7 @@ describe("users.manage", () => {
 
     await expect(authorize(staff, "users.manage")).resolves.toBeUndefined();
     await expect(authorize(admin, "users.manage")).resolves.toBeUndefined();
-    await expect(authorize(chair, "users.manage")).rejects.toMatchObject(forbidden);
+    await expect(authorize(chair, "users.manage")).resolves.toBeUndefined();
     await expect(authorize(plain, "users.manage")).rejects.toMatchObject(forbidden);
   });
 
@@ -159,7 +167,7 @@ describe("granting a role", () => {
   it("grants a global role and audits it", async () => {
     const staff = await person("staff");
     const target = await person("target");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const member = await role("REC_MEMBER");
 
     const grant = await grantRole({ actorUserId: staff.id, userId: target.id, roleId: member.id, panelId: null });
@@ -174,7 +182,7 @@ describe("granting a role", () => {
   it("needs a panel for a panel role, and records it", async () => {
     const staff = await person("staff");
     const target = await person("target");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const chair = await role("PANEL_CHAIR", "PANEL");
     const onePanel = await panel();
 
@@ -225,10 +233,10 @@ describe("granting a role", () => {
     const target = await person("target");
     const other = await person("other");
     const pending = await person("pending", "PENDING_APPROVAL");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const member = await role("REC_MEMBER");
     const chair = await role("PANEL_CHAIR", "PANEL");
-    const adviser = await role("ADVISER", "PROTOCOL");
+    const leader = await role("PROJECT_LEADER", "PROTOCOL");
     const onePanel = await panel();
 
     await grantRole({ actorUserId: staff.id, userId: target.id, roleId: member.id, panelId: null });
@@ -237,7 +245,7 @@ describe("granting a role", () => {
     await grantRole({ actorUserId: staff.id, userId: target.id, roleId: chair.id, panelId: onePanel.id });
     await expect(grantRole({ actorUserId: staff.id, userId: other.id, roleId: chair.id, panelId: onePanel.id })).rejects.toMatchObject(invalid);
 
-    await expect(grantRole({ actorUserId: staff.id, userId: other.id, roleId: adviser.id, panelId: null })).rejects.toMatchObject(invalid);
+    await expect(grantRole({ actorUserId: staff.id, userId: other.id, roleId: leader.id, panelId: null })).rejects.toMatchObject(invalid);
     await expect(grantRole({ actorUserId: staff.id, userId: pending.id, roleId: member.id, panelId: null })).rejects.toMatchObject(invalid);
   });
 });
@@ -246,7 +254,7 @@ describe("revoking a role", () => {
   it("needs a reason, ends the grant, and audits the reason", async () => {
     const staff = await person("staff");
     const target = await person("target");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const grant = await hold(target.id, "REC_MEMBER");
 
     await expect(revokeRole({ actorUserId: staff.id, userRoleId: grant.id, reason: "   " })).rejects.toMatchObject(invalid);
@@ -284,7 +292,7 @@ describe("panels", () => {
     const staff = await person("staff");
     const before = await person("before");
     const after = await person("after");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const onePanel = await panel();
     const old = await hold(before.id, "PANEL_CHAIR", onePanel.id);
 
@@ -303,7 +311,7 @@ describe("panels", () => {
   it("assigns a first chair without a reason", async () => {
     const staff = await person("staff");
     const chair = await person("chair");
-    await hold(staff.id, "REC_STAFF");
+    await hold(staff.id, "REC_CHAIR");
     const onePanel = await panel();
     await changePanelChair({ actorUserId: staff.id, panelId: onePanel.id, newChairUserId: chair.id, reason: "" });
     expect(await events(AuditAction.roleGranted, chair.id)).toHaveLength(1);
@@ -335,5 +343,91 @@ describe("merging accounts", () => {
     await expect(assertMayMergeAccounts(staff.id, [staff.id, admin.id])).rejects.toMatchObject(forbidden);
     await expect(assertMayMergeAccounts(staff.id, [staff.id, plain.id])).resolves.toBeUndefined();
     await expect(assertMayMergeAccounts(admin.id, [admin.id, plain.id])).resolves.toBeUndefined();
+  });
+});
+
+describe("who grants what", () => {
+  it("lets REC Staff set account roles but keeps committee roles for the REC Chair", async () => {
+    const staff = await person("staff");
+    const chair = await person("chair");
+    const target = await person("target");
+    await hold(staff.id, "REC_STAFF");
+    await hold(chair.id, "REC_CHAIR");
+    const adviser = await role("ADVISER", "PROTOCOL");
+    const reviewer = await role("PRIMARY_REVIEWER");
+    const panelChair = await role("PANEL_CHAIR", "PANEL");
+    const onePanel = await panel();
+
+    const grant = await grantRole({ actorUserId: staff.id, userId: target.id, roleId: adviser.id, panelId: null });
+    expect(grant.panelId).toBeNull();
+    await expect(grantRole({ actorUserId: staff.id, userId: target.id, roleId: reviewer.id, panelId: null })).rejects.toMatchObject(forbidden);
+    await expect(grantRole({ actorUserId: staff.id, userId: target.id, roleId: panelChair.id, panelId: onePanel.id })).rejects.toMatchObject(forbidden);
+    await expect(changePanelChair({ actorUserId: staff.id, panelId: onePanel.id, newChairUserId: target.id, reason: "" })).rejects.toMatchObject(forbidden);
+
+    await grantRole({ actorUserId: chair.id, userId: target.id, roleId: reviewer.id, panelId: null });
+    const reviewerGrant = await prisma.userRole.findFirstOrThrow({ where: { userId: target.id, roleId: reviewer.id, revokedAt: null } });
+    await expect(revokeRole({ actorUserId: staff.id, userRoleId: reviewerGrant.id, reason: "No" })).rejects.toMatchObject(forbidden);
+  });
+
+  it("saves staged changes together, and hands a single-holder role over only with a reason", async () => {
+    const chair = await person("chair");
+    const before = await person("before");
+    const after = await person("after");
+    await hold(chair.id, "REC_CHAIR");
+    const onePanel = await panel();
+    const secretary = await role("PANEL_SECRETARY", "PANEL");
+    const old = await hold(before.id, "PANEL_SECRETARY", onePanel.id);
+    const memberGrant = await hold(after.id, "REC_MEMBER");
+
+    const add = [{ roleId: secretary.id, panelId: onePanel.id }];
+    await expect(applyRoleChanges({ actorUserId: chair.id, userId: after.id, add, remove: [], reason: "" })).rejects.toMatchObject(invalid);
+    await expect(applyRoleChanges({ actorUserId: chair.id, userId: after.id, add: [], remove: [memberGrant.id], reason: "" })).rejects.toMatchObject(invalid);
+
+    await applyRoleChanges({ actorUserId: chair.id, userId: after.id, add, remove: [memberGrant.id], reason: "New term" });
+    expect((await prisma.userRole.findUniqueOrThrow({ where: { id: old.id } })).revokedAt).not.toBeNull();
+    expect((await prisma.userRole.findUniqueOrThrow({ where: { id: memberGrant.id } })).revokedAt).not.toBeNull();
+    expect(await prisma.userRole.count({ where: { userId: after.id, roleId: secretary.id, panelId: onePanel.id, revokedAt: null } })).toBe(1);
+  });
+
+  it("rolls every staged change back when one is refused", async () => {
+    const staff = await person("staff");
+    const target = await person("target");
+    await hold(staff.id, "REC_STAFF");
+    const adviser = await role("ADVISER", "PROTOCOL");
+    const reviewer = await role("PRIMARY_REVIEWER");
+    await expect(
+      applyRoleChanges({
+        actorUserId: staff.id,
+        userId: target.id,
+        add: [
+          { roleId: adviser.id, panelId: null },
+          { roleId: reviewer.id, panelId: null },
+        ],
+        remove: [],
+        reason: "",
+      }),
+    ).rejects.toMatchObject(forbidden);
+    expect(await prisma.userRole.count({ where: { userId: target.id } })).toBe(0);
+  });
+});
+
+describe("approving a pending account", () => {
+  it("needs a complete profile and a chosen account type, then grants it", async () => {
+    const staff = await person("staff");
+    const pending = await person("pending", "PENDING_APPROVAL");
+    await hold(staff.id, "REC_STAFF");
+    await role("PROPONENT", "PROTOCOL");
+
+    await expect(approvePendingUser({ actorUserId: staff.id, userId: pending.id, accountRoles: ["PROPONENT"] })).rejects.toMatchObject(invalid);
+    await prisma.personProfile.create({
+      data: { userId: pending.id, kind: "INDUSTRY_PARTNER", position: "Research lead", institutionText: "Acme Labs" },
+    });
+    await expect(approvePendingUser({ actorUserId: staff.id, userId: pending.id, accountRoles: [] })).rejects.toMatchObject(invalid);
+
+    await approvePendingUser({ actorUserId: staff.id, userId: pending.id, accountRoles: ["PROPONENT"] });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe("ACTIVE");
+    expect(await prisma.userRole.count({ where: { userId: pending.id, role: { key: "PROPONENT" }, revokedAt: null } })).toBe(1);
+    expect(await events(AuditAction.userApproved, pending.id)).toHaveLength(1);
+    await expect(approvePendingUser({ actorUserId: staff.id, userId: pending.id, accountRoles: ["PROPONENT"] })).rejects.toMatchObject(invalid);
   });
 });

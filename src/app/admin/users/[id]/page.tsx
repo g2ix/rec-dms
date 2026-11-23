@@ -1,20 +1,26 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { GrantRoleForm, RevokeRoleForm } from "@/components/admin/role-forms";
+import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Icon } from "@/components/icons";
+import { RoleBoard } from "@/components/admin/role-board";
 import { UserStatusBadge } from "@/components/admin/user-status-badge";
 import { formatManila } from "@/lib/time";
-import { authorize } from "@/server/authz";
 import { requireUser } from "@/server/session";
+import { profileRows } from "@/server/users/profile-summary";
 import { userRoleDetail } from "@/server/users/roles";
 
-export const metadata = { title: "Manage roles" };
+export const metadata = { title: "Person" };
 
-const DONE: Record<string, string> = {
-  granted: "The role was granted.",
-  revoked: "The role was revoked.",
-};
+function doneMessage(done: string | undefined): string | null {
+  const match = done?.match(/^(\d+)-(\d+)$/);
+  if (!match) return null;
+  const granted = Number(match[1]);
+  const revoked = Number(match[2]);
+  const parts = [granted ? `${granted} granted` : "", revoked ? `${revoked} revoked` : ""].filter(Boolean);
+  return parts.length ? `Saved: ${parts.join(", ")}.` : null;
+}
 
-export default async function UserRolesPage({
+export default async function PersonPage({
   params,
   searchParams,
 }: {
@@ -22,65 +28,76 @@ export default async function UserRolesPage({
   searchParams: Promise<{ done?: string }>;
 }) {
   const actor = await requireUser();
-  try {
-    await authorize(actor, "users.manage");
-  } catch {
-    redirect("/app");
-  }
   const { id } = await params;
   const { done } = await searchParams;
   const detail = await userRoleDetail(actor.id, id);
   if (!detail) notFound();
-  const message = done ? DONE[done] : undefined;
+  const [rows] = await profileRows([detail.profile]);
+  const message = doneMessage(done);
 
   return (
     <article className="rec-stack">
       <p className="body-sm">
-        <Link href="/admin/users">Back to users</Link>
+        <Link href="/admin/users" className="rec-back">
+          <Icon icon={ArrowLeft} size={16} /> All people
+        </Link>
       </p>
-      <h1 className="title">{detail.displayName}</h1>
-      <div className="rec-actions">
-        <span className="body">{detail.email ?? "No email"}</span>
-        <UserStatusBadge status={detail.status} />
-      </div>
-      {message ? <p className="rec-banner">{message}</p> : null}
 
-      <section className="rec-stack" aria-labelledby="current-roles">
-        <h2 className="heading" id="current-roles">
-          Current roles
-        </h2>
-        {detail.grants.length === 0 ? <p className="body">This person holds no committee role.</p> : null}
-        {detail.grants.map((grant) => (
-          <div className="rec-card rec-stack" key={grant.id}>
-            <div>
-              <h3 className="subheading">{grant.roleName}</h3>
-              {grant.panelName ? <p className="body-sm">{grant.panelName}</p> : null}
-              <p className="caption rec-muted">
-                Granted {formatManila(grant.grantedAt, "d MMM yyyy")}
-                {grant.grantedBy ? ` by ${grant.grantedBy}` : ""}
-              </p>
-            </div>
-            {grant.canRevoke ? (
-              <RevokeRoleForm userId={detail.id} userRoleId={grant.id} roleName={grant.roleName} />
-            ) : (
-              <p className="body-sm rec-muted">Only a System Admin can revoke this role.</p>
-            )}
+      <section className="rec-card rec-person-head" aria-label="About this person">
+        <div className="rec-person-head__id">
+          <h2 className="title">{detail.displayName}</h2>
+          <div className="rec-actions">
+            <span className="body">{detail.email ?? "No email"}</span>
+            <UserStatusBadge status={detail.status} />
           </div>
-        ))}
+          <p className="caption rec-muted">
+            Signed up {formatManila(detail.createdAt, "d MMM yyyy")}
+            {detail.approvedAt ? ` · approved ${formatManila(detail.approvedAt, "d MMM yyyy")}` : ""}
+          </p>
+        </div>
+        {rows && rows.length > 0 ? (
+          <dl className="rec-facts-grid">
+            {rows.map((row) => (
+              <div key={row.label}>
+                <dt className="caption rec-muted">{row.label}</dt>
+                <dd className="body">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {detail.profileGaps.length > 0 ? (
+          <div className="rec-gaps">
+            <p className="body-sm">Profile not complete:</p>
+            <ul>
+              {detail.profileGaps.map((gap) => (
+                <li key={gap} className="body-sm">
+                  {gap}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {detail.status === "PENDING_APPROVAL" ? (
+          <p className="body-sm">
+            This account is waiting. <Link href="/admin/users/pending">Review it under Pending approval</Link>.
+          </p>
+        ) : null}
       </section>
 
-      <section className="rec-stack" aria-labelledby="grant-role-heading">
-        <h2 className="heading" id="grant-role-heading">
-          Grant a role
-        </h2>
-        {detail.status !== "ACTIVE" ? (
-          <p className="body">Only an active account can be given a role.</p>
-        ) : detail.options.roles.length === 0 ? (
-          <p className="body">No roles are set up yet. The operator needs to run the database seed.</p>
-        ) : (
-          <GrantRoleForm userId={detail.id} roles={detail.options.roles} panels={detail.options.panels} />
-        )}
-      </section>
+      {message ? (
+        <p className="rec-banner" role="status">
+          {message}
+        </p>
+      ) : null}
+
+      {/* Remounts after a save so staged changes clear once the grants they named exist. */}
+      <RoleBoard
+        key={detail.cards.map((card) => [card.grantId, ...(card.panels ?? []).map((panel) => panel.grantId)].join(",")).join(";")}
+        userId={detail.id} active={detail.status === "ACTIVE"} cards={detail.cards} />
+
+      {detail.otherGrants.length > 0 ? (
+        <p className="body-sm rec-muted">Also holds: {detail.otherGrants.map((grant) => grant.roleName).join(", ")}.</p>
+      ) : null}
     </article>
   );
 }

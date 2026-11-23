@@ -1,104 +1,100 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { AdminMergeForm } from "@/components/account/merge-forms";
+import type { UserStatus } from "@prisma/client";
+import { ChevronRight, Search } from "lucide-react";
+import { Icon } from "@/components/icons";
 import { UserStatusBadge } from "@/components/admin/user-status-badge";
-import { authorize } from "@/server/authz";
-import { canEditForms, canViewAudit } from "@/server/authz/policy";
-import { userAdminFacts } from "@/server/authz/user-admin";
-import { requireUser } from "@/server/session";
-import { listUsersWithRoles } from "@/server/users/roles";
+import { isAccountRole } from "@/lib/users/role-authority";
+import { listUsersWithRoles, userStatusCounts } from "@/server/users/roles";
 
-export const metadata = { title: "Users" };
+export const metadata = { title: "User management" };
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string; merged?: string }>;
-}) {
-  const actor = await requireUser();
-  try {
-    await authorize(actor, "users.manage");
-  } catch {
-    redirect("/app");
-  }
+const FILTERS: { value: "" | "active" | "pending" | "suspended"; label: string; status?: UserStatus }[] = [
+  { value: "", label: "All" },
+  { value: "active", label: "Active", status: "ACTIVE" },
+  { value: "pending", label: "Pending", status: "PENDING_APPROVAL" },
+  { value: "suspended", label: "Suspended", status: "SUSPENDED" },
+];
+
+function filterHref(q: string, status: string): string {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return query ? `/admin/users?${query}` : "/admin/users";
+}
+
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const query = await searchParams;
   const q = query.q?.trim() ?? "";
-  const [users, facts] = await Promise.all([listUsersWithRoles(q), userAdminFacts(actor.id)]);
-  const showForms = canEditForms(facts);
-  const showAudit = canViewAudit(facts);
+  const filter = FILTERS.find((item) => item.value === query.status) ?? FILTERS[0]!;
+  const [users, counts] = await Promise.all([listUsersWithRoles(q, filter.status), userStatusCounts()]);
+  const countOf: Record<string, number> = {
+    "": counts.active + counts.pending + counts.suspended,
+    active: counts.active,
+    pending: counts.pending,
+    suspended: counts.suspended,
+  };
 
   return (
-    <article className="rec-stack">
-      <h1 className="title">Users</h1>
-      <p className="body rec-muted">
-        Open a person to grant or revoke a role. REC Staff can also merge two accounts when someone has separate faculty and student identities. Conflicting roles on the same protocol stop the merge and name the protocol.
-      </p>
-      <p className="body-sm">
-        <Link href="/admin/users/pending">Pending approval</Link>
-        {" · "}
-        <Link href="/admin/panels">Panels</Link>
-        {showForms ? (
-          <>
-            {" · "}
-            <Link href="/admin/forms">Forms</Link>
-          </>
-        ) : null}
-        {showAudit ? (
-          <>
-            {" · "}
-            <Link href="/admin/audit">Audit log</Link>
-          </>
-        ) : null}
-      </p>
-      {query.merged ? <p className="rec-banner">The accounts were merged. The second account can no longer sign in.</p> : null}
-      <form className="rec-actions" action="/admin/users">
-        <label className="label" htmlFor="user-search">
-          Search
-        </label>
-        <input id="user-search" name="q" className="rec-input" defaultValue={q} />
-        <button className="rec-btn rec-btn--secondary" type="submit">
-          <span>Search</span>
-        </button>
-      </form>
-      {users.length === 0 ? (
-        <p className="body">No accounts match that search.</p>
-      ) : (
-        <div className="rec-table-wrap">
-          <table className="rec-table">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Email</th>
-                <th scope="col">Status</th>
-                <th scope="col">Roles</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.displayName}</td>
-                  <td>{user.email ?? "—"}</td>
-                  <td>
-                    <UserStatusBadge status={user.status} />
-                  </td>
-                  <td>{user.roles.length > 0 ? user.roles.join(", ") : "No committee role"}</td>
-                  <td>
-                    <Link href={`/admin/users/${user.id}`}>Manage roles</Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <section className="rec-stack" aria-label="People">
+      <p className="body rec-muted">Open a person to see their profile and change what they can do.</p>
+      <div className="rec-user-toolbar">
+        <form className="rec-user-search" action="/admin/users" role="search">
+          {filter.value ? <input type="hidden" name="status" value={filter.value} /> : null}
+          <label className="rec-visually-hidden" htmlFor="user-search">
+            Search people
+          </label>
+          <Icon icon={Search} size={18} />
+          <input id="user-search" name="q" className="rec-input" defaultValue={q} placeholder="Search by name or email" />
+          <button className="rec-btn rec-btn--secondary" type="submit">
+            <span>Search</span>
+          </button>
+        </form>
+        <div className="rec-segment" role="group" aria-label="Show">
+          {FILTERS.map((item) => (
+            <Link key={item.value} href={filterHref(q, item.value)} aria-current={item.value === filter.value ? "true" : undefined}>
+              {item.label}
+              <span className="rec-segment__count">{countOf[item.value]}</span>
+            </Link>
+          ))}
         </div>
+      </div>
+
+      {users.length === 0 ? (
+        <p className="rec-empty body">{q ? `No one matches “${q}”.` : "No accounts here."}</p>
+      ) : (
+        <ul className="rec-people" aria-label="People">
+          {users.map((user) => (
+            <li key={user.id}>
+              <Link href={`/admin/users/${user.id}`} className="rec-person-row">
+                <span className="rec-person-row__who">
+                  <span className="rec-person-row__name">{user.displayName}</span>
+                  <span className="body-sm rec-muted">{user.email ?? "No email"}</span>
+                </span>
+                <span className="rec-person-row__status">
+                  <UserStatusBadge status={user.status} />
+                </span>
+                <span className="rec-person-row__roles">
+                  {user.roles.length === 0 ? (
+                    <span className="body-sm rec-muted">No roles yet</span>
+                  ) : (
+                    user.roles.map((role) => (
+                      <span key={role.key} className={`rec-role-chip${isAccountRole(role.key) ? " rec-role-chip--account" : ""}`}>
+                        {role.name}
+                      </span>
+                    ))
+                  )}
+                </span>
+                <span className="rec-person-row__go">
+                  Manage
+                  <Icon icon={ChevronRight} size={18} />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-      <h2 className="heading">Merge two accounts</h2>
-      <AdminMergeForm
-        users={users.map((user) => ({
-          id: user.id,
-          label: `${user.displayName} — ${user.email ?? "no email"}`,
-        }))}
-      />
-    </article>
+      {users.length === 50 ? <p className="body-sm rec-muted">Showing the first 50. Search to narrow the list.</p> : null}
+    </section>
   );
 }

@@ -1,5 +1,8 @@
 import { cookies, headers } from "next/headers";
+import Link from "next/link";
 import { Clock } from "lucide-react";
+import { profileGaps } from "@/lib/profile";
+import { getPersonProfile } from "@/server/profiles/profile";
 import { Icon } from "@/components/icons";
 import { TotpGate } from "@/components/auth/totp-gate";
 import { AppShell } from "@/components/shell/app-shell";
@@ -82,9 +85,11 @@ export async function SignedInChrome({
     );
   }
   const showAdminNav = roleView === "staff" || roleView === "chair";
-  const [waiting, adminFacts] = await Promise.all([
+  const pendingUser = user.status === "PENDING_APPROVAL";
+  const [waiting, adminFacts, profileMissing] = await Promise.all([
     inboxTotal(user.id, roleView),
     showAdminNav ? userAdminFacts(user.id) : null,
+    pendingUser ? getPersonProfile(user.id).then((profile) => profileGaps(profile).length > 0) : false,
   ]);
   return (
     <AppShell
@@ -100,8 +105,15 @@ export async function SignedInChrome({
         <p className="rec-banner rec-banner--pending" role="status">
           <Icon icon={Clock} size={18} />
           <span>
-            <strong>Your account is waiting for REC Staff approval.</strong> You can prepare everything now. You can submit once your account is
-            approved.
+            <strong>Your account is waiting for REC Staff approval.</strong>{" "}
+            {profileMissing ? (
+              <>
+                REC Staff can approve it once your profile is complete.{" "}
+                <Link href="/app/account/profile">Complete your profile</Link>.
+              </>
+            ) : (
+              <>You can prepare everything now. You can submit once your account is approved.</>
+            )}
           </span>
         </p>
       ) : null}

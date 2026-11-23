@@ -63,7 +63,7 @@ export async function authorize(
 
   if (action === "users.manage") {
     if (canManageUsers(await userAdminFacts(user.id))) return;
-    throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can manage users.", 403);
+    throw new AppError("FORBIDDEN", "Only REC Staff, the REC Chair, or a System Admin can manage users.", 403);
   }
   if (action === "audit.view") {
     if (canViewAudit(await userAdminFacts(user.id))) return;

@@ -5,10 +5,10 @@ const hrefs = (view: RoleView, caps: Partial<NavCapabilities> = {}) =>
   navGroups(view, { ...EMPTY_NAV_CAPABILITIES, ...caps }).flatMap((group) => group.items.map((item) => item.href));
 
 describe("navGroups", () => {
-  it.each<RoleView>(["staff", "chair"])("sends a user manager in the %s view to the management screens", (view) => {
+  it.each<RoleView>(["staff", "chair"])("sends a user manager in the %s view to one User management entry", (view) => {
     const items = hrefs(view, { manageUsers: true });
     expect(items).toContain("/admin/users");
-    expect(items).toContain("/admin/panels");
+    expect(items).not.toContain("/admin/panels");
     expect(items).not.toContain("/app/users");
   });
 

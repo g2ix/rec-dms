@@ -22,7 +22,8 @@ describe("user administration", () => {
   it("allows REC Staff and System Admin to manage users", () => {
     expect(canManageUsers(facts(["REC_STAFF"], false, true))).toBe(true);
     expect(canManageUsers(facts(["SYSTEM_ADMIN"], false, true))).toBe(true);
-    expect(canManageUsers(facts(["REC_CHAIR", "PANEL_CHAIR"], false, true))).toBe(false);
+    expect(canManageUsers(facts(["REC_CHAIR", "PANEL_CHAIR"], false, true))).toBe(true);
+    expect(canManageUsers(facts(["PANEL_CHAIR"], false, true))).toBe(false);
     expect(canManageUsers(facts([]))).toBe(false);
   });
 

@@ -5,7 +5,8 @@ import { DEFAULT_MEMBER_ROLE, DEFAULT_ROLE_RULES, parseMemberSheet, sameAttribut
 import { readFirstSheet } from "@/lib/xlsx";
 import { audit, auditRequestMeta, diffOf } from "@/server/audit";
 import { createPerson } from "@/server/auth/users";
-import { canManageUsers } from "@/server/authz/policy";
+import { canGrantAs } from "@/lib/users/role-authority";
+import { actsAsSystemAdmin, canManageUsers } from "@/server/authz/policy";
 import { userAdminFacts } from "@/server/authz/user-admin";
 import { prisma } from "@/server/db";
 import { settingValue } from "@/server/effective";
@@ -119,7 +120,10 @@ export async function planImport(db: Db, rows: ImportRow[], skipped: { sheetRow:
 }
 
 export async function assertPanelManager(actorUserId: string) {
-  if (!canManageUsers(await userAdminFacts(actorUserId))) throw new AppError("FORBIDDEN", "Only REC Staff or a System Admin can import panel members.", 403);
+  const facts = await userAdminFacts(actorUserId);
+  if (!canManageUsers(facts) || !canGrantAs({ roleKeys: facts.roleKeys, actsAsSystemAdmin: actsAsSystemAdmin(facts) }, "chair")) {
+    throw new AppError("FORBIDDEN", "Only the REC Chair or a System Admin can import panel members.", 403);
+  }
 }
 
 /**

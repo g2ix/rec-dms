@@ -268,3 +268,27 @@ export function toMembershipAffiliation(input: {
     ...shared,
   };
 }
+
+/**
+ * What is still missing before an account can be approved. A proponent's forms are prefilled from this profile,
+ * so an account is approved only once the profile would pass the same check the profile form runs.
+ */
+export function profileGaps(profile: PersonProfileView | null): string[] {
+  if (!profile) return ["Profile not started: who they are, and where they study or work."];
+  const parsed = profileDraftSchema.safeParse({
+    kind: profile.kind,
+    academicLevel: profile.academicLevel,
+    institutionId: profile.institutionId,
+    schoolId: profile.schoolId,
+    departmentId: profile.departmentId,
+    officeId: profile.officeId,
+    programId: profile.programId,
+    institutionText: profile.institutionText,
+    unitText: profile.unitText,
+    programText: profile.programText,
+    yearLabel: profile.yearLabel,
+    position: profile.position,
+  });
+  if (parsed.success) return [];
+  return [...new Set(parsed.error.issues.map((issue) => issue.message))];
+}

@@ -21,7 +21,6 @@ import {
   Settings,
   UserRound,
   Users,
-  UsersRound,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -141,10 +140,8 @@ export const NAV: Record<RoleView, NavGroup[]> = {
   chair: officeGroups,
 };
 
-const USER_ADMIN_ITEMS: NavItem[] = [
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/panels", label: "Panels", icon: UsersRound },
-];
+/** People, pending approvals, panels, and merges share one entry; tabs inside switch between them. */
+const USER_ADMIN_ITEMS: NavItem[] = [{ href: "/admin/users", label: "User management", icon: Users }];
 
 export type NavCapabilities = {
   manageUsers: boolean;

@@ -138,6 +138,15 @@ export const TEMPLATES: NoticeTemplate[] = [
     variables: ["recipientName", "link"],
   },
   {
+    key: "account.profile_needed",
+    subject: "Finish your REC-DMS profile",
+    bodyMarkdown:
+      "{{recipientName}}, REC Staff can approve your account once your profile is complete. Say whether you are a student, faculty, or staff, and where you study or work.\n\n[Complete your profile]({{link}})",
+    channels: ["IN_APP", "EMAIL"],
+    description: "Sent when REC Staff ask a pending account to complete its profile.",
+    variables: ["recipientName", "link"],
+  },
+  {
     key: "signature.voided",
     subject: "Signature void on {{protocolTitle}}",
     bodyMarkdown: "A form you signed was edited. Your signature is void and needs to be signed again.\n\n[Open the protocol]({{link}})",

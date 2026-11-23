@@ -33,8 +33,9 @@ export function actsAsSystemAdmin(facts: UserAdminFacts): boolean {
   return facts.roleKeys.has("SYSTEM_ADMIN") || (facts.bootstrap && !facts.systemAdminExists);
 }
 
+/** User management: REC Staff approve accounts; the REC Chair appoints the committee there. */
 export function canManageUsers(facts: UserAdminFacts): boolean {
-  return facts.roleKeys.has("REC_STAFF") || actsAsSystemAdmin(facts);
+  return facts.roleKeys.has("REC_STAFF") || facts.roleKeys.has("REC_CHAIR") || actsAsSystemAdmin(facts);
 }
 
 /** Audit log: REC Staff, REC Chair, and System Admin. */
